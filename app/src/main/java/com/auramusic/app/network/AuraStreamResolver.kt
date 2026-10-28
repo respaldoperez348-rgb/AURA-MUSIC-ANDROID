@@ -24,43 +24,61 @@ object AuraStreamResolver {
         }
     }
 
-    suspend fun resolveAudioStream(videoIdOrUrl: String): String? = withContext(Dispatchers.IO) {
+    suspend fun resolveAudioStream(videoIdOrUrl: String, fallbackQuery: String? = null): String? = withContext(Dispatchers.IO) {
         init()
-        val key = videoIdOrUrl.substringAfterLast("v=").substringBefore("&")
+        var actualId = videoIdOrUrl.substringAfterLast("v=").substringBefore("&").trim()
 
-        // 1. Check in-memory stream cache for instantaneous playback
-        val cached = streamCache[key]
+        // 1. If it's an Album or Playlist browseId, resolve its first track
+        if (actualId.startsWith("MPREb_") || actualId.startsWith("VL") || actualId.startsWith("PL")) {
+            val resolved = YouTubeMusicEngine.resolveFirstTrackFromBrowse(actualId)
+            if (!resolved.isNullOrBlank()) {
+                actualId = resolved
+            }
+        }
+
+        // 2. If it's not a standard 11-char YouTube ID, use fallback query search
+        if (actualId.length != 11 && !fallbackQuery.isNullOrBlank()) {
+            val searched = YouTubeMusicEngine.searchFirstPlayableVideoId(fallbackQuery)
+            if (!searched.isNullOrBlank()) {
+                actualId = searched
+            }
+        }
+
+        if (actualId.isBlank()) return@withContext null
+
+        // 3. Check in-memory stream cache
+        val cached = streamCache[actualId]
         if (cached != null) {
             val (url, timestamp) = cached
             if (System.currentTimeMillis() - timestamp < CACHE_EXPIRATION_MS) {
                 return@withContext url
             } else {
-                streamCache.remove(key)
+                streamCache.remove(actualId)
             }
         }
 
         try {
-            val url = if (videoIdOrUrl.startsWith("http")) videoIdOrUrl else "https://www.youtube.com/watch?v=$videoIdOrUrl"
+            val url = if (actualId.startsWith("http")) actualId else "https://www.youtube.com/watch?v=$actualId"
             val info = StreamInfo.getInfo(ServiceList.YouTube, url)
-            
-            // 1. Pick the best audio-only stream (M4A or Opus)
+
+            // 4. Pick best audio-only stream (M4A or Opus)
             val audioStreams = info.audioStreams
             if (!audioStreams.isNullOrEmpty()) {
                 val best = audioStreams.maxByOrNull { it.averageBitrate } ?: audioStreams[0]
                 if (!best.content.isNullOrBlank()) {
                     val directUrl = best.content
-                    streamCache[key] = Pair(directUrl, System.currentTimeMillis())
+                    streamCache[actualId] = Pair(directUrl, System.currentTimeMillis())
                     return@withContext directUrl
                 }
             }
 
-            // 2. Fallback to video streams containing audio track
+            // 5. Fallback to video streams containing audio track
             val videoStreams = info.videoStreams
             if (!videoStreams.isNullOrEmpty()) {
                 val videoWithAudio = videoStreams.firstOrNull { !it.content.isNullOrBlank() }
                 if (videoWithAudio != null) {
                     val directUrl = videoWithAudio.content
-                    streamCache[key] = Pair(directUrl, System.currentTimeMillis())
+                    streamCache[actualId] = Pair(directUrl, System.currentTimeMillis())
                     return@withContext directUrl
                 }
             }
@@ -68,6 +86,17 @@ object AuraStreamResolver {
             null
         } catch (e: Exception) {
             e.printStackTrace()
+            // If primary resolve failed and fallback query is available, try searching once more
+            if (!fallbackQuery.isNullOrBlank() && fallbackQuery != actualId) {
+                try {
+                    val altId = YouTubeMusicEngine.searchFirstPlayableVideoId(fallbackQuery)
+                    if (!altId.isNullOrBlank() && altId != actualId) {
+                        return@withContext resolveAudioStream(altId, null)
+                    }
+                } catch (ex: Exception) {
+                    ex.printStackTrace()
+                }
+            }
             null
         }
     }

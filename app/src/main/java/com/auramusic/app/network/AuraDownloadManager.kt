@@ -55,7 +55,7 @@ class AuraDownloadManager(
                 val directStreamUrl = if (song.id.startsWith("local_")) {
                     song.mediaUri
                 } else {
-                    AuraStreamResolver.resolveAudioStream(song.id) ?: song.mediaUri
+                    AuraStreamResolver.resolveAudioStream(song.id, "${song.title} ${song.artist}") ?: ""
                 }
 
                 val downloadUrl = if (directStreamUrl.startsWith("http")) directStreamUrl else {

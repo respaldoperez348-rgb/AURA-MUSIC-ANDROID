@@ -374,7 +374,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 } else if (song.id.startsWith("local_")) {
                     song.mediaUri
                 } else {
-                    AuraStreamResolver.resolveAudioStream(song.id) ?: song.mediaUri
+                    val fallback = "${song.title} ${song.artist}"
+                    AuraStreamResolver.resolveAudioStream(song.id, fallback)
                 }
             }
 
@@ -384,6 +385,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             val playableUri = streamDeferred.await()
             val artworkBytes = artworkDeferred.await()
+
+            if (playableUri.isNullOrBlank() || playableUri.startsWith("https://www.youtube.com")) {
+                android.util.Log.e("PlayerViewModel", "Playable audio stream could not be resolved for: ${song.title} (${song.id})")
+                _uiState.update { it.copy(isPlaying = false) }
+                return@launch
+            }
 
             // 4. Build MediaMetadata with Artwork URI and Artwork Data Bytes for system notification
             val metaBuilder = MediaMetadata.Builder()

@@ -14,11 +14,13 @@ object YouTubeMusicEngine {
 
     private val client = OkHttpClient.Builder()
         .connectionPool(okhttp3.ConnectionPool(10, 5, TimeUnit.MINUTES))
-        .connectTimeout(6, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     private const val SEARCH_URL = "https://music.youtube.com/youtubei/v1/search?prettyPrint=false"
+    private const val BROWSE_URL = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false"
     private val searchCache = java.util.concurrent.ConcurrentHashMap<String, List<Song>>()
 
     suspend fun searchTracks(query: String): List<Song> = withContext(Dispatchers.IO) {
@@ -27,18 +29,10 @@ object YouTubeMusicEngine {
         searchCache[cacheKey]?.let { return@withContext it }
 
         try {
-            val payload = JSONObject().apply {
-                put("context", JSONObject().apply {
-                    put("client", JSONObject().apply {
-                        put("clientName", "WEB_REMIX")
-                        put("clientVersion", "1.20240101.01.00")
-                        put("hl", "en")
-                    })
-                })
-                put("query", effectiveQuery)
-            }
+            val escapedQuery = effectiveQuery.replace("\\", "\\\\").replace("\"", "\\\"")
+            val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"en","gl":"US"}},"query":"$escapedQuery"}"""
 
-            val requestBody = payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val requestBody = payload.toRequestBody("application/json; charset=utf-8".toMediaType())
             val request = Request.Builder()
                 .url(SEARCH_URL)
                 .post(requestBody)
@@ -140,6 +134,9 @@ object YouTubeMusicEngine {
                         candidate != "Video" &&
                         candidate != "Single" &&
                         candidate != "Album" &&
+                        candidate != "Playlist" &&
+                        candidate != "Episode" &&
+                        candidate != "Podcast" &&
                         !candidate.endsWith("plays") &&
                         !candidate.endsWith("views")
                     ) {
@@ -149,17 +146,23 @@ object YouTubeMusicEngine {
                 }
             }
 
-            // Video ID from overlay or navigationEndpoint or playlistItemData
+            // 1. Video ID from overlay or flex columns or navigationEndpoint
             var videoId = ""
-            val overlay = col.optJSONObject("overlay")
+            val overlayPlay = col.optJSONObject("overlay")
                 ?.optJSONObject("musicItemThumbnailOverlayRenderer")
                 ?.optJSONObject("content")
                 ?.optJSONObject("musicPlayButtonRenderer")
                 ?.optJSONObject("playNavigationEndpoint")
-                ?.optJSONObject("watchEndpoint")
 
-            if (overlay != null) {
-                videoId = overlay.optString("videoId")
+            val overlayWatch = overlayPlay?.optJSONObject("watchEndpoint")
+            if (overlayWatch != null) {
+                videoId = overlayWatch.optString("videoId")
+            }
+
+            if (videoId.isBlank() && titleRuns != null && titleRuns.length() > 0) {
+                val nav = titleRuns.getJSONObject(0).optJSONObject("navigationEndpoint")
+                val w = nav?.optJSONObject("watchEndpoint")
+                if (w != null) videoId = w.optString("videoId")
             }
 
             if (videoId.isBlank()) {
@@ -172,7 +175,38 @@ object YouTubeMusicEngine {
                 if (plItem != null) videoId = plItem.optString("videoId")
             }
 
-            // Thumbnail
+            // 2. Detect Artist / Album / Playlist identifiers
+            var isArtistItem = false
+            val navEndpoint = col.optJSONObject("navigationEndpoint")
+            var browseId = navEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId") ?: ""
+            if (browseId.isBlank() && titleRuns != null && titleRuns.length() > 0) {
+                browseId = titleRuns.getJSONObject(0).optJSONObject("navigationEndpoint")
+                    ?.optJSONObject("browseEndpoint")?.optString("browseId") ?: ""
+            }
+
+            val playlistId = overlayPlay?.optJSONObject("watchPlaylistEndpoint")?.optString("playlistId") ?: ""
+
+            if (browseId.startsWith("UC") || browseId.contains("artist", ignoreCase = true) ||
+                artist.equals("Artist", ignoreCase = true) || artist.equals("Artista", ignoreCase = true)) {
+                isArtistItem = true
+            }
+
+            // 3. If videoId is blank but it's an Album/Single (MPREb_) or Playlist (PL...), resolve first playable track!
+            if (videoId.isBlank() && !isArtistItem) {
+                val targetBrowse = if (browseId.startsWith("MPREb_") || browseId.startsWith("VL")) {
+                    browseId
+                } else if (playlistId.isNotBlank()) {
+                    if (playlistId.startsWith("VL")) playlistId else "VL$playlistId"
+                } else {
+                    ""
+                }
+
+                if (targetBrowse.isNotBlank()) {
+                    videoId = resolveFirstTrackFromBrowse(targetBrowse) ?: ""
+                }
+            }
+
+            // 4. Thumbnail
             var thumb = ""
             val thumbnails = col.optJSONObject("thumbnail")
                 ?.optJSONObject("musicThumbnailRenderer")
@@ -193,18 +227,12 @@ object YouTubeMusicEngine {
                 thumb = thumb.replace(Regex("=w\\d+-h\\d+"), "=w544-h544")
             }
 
-            // Check if item is an Artist profile
-            var isArtistItem = false
-            val navEndpoint = col.optJSONObject("navigationEndpoint")
-            val browseId = navEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId") ?: ""
-            if (browseId.startsWith("UC") || browseId.contains("artist", ignoreCase = true)) {
-                isArtistItem = true
-            }
-            if (artist.equals("Artist", ignoreCase = true) || artist.equals("Artista", ignoreCase = true)) {
-                isArtistItem = true
+            // If it's not an artist and still has no videoId, we drop the unplayable item instead of creating bogus hash URLs
+            if (videoId.isBlank() && !isArtistItem) {
+                return null
             }
 
-            val finalId = if (videoId.isNotBlank()) videoId else (if (browseId.isNotBlank()) browseId else title.hashCode().toString())
+            val finalId = if (isArtistItem) (if (browseId.isNotBlank()) browseId else title) else videoId
             val mediaUrl = if (isArtistItem) "" else "https://www.youtube.com/watch?v=$finalId"
 
             return Song(
@@ -216,6 +244,50 @@ object YouTubeMusicEngine {
                 mediaUri = mediaUrl,
                 isArtist = isArtistItem
             )
+        } catch (e: Exception) {
+            return null
+        }
+    }
+
+    fun resolveFirstTrackFromBrowse(browseId: String): String? {
+        try {
+            val actualBrowseId = if (browseId.startsWith("PL") && !browseId.startsWith("VL")) "VL$browseId" else browseId
+            val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"en","gl":"US"}},"browseId":"$actualBrowseId"}"""
+
+            val request = Request.Builder()
+                .url(BROWSE_URL)
+                .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string() ?: return null
+                val match = Regex("\"videoId\":\\s*\"([a-zA-Z0-9_-]{11})\"").find(body)
+                return match?.groupValues?.get(1)
+            }
+        } catch (e: Exception) {
+            return null
+        }
+    }
+
+    fun searchFirstPlayableVideoId(query: String): String? {
+        try {
+            val escapedQuery = query.replace("\\", "\\\\").replace("\"", "\\\"")
+            val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"en","gl":"US"}},"query":"$escapedQuery"}"""
+
+            val request = Request.Builder()
+                .url(SEARCH_URL)
+                .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string() ?: return null
+                val match = Regex("\"videoId\":\\s*\"([a-zA-Z0-9_-]{11})\"").find(body)
+                return match?.groupValues?.get(1)
+            }
         } catch (e: Exception) {
             return null
         }
