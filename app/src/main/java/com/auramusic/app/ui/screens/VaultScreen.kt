@@ -21,13 +21,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,7 +51,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.auramusic.app.data.database.DownloadedTrack
+import com.auramusic.app.data.database.Playlist
 import com.auramusic.app.data.model.Song
+import com.auramusic.app.ui.components.CreatePlaylistDialog
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
 import com.auramusic.app.ui.theme.CyberCyanGlow
@@ -58,19 +67,26 @@ import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
 
 enum class VaultTab {
-    FAVORITES, LOCAL, PLAYLISTS
+    FAVORITES, DOWNLOADS, PLAYLISTS, LOCAL
 }
 
 @Composable
 fun VaultScreen(
     favorites: List<Song>,
+    downloads: List<DownloadedTrack>,
+    playlists: List<Playlist>,
     currentSong: Song,
     isPlaying: Boolean,
     onSelectSong: (Song) -> Unit,
     onPlayAllFavorites: () -> Unit,
+    onPlayAllDownloads: () -> Unit,
+    onCreatePlaylist: (title: String) -> Unit,
+    onDeletePlaylist: (playlistId: String) -> Unit,
+    onOpenSongOptions: (Song) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(VaultTab.FAVORITES) }
+    var showCreateDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -93,8 +109,14 @@ fun VaultScreen(
                 fontFamily = FontFamily.Monospace,
                 letterSpacing = 1.5.sp
             )
+            val infoText = when (selectedTab) {
+                VaultTab.FAVORITES -> "${favorites.size} Favorites"
+                VaultTab.DOWNLOADS -> "${downloads.size} Offline"
+                VaultTab.PLAYLISTS -> "${playlists.size} Playlists"
+                VaultTab.LOCAL -> "Local Storage"
+            }
             Text(
-                text = "${favorites.size} Saved Tracks",
+                text = infoText,
                 color = TextMuted,
                 fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace
@@ -103,7 +125,7 @@ fun VaultScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Vault Sub-tabs (Favorites, Local Files, Playlists)
+        // Vault 4-Tab Navigation Selector
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -115,10 +137,24 @@ fun VaultScreen(
         ) {
             VaultTabButton(
                 icon = Icons.Default.Favorite,
-                label = "FAVORITES",
+                label = "FAVS",
                 isSelected = selectedTab == VaultTab.FAVORITES,
                 accentColor = CyberPink,
                 onClick = { selectedTab = VaultTab.FAVORITES }
+            )
+            VaultTabButton(
+                icon = Icons.Default.Download,
+                label = "OFFLINE",
+                isSelected = selectedTab == VaultTab.DOWNLOADS,
+                accentColor = CyberCyan,
+                onClick = { selectedTab = VaultTab.DOWNLOADS }
+            )
+            VaultTabButton(
+                icon = Icons.AutoMirrored.Filled.PlaylistPlay,
+                label = "LISTS",
+                isSelected = selectedTab == VaultTab.PLAYLISTS,
+                accentColor = CyberCyan,
+                onClick = { selectedTab = VaultTab.PLAYLISTS }
             )
             VaultTabButton(
                 icon = Icons.Default.Folder,
@@ -127,13 +163,6 @@ fun VaultScreen(
                 accentColor = CyberCyan,
                 onClick = { selectedTab = VaultTab.LOCAL }
             )
-            VaultTabButton(
-                icon = Icons.AutoMirrored.Filled.PlaylistPlay,
-                label = "PLAYLISTS",
-                isSelected = selectedTab == VaultTab.PLAYLISTS,
-                accentColor = CyberCyan,
-                onClick = { selectedTab = VaultTab.PLAYLISTS }
-            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -141,17 +170,7 @@ fun VaultScreen(
         when (selectedTab) {
             VaultTab.FAVORITES -> {
                 if (favorites.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No favorites saved yet. Tap the heart on any song!",
-                            color = TextMuted,
-                            fontSize = 14.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
+                    EmptyVaultState("No favorites saved yet. Tap the heart on any song!")
                 } else {
                     Row(
                         modifier = Modifier
@@ -174,20 +193,115 @@ fun VaultScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(bottom = 120.dp)
+                        contentPadding = PaddingValues(bottom = 130.dp)
                     ) {
                         items(favorites) { song ->
-                            val isCurrent = song.id == currentSong.id
-                            VaultTrackRow(
+                            VaultSongRow(
                                 song = song,
-                                isCurrent = isCurrent,
-                                isPlaying = isCurrent && isPlaying,
-                                onClick = { onSelectSong(song) }
+                                isCurrent = song.id == currentSong.id,
+                                isPlaying = isPlaying && song.id == currentSong.id,
+                                onClick = { onSelectSong(song) },
+                                onOptionClick = { onOpenSongOptions(song) }
                             )
                         }
                     }
                 }
             }
+
+            VaultTab.DOWNLOADS -> {
+                if (downloads.isEmpty()) {
+                    EmptyVaultState("No offline tracks downloaded yet. Tap the download button on any song to listen without internet!")
+                } else {
+                    val totalMb = downloads.sumOf { it.fileSize } / (1024 * 1024)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = onPlayAllDownloads,
+                            colors = ButtonDefaults.buttonColors(containerColor = CyberCyan),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, tint = CyberBackgroundDark)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Play All Offline", color = CyberBackgroundDark, fontWeight = FontWeight.Bold)
+                        }
+
+                        Text(
+                            text = "${downloads.size} tracks • ${totalMb} MB",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(bottom = 130.dp)
+                    ) {
+                        items(downloads) { dt ->
+                            VaultSongRow(
+                                song = dt.song,
+                                isCurrent = dt.song.id == currentSong.id,
+                                isPlaying = isPlaying && dt.song.id == currentSong.id,
+                                isDownloaded = true,
+                                onClick = { onSelectSong(dt.song) },
+                                onOptionClick = { onOpenSongOptions(dt.song) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            VaultTab.PLAYLISTS -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "YOUR PLAYLISTS",
+                        color = CyberCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+
+                    Button(
+                        onClick = { showCreateDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = CyberCyan),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = CyberBackgroundDark, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "New Playlist", color = CyberBackgroundDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+
+                if (playlists.isEmpty()) {
+                    EmptyVaultState("No custom playlists yet. Tap '+ New Playlist' to create your first collection!")
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 130.dp)
+                    ) {
+                        items(playlists) { pl ->
+                            PlaylistCard(
+                                playlist = pl,
+                                onDelete = { onDeletePlaylist(pl.id) }
+                            )
+                        }
+                    }
+                }
+            }
+
             VaultTab.LOCAL -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -202,21 +316,33 @@ fun VaultScreen(
                     }
                 }
             }
-            VaultTab.PLAYLISTS -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null, tint = CyberPink, modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(text = "CUSTOM PLAYLISTS", color = TextPrimary, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "Organize themed collections & cyber mixes", color = TextMuted, fontSize = 13.sp)
-                    }
-                }
-            }
         }
+    }
+
+    if (showCreateDialog) {
+        CreatePlaylistDialog(
+            onDismiss = { showCreateDialog = false },
+            onConfirm = { title ->
+                onCreatePlaylist(title)
+                showCreateDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun EmptyVaultState(message: String) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = message,
+            color = TextMuted,
+            fontSize = 13.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(32.dp)
+        )
     }
 }
 
@@ -233,16 +359,16 @@ private fun VaultTabButton(
             .clip(RoundedCornerShape(12.dp))
             .background(if (isSelected) accentColor else Color.Transparent)
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = if (isSelected) CyberBackgroundDark else TextSecondary,
-            modifier = Modifier.size(16.dp)
+            modifier = Modifier.size(15.dp)
         )
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(4.dp))
         Text(
             text = label,
             color = if (isSelected) CyberBackgroundDark else TextSecondary,
@@ -254,11 +380,13 @@ private fun VaultTabButton(
 }
 
 @Composable
-private fun VaultTrackRow(
+private fun VaultSongRow(
     song: Song,
     isCurrent: Boolean,
     isPlaying: Boolean,
-    onClick: () -> Unit
+    isDownloaded: Boolean = false,
+    onClick: () -> Unit,
+    onOptionClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -271,7 +399,7 @@ private fun VaultTrackRow(
                 RoundedCornerShape(14.dp)
             )
             .clickable { onClick() }
-            .padding(12.dp),
+            .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -289,21 +417,33 @@ private fun VaultTrackRow(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                Icon(imageVector = Icons.Default.MusicNote, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(22.dp))
+                Icon(imageVector = Icons.Default.MusicNote, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(20.dp))
             }
         }
 
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                color = if (isCurrent) CyberCyan else TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = song.title,
+                    color = if (isCurrent) CyberCyan else TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (isDownloaded) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Offline Ready",
+                        tint = CyberCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
             Text(
                 text = song.artist,
                 color = TextSecondary,
@@ -313,11 +453,51 @@ private fun VaultTrackRow(
             )
         }
 
-        Icon(
-            imageVector = Icons.Default.Favorite,
-            contentDescription = "Favorited",
-            tint = CyberPink,
-            modifier = Modifier.size(18.dp)
-        )
+        IconButton(onClick = onOptionClick) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "Options",
+                tint = TextSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistCard(
+    playlist: Playlist,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CyberSurfaceCard)
+            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CyberSurfaceActive),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(28.dp))
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column {
+                Text(text = playlist.title, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(text = "${playlist.trackCount} tracks", color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+
+        IconButton(onClick = onDelete) {
+            Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = TextMuted, modifier = Modifier.size(20.dp))
+        }
     }
 }

@@ -9,8 +9,12 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.auramusic.app.data.database.AuraDatabase
+import com.auramusic.app.data.database.DownloadedTrack
+import com.auramusic.app.data.database.Playlist
 import com.auramusic.app.data.model.LyricLine
 import com.auramusic.app.data.model.Song
+import com.auramusic.app.network.AuraDownloadManager
 import com.auramusic.app.network.LyricsEngine
 import com.auramusic.app.network.YouTubeMusicEngine
 import com.auramusic.app.playback.AuraPlaybackService
@@ -49,12 +53,19 @@ data class PlayerUiState(
     val searchResults: List<Song> = emptyList(),
     val isSearching: Boolean = false,
     val favorites: List<Song> = emptyList(),
+    val downloads: List<DownloadedTrack> = emptyList(),
+    val playlists: List<Playlist> = emptyList(),
     val lyrics: List<LyricLine> = emptyList(),
     val currentTab: MainTab = MainTab.STUDIO,
-    val isPlayerExpanded: Boolean = false
+    val isPlayerExpanded: Boolean = false,
+    val activeOptionSong: Song? = null,
+    val downloadProgressMap: Map<String, Int> = emptyMap()
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val database = AuraDatabase.getInstance(application)
+    private val downloadManager = AuraDownloadManager(application, database, viewModelScope)
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
@@ -68,20 +79,48 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         initializeMediaController()
         startProgressUpdater()
         loadInitialData()
+        observeDownloadProgress()
     }
 
     private fun loadInitialData() {
         viewModelScope.launch {
-            val initial = YouTubeMusicEngine.searchTracks("")
-            val favs = initial.filter { it.isFavorite }
+            // Load persistent data from SQLite Database
+            val savedFavs = database.getFavorites()
+            val savedDownloads = database.getDownloadedTracks()
+            val savedPlaylists = database.getPlaylists()
+
+            val initialTracks = YouTubeMusicEngine.searchTracks("")
+
             _uiState.update {
                 it.copy(
-                    searchResults = initial,
-                    queue = if (it.queue.isEmpty()) initial else it.queue,
-                    favorites = favs
+                    searchResults = initialTracks,
+                    queue = if (it.queue.isEmpty()) initialTracks else it.queue,
+                    favorites = if (savedFavs.isNotEmpty()) savedFavs else initialTracks.filter { s -> s.isFavorite },
+                    downloads = savedDownloads,
+                    playlists = savedPlaylists
                 )
             }
+
+            // Sync initial favorites into DB if first run
+            if (savedFavs.isEmpty()) {
+                initialTracks.filter { it.isFavorite }.forEach { database.addFavorite(it) }
+            }
+
             loadLyricsForSong(_uiState.value.currentSong)
+        }
+    }
+
+    private fun observeDownloadProgress() {
+        viewModelScope.launch {
+            downloadManager.downloadProgress.collect { progressMap ->
+                val updatedDownloads = database.getDownloadedTracks()
+                _uiState.update {
+                    it.copy(
+                        downloadProgressMap = progressMap,
+                        downloads = updatedDownloads
+                    )
+                }
+            }
         }
     }
 
@@ -151,6 +190,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(isPlayerExpanded = expanded) }
     }
 
+    fun openSongOptions(song: Song?) {
+        _uiState.update { it.copy(activeOptionSong = song) }
+    }
+
     fun search(query: String) {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
@@ -183,39 +226,48 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun playSong(song: Song) {
-        val mediaItem = MediaItem.Builder()
-            .setUri(song.mediaUri)
-            .setMediaId(song.id)
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle(song.title)
-                    .setArtist(song.artist)
-                    .build()
-            )
-            .build()
+        viewModelScope.launch {
+            // Check if downloaded locally for offline playback!
+            val downloadedList = database.getDownloadedTracks()
+            val localTrack = downloadedList.find { it.song.id == song.id }
+            val playableUri = localTrack?.localFilePath ?: song.mediaUri
 
-        mediaController?.run {
-            setMediaItem(mediaItem)
-            prepare()
-            play()
-        }
+            val mediaItem = MediaItem.Builder()
+                .setUri(playableUri)
+                .setMediaId(song.id)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(song.title)
+                        .setArtist(song.artist)
+                        .build()
+                )
+                .build()
 
-        _uiState.update { state ->
-            val updatedQueue = if (state.queue.none { it.id == song.id }) {
-                listOf(song) + state.queue
-            } else {
-                state.queue
+            mediaController?.run {
+                setMediaItem(mediaItem)
+                prepare()
+                play()
             }
-            state.copy(
-                currentSong = song,
-                queue = updatedQueue,
-                isPlaying = true,
-                currentPositionMs = 0L,
-                durationMs = song.durationMs
-            )
-        }
 
-        loadLyricsForSong(song)
+            database.addToHistory(song)
+
+            _uiState.update { state ->
+                val updatedQueue = if (state.queue.none { it.id == song.id }) {
+                    listOf(song) + state.queue
+                } else {
+                    state.queue
+                }
+                state.copy(
+                    currentSong = song,
+                    queue = updatedQueue,
+                    isPlaying = true,
+                    currentPositionMs = 0L,
+                    durationMs = song.durationMs
+                )
+            }
+
+            loadLyricsForSong(song)
+        }
     }
 
     fun next() {
@@ -241,25 +293,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(currentPositionMs = positionMs) }
     }
 
-    fun toggleFavorite() {
-        _uiState.update { state ->
-            val isNowFav = !state.currentSong.isFavorite
-            val updatedSong = state.currentSong.copy(isFavorite = isNowFav)
+    fun toggleFavorite(targetSong: Song? = null) {
+        val songToToggle = targetSong ?: _uiState.value.currentSong
+        viewModelScope.launch {
+            val isNowFav = database.toggleFavorite(songToToggle)
+            val updatedFavorites = database.getFavorites()
 
-            val updatedFavorites = if (isNowFav) {
-                if (state.favorites.none { it.id == updatedSong.id }) {
-                    listOf(updatedSong) + state.favorites
-                } else state.favorites
-            } else {
-                state.favorites.filter { it.id != updatedSong.id }
+            val updatedCurrent = if (_uiState.value.currentSong.id == songToToggle.id) {
+                _uiState.value.currentSong.copy(isFavorite = isNowFav)
+            } else _uiState.value.currentSong
+
+            _uiState.update { state ->
+                state.copy(
+                    currentSong = updatedCurrent,
+                    favorites = updatedFavorites,
+                    queue = state.queue.map { if (it.id == songToToggle.id) it.copy(isFavorite = isNowFav) else it },
+                    searchResults = state.searchResults.map { if (it.id == songToToggle.id) it.copy(isFavorite = isNowFav) else it }
+                )
             }
-
-            state.copy(
-                currentSong = updatedSong,
-                favorites = updatedFavorites,
-                queue = state.queue.map { if (it.id == updatedSong.id) updatedSong else it },
-                searchResults = state.searchResults.map { if (it.id == updatedSong.id) updatedSong else it }
-            )
         }
     }
 
@@ -268,6 +319,63 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (favs.isNotEmpty()) {
             _uiState.update { it.copy(queue = favs, currentIndex = 0) }
             playSong(favs[0])
+        }
+    }
+
+    fun playAllDownloads() {
+        val dls = _uiState.value.downloads.map { it.song }
+        if (dls.isNotEmpty()) {
+            _uiState.update { it.copy(queue = dls, currentIndex = 0) }
+            playSong(dls[0])
+        }
+    }
+
+    // ==========================================
+    // DOWNLOAD OPERATIONS
+    // ==========================================
+
+    fun startDownload(song: Song) {
+        downloadManager.startDownload(song)
+    }
+
+    fun isSongDownloaded(songId: String): Boolean {
+        return _uiState.value.downloads.any { it.song.id == songId }
+    }
+
+    // ==========================================
+    // PLAYLIST OPERATIONS
+    // ==========================================
+
+    fun createPlaylist(title: String) {
+        viewModelScope.launch {
+            database.createPlaylist(title)
+            val updated = database.getPlaylists()
+            _uiState.update { it.copy(playlists = updated) }
+        }
+    }
+
+    fun deletePlaylist(playlistId: String) {
+        viewModelScope.launch {
+            database.deletePlaylist(playlistId)
+            val updated = database.getPlaylists()
+            _uiState.update { it.copy(playlists = updated) }
+        }
+    }
+
+    fun addSongToPlaylist(playlistId: String, song: Song) {
+        viewModelScope.launch {
+            database.addSongToPlaylist(playlistId, song)
+            val updated = database.getPlaylists()
+            _uiState.update { it.copy(playlists = updated) }
+        }
+    }
+
+    fun addToQueueNext(song: Song) {
+        _uiState.update { state ->
+            val newQueue = state.queue.toMutableList()
+            val insertIdx = (state.currentIndex + 1).coerceAtMost(newQueue.size)
+            newQueue.add(insertIdx, song)
+            state.copy(queue = newQueue)
         }
     }
 

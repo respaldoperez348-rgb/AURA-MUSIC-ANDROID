@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.auramusic.app.ui.components.GlassBottomDock
 import com.auramusic.app.ui.components.MiniPlayer
 import com.auramusic.app.ui.components.StudioDeck
+import com.auramusic.app.ui.components.TrackOptionsBottomSheet
 import com.auramusic.app.ui.screens.HomeScreen
 import com.auramusic.app.ui.screens.SearchScreen
 import com.auramusic.app.ui.screens.VaultScreen
@@ -120,16 +121,23 @@ class MainActivity : ComponentActivity() {
                                             currentSong = uiState.currentSong,
                                             isPlaying = uiState.isPlaying,
                                             onSearch = { q -> playerViewModel.search(q) },
-                                            onSelectSong = { song -> playerViewModel.playSong(song) }
+                                            onSelectSong = { song -> playerViewModel.playSong(song) },
+                                            onOpenSongOptions = { song -> playerViewModel.openSongOptions(song) }
                                         )
                                     }
                                     MainTab.VAULT -> {
                                         VaultScreen(
                                             favorites = uiState.favorites,
+                                            downloads = uiState.downloads,
+                                            playlists = uiState.playlists,
                                             currentSong = uiState.currentSong,
                                             isPlaying = uiState.isPlaying,
                                             onSelectSong = { song -> playerViewModel.playSong(song) },
-                                            onPlayAllFavorites = { playerViewModel.playAllFavorites() }
+                                            onPlayAllFavorites = { playerViewModel.playAllFavorites() },
+                                            onPlayAllDownloads = { playerViewModel.playAllDownloads() },
+                                            onCreatePlaylist = { title -> playerViewModel.createPlaylist(title) },
+                                            onDeletePlaylist = { id -> playerViewModel.deletePlaylist(id) },
+                                            onOpenSongOptions = { song -> playerViewModel.openSongOptions(song) }
                                         )
                                     }
                                 }
@@ -190,6 +198,25 @@ class MainActivity : ComponentActivity() {
                                     onCollapse = { playerViewModel.setPlayerExpanded(false) }
                                 )
                             }
+                        }
+
+                        // Track Options BottomSheet (Download, Add to Playlist, Favorite)
+                        uiState.activeOptionSong?.let { song ->
+                            val isDownloaded = playerViewModel.isSongDownloaded(song.id)
+                            val progress = uiState.downloadProgressMap[song.id] ?: -1
+
+                            TrackOptionsBottomSheet(
+                                song = song,
+                                playlists = uiState.playlists,
+                                isDownloaded = isDownloaded,
+                                downloadProgress = progress,
+                                onDismiss = { playerViewModel.openSongOptions(null) },
+                                onToggleFavorite = { playerViewModel.toggleFavorite(it) },
+                                onDownload = { playerViewModel.startDownload(it) },
+                                onAddToQueueNext = { playerViewModel.addToQueueNext(it) },
+                                onAddToPlaylist = { plId, s -> playerViewModel.addSongToPlaylist(plId, s) },
+                                onCreatePlaylist = { name -> playerViewModel.createPlaylist(name) }
+                            )
                         }
                     }
                 }

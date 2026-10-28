@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -73,6 +74,7 @@ fun SearchScreen(
     isPlaying: Boolean,
     onSearch: (String) -> Unit,
     onSelectSong: (Song) -> Unit,
+    onOpenSongOptions: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var searchText by remember { mutableStateOf("") }
@@ -234,7 +236,8 @@ fun SearchScreen(
                     song = song,
                     isCurrent = isCurrent,
                     isPlaying = isCurrent && isPlaying,
-                    onClick = { onSelectSong(song) }
+                    onClick = { onSelectSong(song) },
+                    onOptionClick = { onOpenSongOptions?.invoke(song) }
                 )
             }
         }
@@ -246,7 +249,8 @@ fun SearchResultRow(
     song: Song,
     isCurrent: Boolean,
     isPlaying: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onOptionClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -351,6 +355,21 @@ fun SearchResultRow(
                 tint = if (isCurrent) CyberBackgroundDark else TextPrimary,
                 modifier = Modifier.size(20.dp)
             )
+        }
+
+        if (onOptionClick != null) {
+            Spacer(modifier = Modifier.width(4.dp))
+            IconButton(
+                onClick = onOptionClick,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Options",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
