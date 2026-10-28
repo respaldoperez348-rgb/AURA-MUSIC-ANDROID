@@ -86,6 +86,7 @@ fun VaultScreen(
     onScanLocalTracks: () -> Unit = {},
     onCreatePlaylist: (title: String) -> Unit,
     onDeletePlaylist: (playlistId: String) -> Unit,
+    onOpenPlaylist: (Playlist) -> Unit = {},
     onOpenSongOptions: (Song) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -299,6 +300,7 @@ fun VaultScreen(
                         items(playlists) { pl ->
                             PlaylistCard(
                                 playlist = pl,
+                                onClick = { onOpenPlaylist(pl) },
                                 onDelete = { onDeletePlaylist(pl.id) }
                             )
                         }
@@ -547,6 +549,7 @@ private fun VaultSongRow(
 @Composable
 private fun PlaylistCard(
     playlist: Playlist,
+    onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
     Row(
@@ -555,6 +558,7 @@ private fun PlaylistCard(
             .clip(RoundedCornerShape(16.dp))
             .background(CyberSurfaceCard)
             .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween

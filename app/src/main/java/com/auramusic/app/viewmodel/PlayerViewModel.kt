@@ -68,7 +68,12 @@ data class PlayerUiState(
     val sleepTimer: SleepTimerState = SleepTimerState(),
     val showEqualizer: Boolean = false,
     val showSleepTimer: Boolean = false,
-    val showQueue: Boolean = false
+    val showQueue: Boolean = false,
+    val selectedPlaylist: Playlist? = null,
+    val playlistSongs: List<Song> = emptyList(),
+    val showSettings: Boolean = false,
+    val audioQuality: String = "Hi-Res (320 kbps)",
+    val loudnessNormalizer: Boolean = true
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -402,12 +407,63 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun addSongToPlaylist(playlistId: String, song: Song) {
+    fun addSongToPlaylist(playlistId: String, songId: Song) {
         viewModelScope.launch {
-            database.addSongToPlaylist(playlistId, song)
+            database.addSongToPlaylist(playlistId, songId)
             val updated = database.getPlaylists()
             _uiState.update { it.copy(playlists = updated) }
         }
+    }
+
+    fun openPlaylist(playlist: Playlist?) {
+        if (playlist == null) {
+            _uiState.update { it.copy(selectedPlaylist = null, playlistSongs = emptyList()) }
+            return
+        }
+        viewModelScope.launch {
+            val songs = database.getSongsInPlaylist(playlist.id)
+            _uiState.update { it.copy(selectedPlaylist = playlist, playlistSongs = songs) }
+        }
+    }
+
+    fun removeSongFromPlaylist(playlistId: String, songId: String) {
+        viewModelScope.launch {
+            database.removeSongFromPlaylist(playlistId, songId)
+            val songs = database.getSongsInPlaylist(playlistId)
+            val updatedPlaylists = database.getPlaylists()
+            _uiState.update {
+                it.copy(
+                    playlistSongs = songs,
+                    playlists = updatedPlaylists
+                )
+            }
+        }
+    }
+
+    fun playPlaylist(songs: List<Song>, startIndex: Int = 0, shuffle: Boolean = false) {
+        if (songs.isEmpty()) return
+        val queueToPlay = if (shuffle) songs.shuffled() else songs
+        val songToStart = queueToPlay.getOrElse(startIndex) { queueToPlay[0] }
+        _uiState.update {
+            it.copy(
+                queue = queueToPlay,
+                currentIndex = startIndex,
+                isShuffle = shuffle
+            )
+        }
+        playSong(songToStart)
+    }
+
+    fun setShowSettings(show: Boolean) {
+        _uiState.update { it.copy(showSettings = show) }
+    }
+
+    fun setAudioQuality(quality: String) {
+        _uiState.update { it.copy(audioQuality = quality) }
+    }
+
+    fun toggleLoudnessNormalizer() {
+        _uiState.update { it.copy(loudnessNormalizer = !it.loudnessNormalizer) }
     }
 
     fun addToQueueNext(song: Song) {

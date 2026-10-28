@@ -291,6 +291,11 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         list
     }
 
+    suspend fun removeSongFromPlaylist(playlistId: String, songId: String) = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        db.delete(TABLE_PLAYLIST_SONGS, "playlistId = ? AND songId = ?", arrayOf(playlistId, songId))
+    }
+
     suspend fun deletePlaylist(playlistId: String) = withContext(Dispatchers.IO) {
         val db = writableDatabase
         db.delete(TABLE_PLAYLIST_SONGS, "playlistId = ?", arrayOf(playlistId))

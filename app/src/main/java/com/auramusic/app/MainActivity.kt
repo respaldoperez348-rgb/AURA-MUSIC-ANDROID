@@ -34,7 +34,9 @@ import androidx.compose.ui.unit.dp
 import com.auramusic.app.ui.components.EqualizerSheet
 import com.auramusic.app.ui.components.GlassBottomDock
 import com.auramusic.app.ui.components.MiniPlayer
+import com.auramusic.app.ui.components.PlaylistDetailSheet
 import com.auramusic.app.ui.components.QueueSheet
+import com.auramusic.app.ui.components.SettingsSheet
 import com.auramusic.app.ui.components.SleepTimerDialog
 import com.auramusic.app.ui.components.StudioDeck
 import com.auramusic.app.ui.components.TrackOptionsBottomSheet
@@ -114,7 +116,8 @@ class MainActivity : ComponentActivity() {
                                             onSelectVibe = { vibe ->
                                                 playerViewModel.search(vibe)
                                                 playerViewModel.selectTab(MainTab.RADAR)
-                                            }
+                                            },
+                                            onOpenSettings = { playerViewModel.setShowSettings(true) }
                                         )
                                     }
                                     MainTab.RADAR -> {
@@ -144,6 +147,7 @@ class MainActivity : ComponentActivity() {
                                             onScanLocalTracks = { playerViewModel.scanLocalTracks() },
                                             onCreatePlaylist = { title -> playerViewModel.createPlaylist(title) },
                                             onDeletePlaylist = { id -> playerViewModel.deletePlaylist(id) },
+                                            onOpenPlaylist = { pl -> playerViewModel.openPlaylist(pl) },
                                             onOpenSongOptions = { song -> playerViewModel.openSongOptions(song) }
                                         )
                                     }
@@ -243,6 +247,33 @@ class MainActivity : ComponentActivity() {
                                 onRemoveItem = { idx -> playerViewModel.removeFromQueue(idx) },
                                 onClearQueue = { playerViewModel.clearQueue() },
                                 onDismiss = { playerViewModel.setShowQueue(false) }
+                            )
+                        }
+
+                        // Playlist Detail BottomSheet
+                        uiState.selectedPlaylist?.let { pl ->
+                            PlaylistDetailSheet(
+                                playlist = pl,
+                                songs = uiState.playlistSongs,
+                                currentSong = uiState.currentSong,
+                                isPlaying = uiState.isPlaying,
+                                onPlayAll = { playerViewModel.playPlaylist(uiState.playlistSongs, 0, false) },
+                                onShufflePlay = { playerViewModel.playPlaylist(uiState.playlistSongs, 0, true) },
+                                onPlaySong = { s -> playerViewModel.playSong(s) },
+                                onRemoveSong = { sId -> playerViewModel.removeSongFromPlaylist(pl.id, sId) },
+                                onOpenSongOptions = { s -> playerViewModel.openSongOptions(s) },
+                                onDismiss = { playerViewModel.openPlaylist(null) }
+                            )
+                        }
+
+                        // Settings Studio BottomSheet
+                        if (uiState.showSettings) {
+                            SettingsSheet(
+                                audioQuality = uiState.audioQuality,
+                                loudnessNormalizer = uiState.loudnessNormalizer,
+                                onQualitySelected = { q -> playerViewModel.setAudioQuality(q) },
+                                onToggleLoudness = { playerViewModel.toggleLoudnessNormalizer() },
+                                onDismiss = { playerViewModel.setShowSettings(false) }
                             )
                         }
 
