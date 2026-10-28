@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
@@ -276,13 +277,14 @@ fun SearchResultRow(
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Thumbnail
+        // Thumbnail (Circular for Artist, Rounded for Song)
+        val thumbShape = if (song.isArtist) CircleShape else RoundedCornerShape(10.dp)
         Box(
             modifier = Modifier
                 .size(48.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(thumbShape)
                 .background(CyberBackgroundDark)
-                .border(1.dp, GlassBorder, RoundedCornerShape(10.dp)),
+                .border(1.dp, if (song.isArtist) CyberCyan else GlassBorder, thumbShape),
             contentAlignment = Alignment.Center
         ) {
             if (song.coverUrl.isNotBlank()) {
@@ -294,7 +296,7 @@ fun SearchResultRow(
                 )
             } else {
                 Icon(
-                    imageVector = Icons.Default.MusicNote,
+                    imageVector = if (song.isArtist) Icons.Default.Person else Icons.Default.MusicNote,
                     contentDescription = null,
                     tint = CyberCyan,
                     modifier = Modifier.size(24.dp)
@@ -332,15 +334,16 @@ fun SearchResultRow(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = song.artist,
-                color = TextSecondary,
-                fontSize = 13.sp,
+                text = if (song.isArtist) "ARTISTA • VER PERFIL" else song.artist,
+                color = if (song.isArtist) CyberCyan else TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = if (song.isArtist) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
 
-        // Quick Play Icon
+        // Quick Action Icon (Profile for Artist, Play for Song)
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -350,8 +353,8 @@ fun SearchResultRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = if (isCurrent && isPlaying) Icons.Default.Equalizer else Icons.Default.PlayArrow,
-                contentDescription = "Play",
+                imageVector = if (song.isArtist) Icons.Default.Person else if (isCurrent && isPlaying) Icons.Default.Equalizer else Icons.Default.PlayArrow,
+                contentDescription = if (song.isArtist) "Ver Artista" else "Play",
                 tint = if (isCurrent) CyberBackgroundDark else TextPrimary,
                 modifier = Modifier.size(20.dp)
             )

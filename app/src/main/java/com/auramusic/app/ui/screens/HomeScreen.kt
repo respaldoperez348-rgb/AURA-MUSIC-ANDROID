@@ -109,7 +109,7 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.height(1.dp))
                         Text(
-                            text = "Good Evening, David",
+                            text = "Good Evening",
                             color = TextSecondary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium

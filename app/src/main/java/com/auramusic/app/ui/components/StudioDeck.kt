@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -95,6 +96,7 @@ fun StudioDeck(
     onOpenQueue: () -> Unit = {},
     sleepTimerRemaining: String? = null,
     onCollapse: (() -> Unit)? = null,
+    onOpenFullscreenLyrics: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var displayMode by remember { mutableStateOf(DeckDisplayMode.VINYL) }
@@ -202,12 +204,31 @@ fun StudioDeck(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(264.dp)
+                                .clip(RoundedCornerShape(16.dp))
                         ) {
                             LyricsView(
                                 lyrics = lyrics,
                                 currentPositionMs = currentPositionMs,
                                 onSeekTo = onSeekTo
                             )
+
+                            // Fullscreen lyrics expand icon
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                                    .clip(CircleShape)
+                                    .background(CyberSurfaceCard)
+                                    .clickable { onOpenFullscreenLyrics() }
+                                    .padding(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.OpenInFull,
+                                    contentDescription = "Pantalla completa de letras",
+                                    tint = CyberCyan,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }

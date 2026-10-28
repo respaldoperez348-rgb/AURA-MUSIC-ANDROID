@@ -193,16 +193,28 @@ object YouTubeMusicEngine {
                 thumb = thumb.replace(Regex("=w\\d+-h\\d+"), "=w544-h544")
             }
 
-            val finalId = if (videoId.isNotBlank()) videoId else title.hashCode().toString()
-            val mediaUrl = "https://www.youtube.com/watch?v=$finalId"
+            // Check if item is an Artist profile
+            var isArtistItem = false
+            val navEndpoint = col.optJSONObject("navigationEndpoint")
+            val browseId = navEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId") ?: ""
+            if (browseId.startsWith("UC") || browseId.contains("artist", ignoreCase = true)) {
+                isArtistItem = true
+            }
+            if (artist.equals("Artist", ignoreCase = true) || artist.equals("Artista", ignoreCase = true)) {
+                isArtistItem = true
+            }
+
+            val finalId = if (videoId.isNotBlank()) videoId else (if (browseId.isNotBlank()) browseId else title.hashCode().toString())
+            val mediaUrl = if (isArtistItem) "" else "https://www.youtube.com/watch?v=$finalId"
 
             return Song(
                 id = finalId,
                 title = title,
-                artist = artist,
+                artist = if (isArtistItem) "Artist" else artist,
                 coverUrl = thumb,
-                durationMs = 210000L,
-                mediaUri = mediaUrl
+                durationMs = if (isArtistItem) 0L else 210000L,
+                mediaUri = mediaUrl,
+                isArtist = isArtistItem
             )
         } catch (e: Exception) {
             return null
@@ -267,5 +279,10 @@ object YouTubeMusicEngine {
             it.title.contains(query, ignoreCase = true) || it.artist.contains(query, ignoreCase = true)
         }
         return if (matches.isNotEmpty()) matches else all
+    }
+
+    suspend fun fetchArtistTopTracks(artistName: String): List<Song> = withContext(Dispatchers.IO) {
+        val query = "$artistName Top Hits"
+        searchTracks(query).filter { !it.isArtist }
     }
 }

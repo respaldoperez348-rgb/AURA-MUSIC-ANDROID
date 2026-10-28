@@ -85,7 +85,11 @@ data class PlayerUiState(
     val showSettings: Boolean = false,
     val audioQuality: String = "Hi-Res (320 kbps)",
     val loudnessNormalizer: Boolean = true,
-    val currentTheme: String = "Cyber Neon"
+    val currentTheme: String = "Cyber Neon",
+    val showFullscreenLyrics: Boolean = false,
+    val selectedArtist: Song? = null,
+    val artistTopSongs: List<Song> = emptyList(),
+    val isLoadingArtist: Boolean = false
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -187,6 +191,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         controllerFuture?.addListener({
             mediaController = controllerFuture?.get()
             setupPlayerListener()
+            syncStateFromController()
         }, MoreExecutors.directExecutor())
     }
 
@@ -194,6 +199,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         mediaController?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _uiState.update { it.copy(isPlaying = isPlaying) }
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                syncStateFromController()
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -208,6 +217,39 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         })
+    }
+
+    private fun syncStateFromController() {
+        val controller = mediaController ?: return
+        val currentItem = controller.currentMediaItem ?: return
+        val isPlaying = controller.isPlaying
+        val pos = controller.currentPosition
+        val dur = controller.duration.takeIf { it > 0 } ?: _uiState.value.durationMs
+        val meta = currentItem.mediaMetadata
+        val title = meta.title?.toString() ?: ""
+        val artist = meta.artist?.toString() ?: ""
+        val album = meta.albumTitle?.toString() ?: ""
+        val cover = meta.artworkUri?.toString() ?: ""
+
+        if (title.isNotBlank()) {
+            val activeSong = Song(
+                id = currentItem.mediaId,
+                title = title,
+                artist = artist,
+                album = album,
+                coverUrl = cover,
+                durationMs = dur
+            )
+            _uiState.update {
+                it.copy(
+                    currentSong = activeSong,
+                    isPlaying = isPlaying,
+                    currentPositionMs = pos,
+                    durationMs = dur
+                )
+            }
+            loadLyricsForSong(activeSong)
+        }
     }
 
     private fun startProgressUpdater() {
@@ -290,10 +332,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun playSong(song: Song) {
+    fun playSong(song: Song, contextQueue: List<Song>? = null) {
+        // If the item clicked is an Artist profile, open Artist Detail View!
+        if (song.isArtist) {
+            openArtistDetail(song)
+            return
+        }
+
         // 1. Immediately reflect the selected track in the UI for instant response
         _uiState.update { state ->
-            val updatedQueue = if (state.queue.none { it.id == song.id }) {
+            val updatedQueue = if (!contextQueue.isNullOrEmpty()) {
+                contextQueue.filter { !it.isArtist }
+            } else if (state.queue.none { it.id == song.id }) {
                 listOf(song) + state.queue
             } else {
                 state.queue
@@ -623,6 +673,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _uiState.update { it.copy(currentIndex = index) }
             playSong(state.queue[index])
         }
+    }
+
+    fun setShowFullscreenLyrics(show: Boolean) {
+        _uiState.update { it.copy(showFullscreenLyrics = show) }
+    }
+
+    fun openArtistDetail(artist: Song) {
+        _uiState.update { it.copy(selectedArtist = artist, isLoadingArtist = true, artistTopSongs = emptyList()) }
+        viewModelScope.launch {
+            val tracks = YouTubeMusicEngine.fetchArtistTopTracks(artist.title)
+            _uiState.update { it.copy(artistTopSongs = tracks, isLoadingArtist = false) }
+        }
+    }
+
+    fun dismissArtistDetail() {
+        _uiState.update { it.copy(selectedArtist = null, artistTopSongs = emptyList()) }
     }
 
     override fun onCleared() {

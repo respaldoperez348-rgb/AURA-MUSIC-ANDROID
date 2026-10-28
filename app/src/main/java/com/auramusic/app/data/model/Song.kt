@@ -8,5 +8,6 @@ data class Song(
     val durationMs: Long = 0L,
     val coverUrl: String = "",
     val mediaUri: String = "",
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val isArtist: Boolean = false
 )

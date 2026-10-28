@@ -38,7 +38,9 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.auramusic.app.ui.components.ArtistDetailSheet
 import com.auramusic.app.ui.components.EqualizerSheet
+import com.auramusic.app.ui.components.FullscreenLyricsDialog
 import com.auramusic.app.ui.components.GlassBottomDock
 import com.auramusic.app.ui.components.MiniPlayer
 import com.auramusic.app.ui.components.PlaylistDetailSheet
@@ -143,7 +145,7 @@ class MainActivity : ComponentActivity() {
                                             featuredTracks = uiState.searchResults,
                                             currentSong = uiState.currentSong,
                                             isPlaying = uiState.isPlaying,
-                                            onSelectSong = { song -> playerViewModel.playSong(song) },
+                                            onSelectSong = { song -> playerViewModel.playSong(song, uiState.searchResults) },
                                             onSelectVibe = { vibe ->
                                                 playerViewModel.search(vibe)
                                                 playerViewModel.selectTab(MainTab.RADAR)
@@ -158,7 +160,7 @@ class MainActivity : ComponentActivity() {
                                             currentSong = uiState.currentSong,
                                             isPlaying = uiState.isPlaying,
                                             onSearch = { q -> playerViewModel.search(q) },
-                                            onSelectSong = { song -> playerViewModel.playSong(song) },
+                                            onSelectSong = { song -> playerViewModel.playSong(song, uiState.searchResults) },
                                             onOpenSongOptions = { song -> playerViewModel.openSongOptions(song) }
                                         )
                                     }
@@ -245,6 +247,7 @@ class MainActivity : ComponentActivity() {
                                         val secs = uiState.sleepTimer.remainingSeconds!! % 60
                                         String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
                                     } else if (uiState.sleepTimer.isEndOfTrack) "END" else null,
+                                    onOpenFullscreenLyrics = { playerViewModel.setShowFullscreenLyrics(true) },
                                     onCollapse = { playerViewModel.setPlayerExpanded(false) }
                                 )
                             }
@@ -326,6 +329,35 @@ class MainActivity : ComponentActivity() {
                                 onAddToQueueNext = { playerViewModel.addToQueueNext(it) },
                                 onAddToPlaylist = { plId, s -> playerViewModel.addSongToPlaylist(plId, s) },
                                 onCreatePlaylist = { name -> playerViewModel.createPlaylist(name) }
+                            )
+                        }
+
+                        // Fullscreen Synced Karaoke Lyrics Dialog
+                        if (uiState.showFullscreenLyrics) {
+                            FullscreenLyricsDialog(
+                                song = uiState.currentSong,
+                                lyrics = uiState.lyrics,
+                                isPlaying = uiState.isPlaying,
+                                currentPositionMs = uiState.currentPositionMs,
+                                durationMs = uiState.durationMs,
+                                onSeekTo = { pos -> playerViewModel.seekTo(pos) },
+                                onPlayPause = { playerViewModel.playPause() },
+                                onNext = { playerViewModel.next() },
+                                onPrevious = { playerViewModel.previous() },
+                                onDismiss = { playerViewModel.setShowFullscreenLyrics(false) }
+                            )
+                        }
+
+                        // Artist Profile Detail BottomSheet
+                        uiState.selectedArtist?.let { artist ->
+                            ArtistDetailSheet(
+                                artist = artist,
+                                artistSongs = uiState.artistTopSongs,
+                                isLoading = uiState.isLoadingArtist,
+                                currentPlayingId = uiState.currentSong.id,
+                                onPlaySong = { s, list -> playerViewModel.playSong(s, list) },
+                                onPlayAll = { list -> playerViewModel.playPlaylist(list) },
+                                onDismiss = { playerViewModel.dismissArtistDetail() }
                             )
                         }
                     }

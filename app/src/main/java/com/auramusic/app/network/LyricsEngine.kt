@@ -15,6 +15,7 @@ import java.util.regex.Pattern
 object LyricsEngine {
 
     private val client = OkHttpClient.Builder()
+        .connectionPool(okhttp3.ConnectionPool(10, 5, TimeUnit.MINUTES))
         .connectTimeout(6, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .build()
@@ -34,34 +35,43 @@ object LyricsEngine {
     ): List<LyricLine> = withContext(Dispatchers.IO) {
         if (trackName.isBlank()) return@withContext emptyList()
 
-        val cleanedTitle = cleanTitle(trackName)
-        val cleanedArtist = cleanArtist(artistName)
-        val cacheKey = "$cleanedTitle|$cleanedArtist"
+        val (extractedArtist, extractedTitle) = parseArtistAndTitle(trackName, artistName)
+        val cacheKey = "$extractedTitle|$extractedArtist".lowercase()
 
         // 1. Check in-memory cache
         lyricsCache[cacheKey]?.let { return@withContext it }
 
-        // 2. Try direct LRCLIB /api/get (exact match)
-        val directLyrics = fetchFromGetEndpoint(cleanedTitle, cleanedArtist, durationSec)
-        if (directLyrics.isNotEmpty()) {
-            lyricsCache[cacheKey] = directLyrics
-            return@withContext directLyrics
+        // 2. Try direct LRCLIB /api/get if artist is identified
+        if (extractedArtist.isNotBlank() && extractedTitle.isNotBlank()) {
+            val directLyrics = fetchFromGetEndpoint(extractedTitle, extractedArtist, durationSec)
+            if (directLyrics.isNotEmpty()) {
+                lyricsCache[cacheKey] = directLyrics
+                return@withContext directLyrics
+            }
         }
 
-        // 3. Fallback: Try LRCLIB /api/search (fuzzy search)
-        val searchQuery = if (cleanedArtist.isNotBlank() && !cleanedTitle.contains(cleanedArtist, ignoreCase = true)) {
-            "$cleanedTitle $cleanedArtist"
-        } else {
-            cleanedTitle
+        // 3. Try LRCLIB /api/search with cleaned "Artist Title" query
+        val searchQueries = mutableListOf<String>()
+        if (extractedArtist.isNotBlank() && extractedTitle.isNotBlank()) {
+            searchQueries.add("$extractedArtist $extractedTitle")
+        }
+        if (extractedTitle.isNotBlank()) {
+            searchQueries.add(extractedTitle)
+        }
+        val cleanRaw = cleanTitle(trackName)
+        if (cleanRaw.isNotBlank() && !searchQueries.contains(cleanRaw)) {
+            searchQueries.add(cleanRaw)
         }
 
-        val searchLyrics = fetchFromSearchEndpoint(searchQuery)
-        if (searchLyrics.isNotEmpty()) {
-            lyricsCache[cacheKey] = searchLyrics
-            return@withContext searchLyrics
+        for (query in searchQueries) {
+            val searchLyrics = fetchFromSearchEndpoint(query)
+            if (searchLyrics.isNotEmpty()) {
+                lyricsCache[cacheKey] = searchLyrics
+                return@withContext searchLyrics
+            }
         }
 
-        // 4. No lyrics found - return empty list (never return fake/dummy lyrics!)
+        // 4. No lyrics found - return empty list
         emptyList()
     }
 
@@ -120,7 +130,7 @@ object LyricsEngine {
             val body = response.body?.string() ?: return emptyList()
             val jsonArray = JSONArray(body)
 
-            // Find best matching item that contains synced or plain lyrics
+            // Priority 1: Pick first item with synced lyrics
             for (i in 0 until jsonArray.length()) {
                 val item = jsonArray.optJSONObject(i) ?: continue
                 val syncedText = item.optString("syncedLyrics")
@@ -129,7 +139,7 @@ object LyricsEngine {
                 }
             }
 
-            // Fallback to plain lyrics if no synced lyrics in any item
+            // Priority 2: Pick first item with plain lyrics
             for (i in 0 until jsonArray.length()) {
                 val item = jsonArray.optJSONObject(i) ?: continue
                 val plainText = item.optString("plainLyrics")
@@ -175,10 +185,44 @@ object LyricsEngine {
             }
     }
 
+    fun parseArtistAndTitle(rawTitle: String, rawArtist: String): Pair<String, String> {
+        val cleanT = cleanTitle(rawTitle)
+        val cleanA = cleanArtist(rawArtist)
+
+        // Check if raw title follows "Artist - Title" format
+        val separators = listOf(" - ", " – ", " — ", " : ", " | ")
+        for (sep in separators) {
+            if (cleanT.contains(sep)) {
+                val parts = cleanT.split(sep, limit = 2)
+                val possibleArtist = parts[0].trim()
+                val possibleTitle = parts[1].trim()
+                if (possibleArtist.isNotBlank() && possibleTitle.isNotBlank()) {
+                    return Pair(possibleArtist, possibleTitle)
+                }
+            }
+        }
+
+        // If artist seems to be an arbitrary channel or uploader
+        if (cleanA.isBlank() || isGenericArtist(cleanA)) {
+            return Pair("", cleanT)
+        }
+
+        return Pair(cleanA, cleanT)
+    }
+
+    private fun isGenericArtist(artist: String): Boolean {
+        val lower = artist.lowercase()
+        return lower.endsWith("vevo") || lower.contains("official") || lower.contains("records") ||
+               lower.contains("channel") || lower.contains("records") || lower.contains("topic") ||
+               lower.matches(Regex(".*\\d+[a-z]?"))
+    }
+
     private fun cleanTitle(title: String): String {
         return title
-            .replace(Regex("(?i)\\s*[\\[(](?:official|audio|video|lyrics?|hd|4k|remastered|oficial|video oficial|audio oficial|letra)[^\\])]*[\\])]"), "")
+            .replace(Regex("(?i)\\[\\s*(?:letra|lyrics?|video|audio|oficial|official|hd|4k|remastered|en vivo|live)[^\\]]*\\]"), "")
+            .replace(Regex("(?i)\\(\\s*(?:letra|lyrics?|video|audio|oficial|official|hd|4k|remastered|video oficial|audio oficial|en vivo|live)[^)]*\\)"), "")
             .replace(Regex("(?i)\\s*(?:feat\\.|ft\\.|featuring).*"), "")
+            .replace(Regex("(?i)\\[[^\\]]*\\]"), "")
             .trim()
     }
 
