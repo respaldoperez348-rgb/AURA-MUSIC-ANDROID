@@ -65,9 +65,9 @@ data class PlayerUiState(
     val durationMs: Long = 212000L,
     val isShuffle: Boolean = false,
     val isRepeat: Boolean = false,
-    val queue: List<Song> = emptyList(),
+    val queue: List<Song> = YouTubeMusicEngine.getCuratedFallbackTracks(),
     val currentIndex: Int = 0,
-    val searchResults: List<Song> = emptyList(),
+    val searchResults: List<Song> = YouTubeMusicEngine.getCuratedFallbackTracks(),
     val isSearching: Boolean = false,
     val favorites: List<Song> = emptyList(),
     val downloads: List<DownloadedTrack> = emptyList(),
@@ -89,6 +89,7 @@ data class PlayerUiState(
     val audioQuality: String = "Hi-Res (320 kbps)",
     val loudnessNormalizer: Boolean = true,
     val currentTheme: String = "Cyber Neon",
+    val appLanguage: String = "Español",
     val showFullscreenLyrics: Boolean = false,
     val selectedArtist: Song? = null,
     val artistProfile: ArtistProfile? = null,
@@ -98,10 +99,10 @@ data class PlayerUiState(
     val albumTracks: List<Song> = emptyList(),
     val isLoadingAlbum: Boolean = false,
     val showAlbumDetail: Boolean = false,
-    val popularArtists: List<Song> = emptyList(),
-    val trendingAlbums: List<Album> = emptyList(),
+    val popularArtists: List<Song> = YouTubeMusicEngine.getCuratedPopularArtists(),
+    val trendingAlbums: List<Album> = YouTubeMusicEngine.getCuratedTrendingAlbums(),
     val userTopArtists: List<Song> = emptyList(),
-    val popularStations: List<String> = emptyList(),
+    val popularStations: List<String> = YouTubeMusicEngine.getCuratedStations(),
     val searchHistory: List<String> = emptyList(),
     val searchSuggestions: List<String> = emptyList(),
     val toastMessage: String? = null
@@ -173,44 +174,62 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun loadInitialData() {
         viewModelScope.launch {
-            // Load persistent data from SQLite Database
+            val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+            val savedPalette = prefs.getString("palette", "Cyber Neon") ?: "Cyber Neon"
+            val savedLanguage = prefs.getString("app_language", "Español") ?: "Español"
+
+            // 1. Instantly load persistent SQLite data & curated fallback lists (0ms cold start)
             val savedFavs = database.getFavorites()
             val savedDownloads = database.getDownloadedTracks()
             val savedPlaylists = database.getPlaylists()
             val userTop = database.getTopArtistsFromHistoryAndFavorites()
-
-            val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
-            val savedPalette = prefs.getString("palette", "Cyber Neon") ?: "Cyber Neon"
-
-            val initialTracks = YouTubeMusicEngine.searchTracks("")
             val popArtists = YouTubeMusicEngine.getCuratedPopularArtists()
             val trendAlbums = YouTubeMusicEngine.getCuratedTrendingAlbums()
             val stations = YouTubeMusicEngine.getCuratedStations()
             val sHistory = database.getSearchHistory()
+            val fallbackTracks = YouTubeMusicEngine.getCuratedFallbackTracks()
 
             _uiState.update {
                 it.copy(
-                    searchResults = initialTracks,
+                    searchResults = if (it.searchResults.isNotEmpty()) it.searchResults else fallbackTracks,
                     popularArtists = popArtists,
                     trendingAlbums = trendAlbums,
                     userTopArtists = userTop,
                     popularStations = stations,
                     searchHistory = sHistory,
-                    queue = if (it.queue.isEmpty()) initialTracks else it.queue,
-                    favorites = if (savedFavs.isNotEmpty()) savedFavs else initialTracks.filter { s -> s.isFavorite },
+                    queue = if (it.queue.isNotEmpty()) it.queue else fallbackTracks,
+                    favorites = if (savedFavs.isNotEmpty()) savedFavs else fallbackTracks.filter { s -> s.isFavorite },
                     downloads = savedDownloads,
                     playlists = savedPlaylists,
-                    currentTheme = savedPalette
+                    currentTheme = savedPalette,
+                    appLanguage = savedLanguage
                 )
             }
 
             // Sync initial favorites into DB if first run
             if (savedFavs.isEmpty()) {
-                initialTracks.filter { it.isFavorite }.forEach { database.addFavorite(it) }
+                fallbackTracks.filter { it.isFavorite }.forEach { database.addFavorite(it) }
             }
 
             scanLocalTracks()
             loadLyricsForSong(_uiState.value.currentSong)
+
+            // 2. Fetch fresh tracks from network in the background without blocking UI or blanking out
+            launch(Dispatchers.IO) {
+                try {
+                    val freshTracks = YouTubeMusicEngine.searchTracks("")
+                    if (freshTracks.isNotEmpty()) {
+                        _uiState.update {
+                            it.copy(
+                                searchResults = freshTracks,
+                                queue = if (it.queue == fallbackTracks) freshTracks else it.queue
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Offline: Curated offline catalog remains active smoothly
+                }
+            }
         }
     }
 
@@ -742,6 +761,33 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
         prefs.edit().putString("palette", paletteName).apply()
         _uiState.update { it.copy(currentTheme = paletteName) }
+    }
+
+    fun setAppLanguage(language: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("app_language", language).apply()
+        _uiState.update { it.copy(appLanguage = language) }
+        showToast("✓ Idioma: $language")
+    }
+
+    @OptIn(coil.annotation.ExperimentalCoilApi::class)
+    fun clearAppCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>()
+                val imageLoader = Coil.imageLoader(context)
+                imageLoader.memoryCache?.clear()
+                imageLoader.diskCache?.clear()
+                context.cacheDir.deleteRecursively()
+                withContext(Dispatchers.Main) {
+                    showToast("✓ Memoria caché liberada con éxito")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    showToast("✓ Caché liberada")
+                }
+            }
+        }
     }
 
     fun addToQueueNext(song: Song) {

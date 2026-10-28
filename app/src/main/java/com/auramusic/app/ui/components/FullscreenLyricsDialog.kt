@@ -11,6 +11,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,7 +56,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -100,14 +102,25 @@ fun FullscreenLyricsDialog(
         val listState = rememberLazyListState()
         val activeIndex = lyrics.indexOfLast { it.timestampMs <= currentPositionMs }.coerceAtLeast(0)
 
-        // Controls auto-hide state and touch toggle
+        // Controls visibility state
         var controlsVisible by remember { mutableStateOf(true) }
         var lastInteraction by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-        // Automatically hide controls after 3.5 seconds of inactivity
-        LaunchedEffect(controlsVisible, lastInteraction) {
-            if (controlsVisible) {
-                delay(3500L)
+        // When paused, controls MUST always be visible so the user can play or navigate immediately
+        val shouldShowControls = controlsVisible || !isPlaying
+
+        // Wake controls whenever user scrolls or interacts with the lyrics list
+        LaunchedEffect(listState.isScrollInProgress) {
+            if (listState.isScrollInProgress) {
+                controlsVisible = true
+                lastInteraction = System.currentTimeMillis()
+            }
+        }
+
+        // Only auto-hide controls when playback is ACTIVE (never auto-hide when paused)
+        LaunchedEffect(controlsVisible, lastInteraction, isPlaying) {
+            if (controlsVisible && isPlaying) {
+                delay(4000L)
                 controlsVisible = false
             }
         }
@@ -129,9 +142,7 @@ fun FullscreenLyricsDialog(
                     indication = null
                 ) {
                     controlsVisible = !controlsVisible
-                    if (controlsVisible) {
-                        lastInteraction = System.currentTimeMillis()
-                    }
+                    lastInteraction = System.currentTimeMillis()
                 }
         ) {
             // 1. Ambient Frosted Glass Background (Cover Art blurred)
@@ -159,6 +170,17 @@ fun FullscreenLyricsDialog(
                             )
                         )
                     )
+            )
+
+            // Top drag handle to exit fullscreen easily
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 16.dp)
+                    .size(width = 44.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(CyberCyan.copy(alpha = 0.50f))
+                    .clickable { onDismiss() }
             )
 
             // 2. Middle: Big Synced Karaoke Typography (Full Screen Viewport)
@@ -189,7 +211,7 @@ fun FullscreenLyricsDialog(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(top = 110.dp, bottom = 140.dp, start = 14.dp, end = 14.dp),
+                        contentPadding = PaddingValues(top = 110.dp, bottom = 150.dp, start = 14.dp, end = 14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         itemsIndexed(lyrics) { index, line ->
@@ -217,6 +239,7 @@ fun FullscreenLyricsDialog(
                                     .fillMaxWidth()
                                     .clickable {
                                         onSeekTo(line.timestampMs)
+                                        controlsVisible = true
                                         lastInteraction = System.currentTimeMillis()
                                     }
                                     .padding(vertical = 18.dp)
@@ -240,33 +263,34 @@ fun FullscreenLyricsDialog(
 
             // 3. Top Header with Smooth Slide & Fade
             AnimatedVisibility(
-                visible = controlsVisible,
+                visible = shouldShowControls,
                 enter = fadeIn(tween(250)) + slideInVertically(initialOffsetY = { -it }),
                 exit = fadeOut(tween(250)) + slideOutVertically(targetOffsetY = { -it }),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 24.dp)
+                    .padding(horizontal = 20.dp, vertical = 26.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp, bottom = 12.dp),
+                        .padding(top = 12.dp, bottom = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(44.dp)
                             .clip(CircleShape)
                             .background(CyberSurfaceCard)
+                            .border(1.dp, GlassBorder, CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
                             contentDescription = "Cerrar",
                             tint = CyberCyan,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(30.dp)
                         )
                     }
 
@@ -297,6 +321,7 @@ fun FullscreenLyricsDialog(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
                             .background(CyberCyan.copy(alpha = 0.15f))
+                            .border(1.dp, CyberCyan.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Text(
@@ -311,9 +336,53 @@ fun FullscreenLyricsDialog(
                 }
             }
 
-            // 4. Floating Mini-Player Bottom Bar (Automatically hides for pure full-screen view)
+            // 4. Subtle Floating Mini-Pill (Always accessible when full controls auto-hide during playback)
             AnimatedVisibility(
-                visible = controlsVisible,
+                visible = !shouldShowControls,
+                enter = fadeIn(tween(200)),
+                exit = fadeOut(tween(200)),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(CyberSurfaceCard.copy(alpha = 0.90f))
+                        .border(1.2.dp, CyberCyan.copy(alpha = 0.6f), RoundedCornerShape(22.dp))
+                        .clickable {
+                            onPlayPause()
+                            controlsVisible = true
+                            lastInteraction = System.currentTimeMillis()
+                        }
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                            tint = CyberCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isPlaying) "PAUSAR" else "REPRODUCIR",
+                            color = TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+            }
+
+            // 5. Floating Mini-Player Bottom Bar (Full Controls)
+            AnimatedVisibility(
+                visible = shouldShowControls,
                 enter = fadeIn(tween(300)) + slideInVertically(initialOffsetY = { it }),
                 exit = fadeOut(tween(300)) + slideOutVertically(targetOffsetY = { it }),
                 modifier = Modifier
@@ -325,7 +394,7 @@ fun FullscreenLyricsDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(26.dp))
-                        .background(CyberSurfaceCard.copy(alpha = 0.95f))
+                        .background(CyberSurfaceCard.copy(alpha = 0.96f))
                         .border(1.2.dp, GlassBorder, RoundedCornerShape(26.dp))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },

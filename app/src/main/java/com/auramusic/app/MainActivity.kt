@@ -226,6 +226,7 @@ class MainActivity : ComponentActivity() {
 
                                 GlassBottomDock(
                                     currentTab = uiState.currentTab,
+                                    appLanguage = uiState.appLanguage,
                                     onSelectTab = { playerViewModel.selectTab(it) }
                                 )
                             }
@@ -327,9 +328,12 @@ class MainActivity : ComponentActivity() {
                                 audioQuality = uiState.audioQuality,
                                 loudnessNormalizer = uiState.loudnessNormalizer,
                                 currentTheme = uiState.currentTheme,
+                                appLanguage = uiState.appLanguage,
                                 onQualitySelected = { q -> playerViewModel.setAudioQuality(q) },
                                 onToggleLoudness = { playerViewModel.toggleLoudnessNormalizer() },
                                 onSelectTheme = { themeName -> playerViewModel.setThemePalette(themeName) },
+                                onSelectLanguage = { lang -> playerViewModel.setAppLanguage(lang) },
+                                onClearCache = { playerViewModel.clearAppCache() },
                                 onDismiss = { playerViewModel.setShowSettings(false) }
                             )
                         }

@@ -416,8 +416,98 @@ object YouTubeMusicEngine {
         }
     }
 
-    private fun getCuratedFallbackTracks(query: String): List<Song> {
+    fun getCuratedFallbackTracks(query: String = ""): List<Song> {
         val all = listOf(
+            Song(
+                id = "4D7u5KF7SP8",
+                title = "Get Lucky",
+                artist = "Daft Punk ft. Pharrell Williams",
+                album = "Random Access Memories",
+                durationMs = 248000L,
+                coverUrl = "https://lh3.googleusercontent.com/fL9g3z400qW1y8sQ9tXG_lPvZ42zWcO64L0w1X9Y2Z3b4c5d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3",
+                isFavorite = true
+            ),
+            Song(
+                id = "a5uQMwRMHcs",
+                title = "Instant Crush",
+                artist = "Daft Punk ft. Julian Casablancas",
+                album = "Random Access Memories",
+                durationMs = 337000L,
+                coverUrl = "https://lh3.googleusercontent.com/fL9g3z400qW1y8sQ9tXG_lPvZ42zWcO64L0w1X9Y2Z3b4c5d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
+                isFavorite = true
+            ),
+            Song(
+                id = "4NRXx6U8ABQ",
+                title = "Blinding Lights",
+                artist = "The Weeknd",
+                album = "After Hours",
+                durationMs = 200000L,
+                coverUrl = "https://lh3.googleusercontent.com/mO4rT9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9h0j1k2l3z4x5c6v7b8n9m0=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
+                isFavorite = true
+            ),
+            Song(
+                id = "34Na4j8AVgA",
+                title = "Starboy",
+                artist = "The Weeknd ft. Daft Punk",
+                album = "Starboy",
+                durationMs = 230000L,
+                coverUrl = "https://lh3.googleusercontent.com/9nJ9P_9e8r7t6y5u4i3o2p1a0s9d8f7g6h5j4k3l2z1x0c9v8b7n6m5a4s3d2f1g=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3",
+                isFavorite = false
+            ),
+            Song(
+                id = "saGYMhApaH8",
+                title = "Me Porto Bonito",
+                artist = "Bad Bunny & Chencho Corleone",
+                album = "Un Verano Sin Ti",
+                durationMs = 178000L,
+                coverUrl = "https://lh3.googleusercontent.com/b7U9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
+                isFavorite = true
+            ),
+            Song(
+                id = "1_las_consecuencias",
+                title = "las consecuencias",
+                artist = "Jaze",
+                album = "Toy Lokazo",
+                durationMs = 191000L,
+                coverUrl = "https://lh3.googleusercontent.com/kYqK6d2wX4f-3k8zM8z8=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
+                isFavorite = true
+            ),
+            Song(
+                id = "2_akel_pastel",
+                title = "akel pastel",
+                artist = "Jaze",
+                album = "Toy Lokazo",
+                durationMs = 212000L,
+                coverUrl = "https://lh3.googleusercontent.com/kYqK6d2wX4f-3k8zM8z8=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3",
+                isFavorite = false
+            ),
+            Song(
+                id = "81UZ9Q3x5jA",
+                title = "DESPECHÁ",
+                artist = "ROSALÍA",
+                album = "MOTOMAMI +",
+                durationMs = 157000L,
+                coverUrl = "https://lh3.googleusercontent.com/c4Y9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
+                isFavorite = false
+            ),
+            Song(
+                id = "HyHNuVaZJ-k",
+                title = "Feel Good Inc.",
+                artist = "Gorillaz",
+                album = "Demon Days",
+                durationMs = 223000L,
+                coverUrl = "https://lh3.googleusercontent.com/d6X9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
+                isFavorite = true
+            ),
             Song(
                 id = "1",
                 title = "Resonance",
@@ -429,36 +519,6 @@ object YouTubeMusicEngine {
                 isFavorite = true
             ),
             Song(
-                id = "2",
-                title = "Cyber City Lights",
-                artist = "Aura Synthesizer",
-                album = "Neon Drift",
-                durationMs = 184000L,
-                coverUrl = "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=600&auto=format&fit=crop&q=80",
-                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
-                isFavorite = false
-            ),
-            Song(
-                id = "3",
-                title = "Wayland Dreams",
-                artist = "Quickshell Core",
-                album = "Abyss Protocol",
-                durationMs = 245000L,
-                coverUrl = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80",
-                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
-                isFavorite = true
-            ),
-            Song(
-                id = "4",
-                title = "Midnight City Cyber",
-                artist = "M83 Remix",
-                album = "Hurry Up Synth",
-                durationMs = 243000L,
-                coverUrl = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80",
-                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3",
-                isFavorite = false
-            ),
-            Song(
                 id = "5",
                 title = "After Dark",
                 artist = "Mr.Kitty",
@@ -467,8 +527,40 @@ object YouTubeMusicEngine {
                 coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
                 isFavorite = false
+            ),
+            Song(
+                id = "7_dance_crip",
+                title = "DANCE CRIP",
+                artist = "Trueno",
+                album = "BIEN O MAL",
+                durationMs = 175000L,
+                coverUrl = "https://lh3.googleusercontent.com/e5Y9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3",
+                isFavorite = true
+            ),
+            Song(
+                id = "60ItHLz5WEA",
+                title = "SICKO MODE",
+                artist = "Travis Scott",
+                album = "ASTROWORLD",
+                durationMs = 312000L,
+                coverUrl = "https://lh3.googleusercontent.com/a8X9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9=w544-h544-l90-rj",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
+                isFavorite = false
+            ),
+            Song(
+                id = "TUVcZfQe-Kw",
+                title = "Levitating",
+                artist = "Dua Lipa",
+                album = "Future Nostalgia",
+                durationMs = 203000L,
+                coverUrl = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80",
+                mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
+                isFavorite = false
             )
         )
+
+        if (query.isBlank()) return all
 
         val matches = all.filter {
             it.title.contains(query, ignoreCase = true) || it.artist.contains(query, ignoreCase = true)

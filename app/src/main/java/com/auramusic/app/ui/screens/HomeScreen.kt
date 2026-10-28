@@ -80,14 +80,20 @@ fun HomeScreen(
     val stations = if (popularStations.isNotEmpty()) {
         popularStations
     } else {
-        listOf("Cyberpunk", "Synthwave", "Trap Latino", "Lo-Fi Chill", "Phonk", "Reggaetón Hits", "Rock Clásico", "Pop Global")
+        com.auramusic.app.network.YouTubeMusicEngine.getCuratedStations()
+    }
+
+    val displayTracks = if (featuredTracks.isNotEmpty()) {
+        featuredTracks
+    } else {
+        com.auramusic.app.network.YouTubeMusicEngine.getCuratedFallbackTracks()
     }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 120.dp),
+        contentPadding = PaddingValues(bottom = 160.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
         // 1. Futuristic Status Header with Aura Music Brand Logo
@@ -406,7 +412,7 @@ fun HomeScreen(
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    items(featuredTracks.take(6)) { song ->
+                    items(displayTracks.take(6)) { song ->
                         QuickPickCard(
                             song = song,
                             isCurrent = song.id == currentSong.id,
@@ -441,7 +447,7 @@ fun HomeScreen(
             }
         }
 
-        itemsIndexed(featuredTracks) { index, song ->
+        itemsIndexed(displayTracks) { index, song ->
             val isCurrent = song.id == currentSong.id
             ChartTrackRow(
                 rank = index + 1,

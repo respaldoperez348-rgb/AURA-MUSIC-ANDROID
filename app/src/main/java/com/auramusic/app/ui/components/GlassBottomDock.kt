@@ -44,6 +44,7 @@ import com.auramusic.app.viewmodel.MainTab
 @Composable
 fun GlassBottomDock(
     currentTab: MainTab,
+    appLanguage: String = "Español",
     onSelectTab: (MainTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -80,14 +81,14 @@ fun GlassBottomDock(
             ) {
                 DockTabItem(
                     icon = Icons.Default.Home,
-                    label = "Inicio",
+                    label = com.auramusic.app.data.locale.AuraStrings.get("tab_studio", appLanguage),
                     isSelected = currentTab == MainTab.STUDIO,
                     onClick = { onSelectTab(MainTab.STUDIO) }
                 )
 
                 DockTabItem(
                     icon = Icons.Default.Folder,
-                    label = "Biblioteca",
+                    label = com.auramusic.app.data.locale.AuraStrings.get("tab_library", appLanguage),
                     isSelected = currentTab == MainTab.VAULT,
                     onClick = { onSelectTab(MainTab.VAULT) }
                 )

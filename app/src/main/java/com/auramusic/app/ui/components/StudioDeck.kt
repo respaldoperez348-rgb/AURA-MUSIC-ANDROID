@@ -205,6 +205,7 @@ fun StudioDeck(
                                 .fillMaxWidth()
                                 .height(264.dp)
                                 .clip(RoundedCornerShape(16.dp))
+                                .clickable { onOpenFullscreenLyrics() }
                         ) {
                             LyricsView(
                                 lyrics = lyrics,
@@ -219,14 +220,15 @@ fun StudioDeck(
                                     .padding(8.dp)
                                     .clip(CircleShape)
                                     .background(CyberSurfaceCard)
+                                    .border(1.dp, GlassBorder, CircleShape)
                                     .clickable { onOpenFullscreenLyrics() }
-                                    .padding(6.dp)
+                                    .padding(8.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.OpenInFull,
                                     contentDescription = "Pantalla completa de letras",
                                     tint = CyberCyan,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
