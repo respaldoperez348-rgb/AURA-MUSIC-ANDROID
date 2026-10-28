@@ -29,7 +29,7 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
 
     companion object {
         const val DATABASE_NAME = "aura_music.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
 
         // Table Names
         const val TABLE_FAVORITES = "favorites"
@@ -37,6 +37,7 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         const val TABLE_PLAYLIST_SONGS = "playlist_songs"
         const val TABLE_DOWNLOADS = "downloads"
         const val TABLE_HISTORY = "history"
+        const val TABLE_SEARCH_HISTORY = "search_history"
 
         @Volatile
         private var instance: AuraDatabase? = null
@@ -121,15 +122,27 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
                 playedAt INTEGER
             )
         """.trimIndent())
+
+        // Search History Table
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_SEARCH_HISTORY (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query TEXT UNIQUE,
+                timestamp INTEGER
+            )
+        """.trimIndent())
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_FAVORITES")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_PLAYLIST_SONGS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_PLAYLISTS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_DOWNLOADS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_HISTORY")
-        onCreate(db)
+        if (oldVersion < 2) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS $TABLE_SEARCH_HISTORY (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    query TEXT UNIQUE,
+                    timestamp INTEGER
+                )
+            """.trimIndent())
+        }
     }
 
     // ==========================================
@@ -430,5 +443,68 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             }
         }
         list
+    }
+
+    // ==========================================
+    // SEARCH HISTORY OPERATIONS
+    // ==========================================
+
+    suspend fun insertSearchHistory(query: String) = withContext(Dispatchers.IO) {
+        val cleanQuery = query.trim()
+        if (cleanQuery.isBlank()) return@withContext
+        val db = writableDatabase
+        val cv = ContentValues().apply {
+            put("query", cleanQuery)
+            put("timestamp", System.currentTimeMillis())
+        }
+        db.insertWithOnConflict(TABLE_SEARCH_HISTORY, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+        // Keep top 25 recent searches
+        try {
+            db.execSQL("""
+                DELETE FROM $TABLE_SEARCH_HISTORY WHERE id NOT IN (
+                    SELECT id FROM $TABLE_SEARCH_HISTORY ORDER BY timestamp DESC LIMIT 25
+                )
+            """.trimIndent())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun getSearchHistory(): List<String> = withContext(Dispatchers.IO) {
+        val list = mutableListOf<String>()
+        try {
+            val db = readableDatabase
+            val cursor: Cursor = db.rawQuery(
+                "SELECT query FROM $TABLE_SEARCH_HISTORY ORDER BY timestamp DESC LIMIT 20",
+                null
+            )
+            cursor.use {
+                while (it.moveToNext()) {
+                    val q = it.getString(0)
+                    if (!q.isNullOrBlank()) list.add(q)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        list
+    }
+
+    suspend fun deleteSearchHistoryItem(query: String) = withContext(Dispatchers.IO) {
+        try {
+            val db = writableDatabase
+            db.delete(TABLE_SEARCH_HISTORY, "query = ?", arrayOf(query))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun clearSearchHistory() = withContext(Dispatchers.IO) {
+        try {
+            val db = writableDatabase
+            db.delete(TABLE_SEARCH_HISTORY, null, null)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }

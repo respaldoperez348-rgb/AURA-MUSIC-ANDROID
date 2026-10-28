@@ -54,6 +54,40 @@ object YouTubeMusicEngine {
         }
     }
 
+    suspend fun getSearchSuggestions(query: String): List<String> = withContext(Dispatchers.IO) {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) return@withContext emptyList()
+        try {
+            val encoded = java.net.URLEncoder.encode(trimmed, "UTF-8")
+            val url = "https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=$encoded"
+            val req = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0")
+                .get()
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: return@withContext emptyList()
+                val jsonArray = org.json.JSONArray(body)
+                if (jsonArray.length() > 1) {
+                    val suggestionsArray = jsonArray.optJSONArray(1) ?: return@withContext emptyList()
+                    val result = mutableListOf<String>()
+                    for (i in 0 until suggestionsArray.length()) {
+                        val s = suggestionsArray.optString(i)
+                        if (s.isNotBlank() && !result.contains(s)) {
+                            result.add(s)
+                        }
+                    }
+                    result.take(8)
+                } else {
+                    emptyList()
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     private fun parseSearchResponse(jsonStr: String): List<Song> {
         val results = mutableListOf<Song>()
         try {

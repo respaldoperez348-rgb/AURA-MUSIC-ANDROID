@@ -198,7 +198,7 @@ fun VaultScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(bottom = 130.dp)
+                        contentPadding = PaddingValues(bottom = 160.dp)
                     ) {
                         items(favorites) { song ->
                             VaultSongRow(
@@ -246,7 +246,7 @@ fun VaultScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(bottom = 130.dp)
+                        contentPadding = PaddingValues(bottom = 160.dp)
                     ) {
                         items(downloads) { dt ->
                             VaultSongRow(
@@ -383,7 +383,7 @@ fun VaultScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(bottom = 130.dp)
+                        contentPadding = PaddingValues(bottom = 160.dp)
                     ) {
                         items(localTracks) { song ->
                             VaultSongRow(

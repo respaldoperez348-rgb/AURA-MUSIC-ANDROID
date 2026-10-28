@@ -171,7 +171,12 @@ class MainActivity : ComponentActivity() {
                                             isSearching = uiState.isSearching,
                                             currentSong = uiState.currentSong,
                                             isPlaying = uiState.isPlaying,
+                                            searchHistory = uiState.searchHistory,
+                                            searchSuggestions = uiState.searchSuggestions,
                                             onSearch = { q -> playerViewModel.search(q) },
+                                            onFetchSuggestions = { q -> playerViewModel.fetchSearchSuggestions(q) },
+                                            onDeleteHistoryItem = { q -> playerViewModel.deleteSearchHistoryItem(q) },
+                                            onClearHistory = { playerViewModel.clearSearchHistory() },
                                             onSelectSong = { song -> playerViewModel.playSong(song, uiState.searchResults) },
                                             onOpenSongOptions = { song -> playerViewModel.openSongOptions(song) }
                                         )
@@ -210,6 +215,10 @@ class MainActivity : ComponentActivity() {
                                 MiniPlayer(
                                     song = uiState.currentSong,
                                     isPlaying = uiState.isPlaying,
+                                    currentPositionMs = uiState.currentPositionMs,
+                                    durationMs = uiState.durationMs,
+                                    isFavorite = uiState.favorites.any { it.id == uiState.currentSong.id },
+                                    onToggleFavorite = { playerViewModel.toggleFavorite(uiState.currentSong) },
                                     onPlayPause = { playerViewModel.playPause() },
                                     onNext = { playerViewModel.next() },
                                     onExpand = { playerViewModel.setPlayerExpanded(true) }

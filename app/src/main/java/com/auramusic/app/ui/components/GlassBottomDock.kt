@@ -12,11 +12,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -27,17 +27,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
 import com.auramusic.app.ui.theme.CyberCyanGlow
-import com.auramusic.app.ui.theme.CyberSurfaceCard
 import com.auramusic.app.ui.theme.GlassBorder
 import com.auramusic.app.ui.theme.TextMuted
+import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
 import com.auramusic.app.viewmodel.MainTab
 
@@ -47,98 +47,129 @@ fun GlassBottomDock(
     onSelectTab: (MainTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 12.dp)
-            .shadow(elevation = 20.dp, shape = RoundedCornerShape(26.dp), spotColor = CyberCyanGlow)
-            .clip(RoundedCornerShape(26.dp))
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(CyberSurfaceCard, CyberBackgroundDark.copy(alpha = 0.95f))
-                )
-            )
-            .border(1.2.dp, GlassBorder, RoundedCornerShape(26.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+        // Main Navigation Capsule (Inicio + Biblioteca)
+        Box(
+            modifier = Modifier
+                .shadow(
+                    elevation = 16.dp,
+                    shape = RoundedCornerShape(32.dp),
+                    spotColor = CyberCyanGlow.copy(alpha = 0.2f)
+                )
+                .clip(RoundedCornerShape(32.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF1E212B),
+                            Color(0xFF14161E)
+                        )
+                    )
+                )
+                .border(1.2.dp, GlassBorder, RoundedCornerShape(32.dp))
+                .padding(horizontal = 6.dp, vertical = 5.dp)
         ) {
-            DockItem(
-                icon = Icons.Default.GraphicEq,
-                label = "STUDIO",
-                isSelected = currentTab == MainTab.STUDIO,
-                onClick = { onSelectTab(MainTab.STUDIO) }
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                DockTabItem(
+                    icon = Icons.Default.Home,
+                    label = "Inicio",
+                    isSelected = currentTab == MainTab.STUDIO,
+                    onClick = { onSelectTab(MainTab.STUDIO) }
+                )
 
-            DockItem(
-                icon = Icons.Default.Search,
-                label = "RADAR",
-                isSelected = currentTab == MainTab.RADAR,
-                onClick = { onSelectTab(MainTab.RADAR) }
-            )
+                DockTabItem(
+                    icon = Icons.Default.Folder,
+                    label = "Biblioteca",
+                    isSelected = currentTab == MainTab.VAULT,
+                    onClick = { onSelectTab(MainTab.VAULT) }
+                )
+            }
+        }
 
-            DockItem(
-                icon = Icons.Default.Album,
-                label = "VAULT",
-                isSelected = currentTab == MainTab.VAULT,
-                onClick = { onSelectTab(MainTab.VAULT) }
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Separate Circular Search Button
+        val isSearchSelected = currentTab == MainTab.RADAR
+        val searchBg by animateColorAsState(
+            targetValue = if (isSearchSelected) CyberCyan else Color(0xFF1A1C25),
+            label = "search_bg"
+        )
+        val searchIconColor by animateColorAsState(
+            targetValue = if (isSearchSelected) CyberBackgroundDark else TextPrimary,
+            label = "search_icon"
+        )
+
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .shadow(
+                    elevation = 16.dp,
+                    shape = CircleShape,
+                    spotColor = if (isSearchSelected) CyberCyanGlow else Color.Transparent
+                )
+                .clip(CircleShape)
+                .background(searchBg)
+                .border(
+                    1.2.dp,
+                    if (isSearchSelected) CyberCyan else GlassBorder,
+                    CircleShape
+                )
+                .clickable { onSelectTab(MainTab.RADAR) },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Buscar",
+                tint = searchIconColor,
+                modifier = Modifier.size(24.dp)
             )
         }
     }
 }
 
 @Composable
-private fun DockItem(
+private fun DockTabItem(
     icon: ImageVector,
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val bgBrush = if (isSelected) {
-        Brush.horizontalGradient(
-            colors = listOf(CyberCyan.copy(alpha = 0.25f), CyberCyanGlow.copy(alpha = 0.15f))
-        )
+    val bgModifier = if (isSelected) {
+        Modifier
+            .clip(RoundedCornerShape(26.dp))
+            .background(Color(0xFF2C303E))
     } else {
-        Brush.horizontalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent, androidx.compose.ui.graphics.Color.Transparent))
+        Modifier
+            .clip(RoundedCornerShape(26.dp))
+            .background(Color.Transparent)
     }
 
-    val iconColor by animateColorAsState(
-        targetValue = if (isSelected) CyberCyan else TextMuted,
-        label = "dock_icon_color"
-    )
-
     Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(bgBrush)
-            .border(
-                1.dp,
-                if (isSelected) CyberCyan.copy(alpha = 0.6f) else androidx.compose.ui.graphics.Color.Transparent,
-                RoundedCornerShape(16.dp)
-            )
+        modifier = bgModifier
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 18.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = iconColor,
-            modifier = Modifier.size(18.dp)
+            tint = if (isSelected) CyberCyan else TextSecondary,
+            modifier = Modifier.size(20.dp)
         )
-        if (isSelected) {
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = label,
-                color = CyberCyan,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 1.sp
-            )
-        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = label,
+            color = if (isSelected) TextPrimary else TextSecondary,
+            fontSize = 13.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }

@@ -451,6 +451,10 @@ fun HomeScreen(
                 onClick = { onSelectSong(song) }
             )
         }
+
+        item {
+            Spacer(modifier = Modifier.height(140.dp))
+        }
     }
 }
 

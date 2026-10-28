@@ -102,6 +102,8 @@ data class PlayerUiState(
     val trendingAlbums: List<Album> = emptyList(),
     val userTopArtists: List<Song> = emptyList(),
     val popularStations: List<String> = emptyList(),
+    val searchHistory: List<String> = emptyList(),
+    val searchSuggestions: List<String> = emptyList(),
     val toastMessage: String? = null
 )
 
@@ -184,6 +186,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val popArtists = YouTubeMusicEngine.getCuratedPopularArtists()
             val trendAlbums = YouTubeMusicEngine.getCuratedTrendingAlbums()
             val stations = YouTubeMusicEngine.getCuratedStations()
+            val sHistory = database.getSearchHistory()
 
             _uiState.update {
                 it.copy(
@@ -192,6 +195,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     trendingAlbums = trendAlbums,
                     userTopArtists = userTop,
                     popularStations = stations,
+                    searchHistory = sHistory,
                     queue = if (it.queue.isEmpty()) initialTracks else it.queue,
                     favorites = if (savedFavs.isNotEmpty()) savedFavs else initialTracks.filter { s -> s.isFavorite },
                     downloads = savedDownloads,
@@ -353,9 +357,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun search(query: String) {
+        val trimmed = query.trim()
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            _uiState.update { it.copy(isSearching = true) }
+            _uiState.update { it.copy(isSearching = true, searchSuggestions = emptyList()) }
+            if (trimmed.isNotBlank()) {
+                database.insertSearchHistory(trimmed)
+                val updatedHistory = database.getSearchHistory()
+                _uiState.update { it.copy(searchHistory = updatedHistory) }
+            }
             val results = YouTubeMusicEngine.searchTracks(query)
             _uiState.update {
                 it.copy(
@@ -363,6 +373,37 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     isSearching = false
                 )
             }
+        }
+    }
+
+    fun fetchSearchSuggestions(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) {
+            _uiState.update { it.copy(searchSuggestions = emptyList()) }
+            return
+        }
+        viewModelScope.launch {
+            val suggestions = YouTubeMusicEngine.getSearchSuggestions(trimmed)
+            _uiState.update { it.copy(searchSuggestions = suggestions) }
+        }
+    }
+
+    fun clearSearchSuggestions() {
+        _uiState.update { it.copy(searchSuggestions = emptyList()) }
+    }
+
+    fun deleteSearchHistoryItem(query: String) {
+        viewModelScope.launch {
+            database.deleteSearchHistoryItem(query)
+            val updated = database.getSearchHistory()
+            _uiState.update { it.copy(searchHistory = updated) }
+        }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch {
+            database.clearSearchHistory()
+            _uiState.update { it.copy(searchHistory = emptyList()) }
         }
     }
 
