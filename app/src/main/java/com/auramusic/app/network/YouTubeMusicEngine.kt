@@ -177,6 +177,16 @@ object YouTubeMusicEngine {
                 thumb = thumbnails.getJSONObject(thumbnails.length() - 1).optString("url")
             }
 
+            if (thumb.startsWith("//")) {
+                thumb = "https:$thumb"
+            }
+            if (thumb.isBlank() && videoId.isNotBlank()) {
+                thumb = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+            }
+            if (thumb.contains("=w") && thumb.contains("-h")) {
+                thumb = thumb.replace(Regex("=w\\d+-h\\d+"), "=w544-h544")
+            }
+
             val finalId = if (videoId.isNotBlank()) videoId else title.hashCode().toString()
             val mediaUrl = "https://www.youtube.com/watch?v=$finalId"
 

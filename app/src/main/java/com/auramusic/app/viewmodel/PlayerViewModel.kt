@@ -2,6 +2,9 @@ package com.auramusic.app.viewmodel
 
 import android.app.Application
 import android.content.ComponentName
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
@@ -9,12 +12,16 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import coil.Coil
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import com.auramusic.app.data.database.AuraDatabase
 import com.auramusic.app.data.database.DownloadedTrack
 import com.auramusic.app.data.database.Playlist
 import com.auramusic.app.data.model.LyricLine
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.network.AuraDownloadManager
+import com.auramusic.app.network.AuraStreamResolver
 import com.auramusic.app.network.LyricsEngine
 import com.auramusic.app.network.YouTubeMusicEngine
 import com.auramusic.app.playback.AuraAudioEffects
@@ -23,13 +30,17 @@ import com.auramusic.app.playback.SleepTimerManager
 import com.auramusic.app.playback.SleepTimerState
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 
 enum class MainTab {
     STUDIO, RADAR, VAULT
@@ -259,31 +270,87 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private suspend fun fetchCoverBytes(coverUrl: String): ByteArray? = withContext(Dispatchers.IO) {
+        if (coverUrl.isBlank()) return@withContext null
+        try {
+            val context = getApplication<Application>()
+            val loader = Coil.imageLoader(context)
+            val request = ImageRequest.Builder(context)
+                .data(coverUrl)
+                .allowHardware(false)
+                .build()
+            val result = (loader.execute(request) as? SuccessResult)?.drawable
+            val bitmap = (result as? BitmapDrawable)?.bitmap ?: return@withContext null
+            val stream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+            stream.toByteArray()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun playSong(song: Song) {
+        // 1. Immediately reflect the selected track in the UI for instant response
+        _uiState.update { state ->
+            val updatedQueue = if (state.queue.none { it.id == song.id }) {
+                listOf(song) + state.queue
+            } else {
+                state.queue
+            }
+            val newIndex = updatedQueue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+            state.copy(
+                currentSong = song,
+                queue = updatedQueue,
+                currentIndex = newIndex,
+                isPlaying = true,
+                currentPositionMs = 0L,
+                durationMs = song.durationMs,
+                lyrics = emptyList() // Clear previous song lyrics immediately
+            )
+        }
+
+        // 2. Fetch lyrics concurrently
+        loadLyricsForSong(song)
+
         viewModelScope.launch {
-            // Check if downloaded locally for offline playback!
             val downloadedList = database.getDownloadedTracks()
             val localTrack = downloadedList.find { it.song.id == song.id }
 
-            val playableUri = if (localTrack != null) {
-                localTrack.localFilePath
-            } else if (song.id.startsWith("local_")) {
-                song.mediaUri
-            } else {
-                // Dynamically resolve real YouTube audio stream via NewPipeExtractor
-                val resolvedStream = com.auramusic.app.network.AuraStreamResolver.resolveAudioStream(song.id)
-                resolvedStream ?: song.mediaUri
+            // 3. Resolve audio stream & cover art bytes in parallel
+            val streamDeferred = async(Dispatchers.IO) {
+                if (localTrack != null) {
+                    localTrack.localFilePath
+                } else if (song.id.startsWith("local_")) {
+                    song.mediaUri
+                } else {
+                    AuraStreamResolver.resolveAudioStream(song.id) ?: song.mediaUri
+                }
+            }
+
+            val artworkDeferred = async(Dispatchers.IO) {
+                fetchCoverBytes(song.coverUrl)
+            }
+
+            val playableUri = streamDeferred.await()
+            val artworkBytes = artworkDeferred.await()
+
+            // 4. Build MediaMetadata with Artwork URI and Artwork Data Bytes for system notification
+            val metaBuilder = MediaMetadata.Builder()
+                .setTitle(song.title)
+                .setArtist(song.artist)
+                .setAlbumTitle(song.album)
+
+            if (song.coverUrl.isNotBlank()) {
+                metaBuilder.setArtworkUri(Uri.parse(song.coverUrl))
+            }
+            if (artworkBytes != null) {
+                metaBuilder.setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
             }
 
             val mediaItem = MediaItem.Builder()
                 .setUri(playableUri)
                 .setMediaId(song.id)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(song.title)
-                        .setArtist(song.artist)
-                        .build()
-                )
+                .setMediaMetadata(metaBuilder.build())
                 .build()
 
             mediaController?.run {
@@ -294,22 +361,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             database.addToHistory(song)
 
-            _uiState.update { state ->
-                val updatedQueue = if (state.queue.none { it.id == song.id }) {
-                    listOf(song) + state.queue
-                } else {
-                    state.queue
+            // 5. Background prefetch for NEXT song in queue (zero-latency skipping)
+            val q = _uiState.value.queue
+            val idx = _uiState.value.currentIndex
+            if (q.isNotEmpty()) {
+                val nextIdx = (idx + 1) % q.size
+                val nextSong = q[nextIdx]
+                if (!nextSong.id.startsWith("local_") && !AuraStreamResolver.isCached(nextSong.id)) {
+                    launch(Dispatchers.IO) {
+                        AuraStreamResolver.resolveAudioStream(nextSong.id)
+                    }
                 }
-                state.copy(
-                    currentSong = song,
-                    queue = updatedQueue,
-                    isPlaying = true,
-                    currentPositionMs = 0L,
-                    durationMs = song.durationMs
-                )
             }
-
-            loadLyricsForSong(song)
         }
     }
 
