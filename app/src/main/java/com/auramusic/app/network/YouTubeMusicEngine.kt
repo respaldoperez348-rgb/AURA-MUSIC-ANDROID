@@ -73,6 +73,58 @@ object YouTubeMusicEngine {
             for (i in 0 until sections.length()) {
                 val sec = sections.optJSONObject(i) ?: continue
 
+                // Check musicCardShelfRenderer (Top Result / Artist / Album card)
+                val cardShelf = sec.optJSONObject("musicCardShelfRenderer")
+                if (cardShelf != null) {
+                    val titleRuns = cardShelf.optJSONObject("title")?.optJSONArray("runs")
+                    val cardTitle = if (titleRuns != null && titleRuns.length() > 0) {
+                        titleRuns.getJSONObject(0).optString("text")
+                    } else ""
+
+                    val subRuns = cardShelf.optJSONObject("subtitle")?.optJSONArray("runs")
+                    val cardSub = if (subRuns != null && subRuns.length() > 0) {
+                        subRuns.getJSONObject(0).optString("text")
+                    } else ""
+
+                    val navEndpoint = if (titleRuns != null && titleRuns.length() > 0) {
+                        titleRuns.getJSONObject(0).optJSONObject("navigationEndpoint")
+                    } else null
+                    val browseId = navEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId") ?: ""
+
+                    val cardThumbs = cardShelf.optJSONObject("thumbnail")?.optJSONObject("musicThumbnailRenderer")
+                        ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+                    var cardCover = if (cardThumbs != null && cardThumbs.length() > 0) {
+                        cardThumbs.getJSONObject(cardThumbs.length() - 1).optString("url")
+                    } else ""
+                    if (cardCover.startsWith("//")) cardCover = "https:$cardCover"
+
+                    val isArtist = browseId.startsWith("UC") || cardSub.contains("artist", ignoreCase = true) || cardSub.contains("artista", ignoreCase = true)
+
+                    if (cardTitle.isNotBlank() && isArtist) {
+                        results.add(
+                            Song(
+                                id = browseId.ifBlank { cardTitle },
+                                title = cardTitle,
+                                artist = "Artista",
+                                coverUrl = cardCover,
+                                durationMs = 0L,
+                                mediaUri = "",
+                                isArtist = true
+                            )
+                        )
+                    }
+
+                    val cardContents = cardShelf.optJSONArray("contents")
+                    if (cardContents != null) {
+                        for (c in 0 until cardContents.length()) {
+                            val cItem = cardContents.optJSONObject(c) ?: continue
+                            val cCol = cItem.optJSONObject("musicResponsiveListItemRenderer") ?: continue
+                            val cSong = extractSongFromListItem(cCol)
+                            if (cSong != null) results.add(cSong)
+                        }
+                    }
+                }
+
                 // Check itemSectionRenderer
                 val itemSec = sec.optJSONObject("itemSectionRenderer")
                 if (itemSec != null) {
@@ -527,6 +579,18 @@ object YouTubeMusicEngine {
                     albumCoverThumbs.getJSONObject(albumCoverThumbs.length() - 1).optString("url")
                 } else ""
 
+                val subtitleRuns = header?.optJSONObject("subtitle")?.optJSONArray("runs")
+                var headerArtist = ""
+                if (subtitleRuns != null) {
+                    for (sIdx in 0 until subtitleRuns.length()) {
+                        val cand = subtitleRuns.getJSONObject(sIdx).optString("text").trim()
+                        if (cand.isNotBlank() && cand != "•" && cand != "Álbum" && cand != "Single" && cand != "EP" && !cand.matches(Regex("\\d{4}"))) {
+                            headerArtist = cand
+                            break
+                        }
+                    }
+                }
+
                 val tracks = mutableListOf<Song>()
                 fun findTracksRecursive(obj: Any?) {
                     when (obj) {
@@ -537,6 +601,7 @@ object YouTubeMusicEngine {
                                 if (song != null) {
                                     tracks.add(
                                         song.copy(
+                                            artist = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else headerArtist,
                                             album = if (song.album.isNotBlank()) song.album else albumTitle,
                                             coverUrl = if (song.coverUrl.isNotBlank()) song.coverUrl else albumCover
                                         )

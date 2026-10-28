@@ -230,7 +230,7 @@ fun AlbumDetailSheet(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = song.artist.ifBlank { album.title },
+                                    text = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else album.title,
                                     color = TextSecondary,
                                     fontSize = 11.sp,
                                     maxLines = 1,
