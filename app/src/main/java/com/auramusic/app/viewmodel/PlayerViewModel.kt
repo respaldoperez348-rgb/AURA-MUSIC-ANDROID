@@ -9,7 +9,9 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.auramusic.app.data.model.LyricLine
 import com.auramusic.app.data.model.Song
+import com.auramusic.app.network.LyricsEngine
 import com.auramusic.app.network.YouTubeMusicEngine
 import com.auramusic.app.playback.AuraPlaybackService
 import com.google.common.util.concurrent.ListenableFuture
@@ -21,6 +23,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+enum class MainTab {
+    STUDIO, RADAR, VAULT
+}
 
 data class PlayerUiState(
     val currentSong: Song = Song(
@@ -42,12 +48,11 @@ data class PlayerUiState(
     val currentIndex: Int = 0,
     val searchResults: List<Song> = emptyList(),
     val isSearching: Boolean = false,
-    val currentScreen: AppScreen = AppScreen.DECK
+    val favorites: List<Song> = emptyList(),
+    val lyrics: List<LyricLine> = emptyList(),
+    val currentTab: MainTab = MainTab.STUDIO,
+    val isPlayerExpanded: Boolean = false
 )
-
-enum class AppScreen {
-    DECK, SEARCH, LYRICS
-}
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -57,22 +62,38 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
     private var searchJob: Job? = null
+    private var lyricsJob: Job? = null
 
     init {
         initializeMediaController()
         startProgressUpdater()
-        loadInitialExploreTracks()
+        loadInitialData()
     }
 
-    private fun loadInitialExploreTracks() {
+    private fun loadInitialData() {
         viewModelScope.launch {
             val initial = YouTubeMusicEngine.searchTracks("")
+            val favs = initial.filter { it.isFavorite }
             _uiState.update {
                 it.copy(
                     searchResults = initial,
-                    queue = if (it.queue.isEmpty()) initial else it.queue
+                    queue = if (it.queue.isEmpty()) initial else it.queue,
+                    favorites = favs
                 )
             }
+            loadLyricsForSong(_uiState.value.currentSong)
+        }
+    }
+
+    private fun loadLyricsForSong(song: Song) {
+        lyricsJob?.cancel()
+        lyricsJob = viewModelScope.launch {
+            val lyrics = LyricsEngine.fetchSyncedLyrics(
+                trackName = song.title,
+                artistName = song.artist,
+                durationSec = song.durationMs / 1000
+            )
+            _uiState.update { it.copy(lyrics = lyrics) }
         }
     }
 
@@ -117,9 +138,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
                 }
-                delay(500)
+                delay(300)
             }
         }
+    }
+
+    fun selectTab(tab: MainTab) {
+        _uiState.update { it.copy(currentTab = tab, isPlayerExpanded = false) }
+    }
+
+    fun setPlayerExpanded(expanded: Boolean) {
+        _uiState.update { it.copy(isPlayerExpanded = expanded) }
     }
 
     fun search(query: String) {
@@ -134,10 +163,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 )
             }
         }
-    }
-
-    fun setScreen(screen: AppScreen) {
-        _uiState.update { it.copy(currentScreen = screen) }
     }
 
     fun playPause() {
@@ -189,6 +214,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 durationMs = song.durationMs
             )
         }
+
+        loadLyricsForSong(song)
     }
 
     fun next() {
@@ -216,12 +243,31 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun toggleFavorite() {
         _uiState.update { state ->
-            val updatedSong = state.currentSong.copy(isFavorite = !state.currentSong.isFavorite)
+            val isNowFav = !state.currentSong.isFavorite
+            val updatedSong = state.currentSong.copy(isFavorite = isNowFav)
+
+            val updatedFavorites = if (isNowFav) {
+                if (state.favorites.none { it.id == updatedSong.id }) {
+                    listOf(updatedSong) + state.favorites
+                } else state.favorites
+            } else {
+                state.favorites.filter { it.id != updatedSong.id }
+            }
+
             state.copy(
                 currentSong = updatedSong,
+                favorites = updatedFavorites,
                 queue = state.queue.map { if (it.id == updatedSong.id) updatedSong else it },
                 searchResults = state.searchResults.map { if (it.id == updatedSong.id) updatedSong else it }
             )
+        }
+    }
+
+    fun playAllFavorites() {
+        val favs = _uiState.value.favorites
+        if (favs.isNotEmpty()) {
+            _uiState.update { it.copy(queue = favs, currentIndex = 0) }
+            playSong(favs[0])
         }
     }
 

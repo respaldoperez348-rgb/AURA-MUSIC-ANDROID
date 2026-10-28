@@ -1,5 +1,9 @@
 package com.auramusic.app.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,11 +16,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -29,6 +37,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.auramusic.app.data.model.LyricLine
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
@@ -54,6 +67,10 @@ import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
 import java.util.Locale
 
+enum class DeckDisplayMode {
+    VINYL, LYRICS
+}
+
 @Composable
 fun StudioDeck(
     song: Song,
@@ -62,6 +79,7 @@ fun StudioDeck(
     durationMs: Long,
     isShuffle: Boolean,
     isRepeat: Boolean,
+    lyrics: List<LyricLine> = emptyList(),
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
@@ -69,8 +87,11 @@ fun StudioDeck(
     onToggleFavorite: () -> Unit,
     onToggleShuffle: () -> Unit,
     onToggleRepeat: () -> Unit,
+    onCollapse: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    var displayMode by remember { mutableStateOf(DeckDisplayMode.VINYL) }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -79,59 +100,111 @@ fun StudioDeck(
                 Brush.verticalGradient(
                     colors = listOf(
                         CyberSurfaceCard,
-                        CyberBackgroundDark.copy(alpha = 0.9f)
+                        CyberBackgroundDark.copy(alpha = 0.95f)
                     )
                 )
             )
             .border(1.2.dp, GlassBorder, RoundedCornerShape(28.dp))
-            .padding(20.dp)
+            .padding(18.dp)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Deck Header Pill
+            // Deck Header Pill & Collapse Button
             Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(CyberSurfaceActive)
-                    .border(1.dp, GlassBorder, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (onCollapse != null) {
+                    IconButton(onClick = onCollapse) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Collapse",
+                            tint = CyberCyan,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.size(28.dp))
+                }
+
+                // Mode Switcher Pill (VINYL vs LYRICS)
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(CyberSurfaceActive)
+                        .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                        .padding(3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ModePillButton(
+                        icon = Icons.Default.Album,
+                        label = "VINYL",
+                        isSelected = displayMode == DeckDisplayMode.VINYL,
+                        onClick = { displayMode = DeckDisplayMode.VINYL }
+                    )
+                    ModePillButton(
+                        icon = Icons.Default.Lyrics,
+                        label = "LYRICS",
+                        isSelected = displayMode == DeckDisplayMode.LYRICS,
+                        onClick = { displayMode = DeckDisplayMode.LYRICS }
+                    )
+                }
+
                 Box(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
                         .background(if (isPlaying) CyberCyan else TextMuted)
                 )
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(
-                    text = "AURA // STUDIO DECK",
-                    color = CyberCyan,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 1.5.sp
-                )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Animated Vinyl
-            VinylRecord(
-                isPlaying = isPlaying,
-                coverUrl = song.coverUrl,
-                size = 210.dp
-            )
+            // Main Display (Vinyl or Synced Lyrics)
+            AnimatedContent(
+                targetState = displayMode,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "deck_display_mode"
+            ) { mode ->
+                when (mode) {
+                    DeckDisplayMode.VINYL -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            VinylRecord(
+                                isPlaying = isPlaying,
+                                coverUrl = song.coverUrl,
+                                size = 210.dp
+                            )
 
-            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(18.dp))
 
-            // Audio Waveform Spectrum
-            AudioVisualizer(
-                isPlaying = isPlaying,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
+                            // Audio Waveform Spectrum
+                            AudioVisualizer(
+                                isPlaying = isPlaying,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
+                        }
+                    }
+                    DeckDisplayMode.LYRICS -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(264.dp)
+                        ) {
+                            LyricsView(
+                                lyrics = lyrics,
+                                currentPositionMs = currentPositionMs,
+                                onSeekTo = onSeekTo
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -145,16 +218,16 @@ fun StudioDeck(
                     Text(
                         text = song.title.ifBlank { "No Track Selected" },
                         color = TextPrimary,
-                        fontSize = 20.sp,
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = song.artist.ifBlank { "Aura Audio Engine" },
                         color = TextSecondary,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -169,7 +242,7 @@ fun StudioDeck(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Scrubber Progress Slider
             val progress = if (durationMs > 0) (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
@@ -206,7 +279,7 @@ fun StudioDeck(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Transport Controls
             Row(
@@ -234,7 +307,7 @@ fun StudioDeck(
                 // Glowing Play/Pause Button
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(62.dp)
                         .shadow(elevation = 14.dp, shape = CircleShape, spotColor = CyberCyanGlow)
                         .clip(CircleShape)
                         .background(
@@ -249,7 +322,7 @@ fun StudioDeck(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = "Play/Pause",
                         tint = CyberBackgroundDark,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(34.dp)
                     )
                 }
 
@@ -271,6 +344,38 @@ fun StudioDeck(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ModePillButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isSelected) CyberCyan else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (isSelected) CyberBackgroundDark else TextSecondary,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = label,
+            color = if (isSelected) CyberBackgroundDark else TextSecondary,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }
 
