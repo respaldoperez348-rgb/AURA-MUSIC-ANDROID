@@ -73,56 +73,74 @@ fun HomeScreen(
         contentPadding = PaddingValues(bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Futuristic Status Header
+        // Futuristic Status Header with Aura Music Brand Logo
         item {
             Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(CyberSurfaceCard)
-                    .border(1.dp, GlassBorder, RoundedCornerShape(18.dp))
+                    .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "AURA // CORE",
-                        color = CyberCyan,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.5.sp
+                // Official Aura Music Branding (Icon + Title)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    com.auramusic.app.ui.components.AuraIcon(
+                        size = 38.dp,
+                        isAnimated = isPlaying
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Good Evening, David",
-                        color = TextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "AURA MUSIC",
+                            color = CyberCyan,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 2.sp
+                        )
+                        Spacer(modifier = Modifier.height(1.dp))
+                        Text(
+                            text = "Good Evening, David",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                // Dynamic Audio Resolution Badge
+                val audioQualityText = if (isPlaying) {
+                    if (currentSong.durationMs > 240000) "96 kHz • Hi-Res" else "48 kHz • Lossless"
+                } else {
+                    "Hi-Res Ready"
                 }
 
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
                         .background(CyberSurfaceActive)
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
                             .size(7.dp)
                             .clip(CircleShape)
-                            .background(CyberCyan)
+                            .background(if (isPlaying) CyberCyan else TextMuted)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "96 kHz / 24-bit",
-                        color = CyberCyan,
+                        text = audioQualityText,
+                        color = if (isPlaying) CyberCyan else TextMuted,
                         fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
