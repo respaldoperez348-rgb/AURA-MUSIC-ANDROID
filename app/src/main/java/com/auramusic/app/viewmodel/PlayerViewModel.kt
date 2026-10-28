@@ -59,7 +59,9 @@ data class PlayerUiState(
     val currentTab: MainTab = MainTab.STUDIO,
     val isPlayerExpanded: Boolean = false,
     val activeOptionSong: Song? = null,
-    val downloadProgressMap: Map<String, Int> = emptyMap()
+    val downloadProgressMap: Map<String, Int> = emptyMap(),
+    val localTracks: List<Song> = emptyList(),
+    val isScanningLocal: Boolean = false
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -106,6 +108,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 initialTracks.filter { it.isFavorite }.forEach { database.addFavorite(it) }
             }
 
+            scanLocalTracks()
             loadLyricsForSong(_uiState.value.currentSong)
         }
     }
@@ -319,6 +322,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (favs.isNotEmpty()) {
             _uiState.update { it.copy(queue = favs, currentIndex = 0) }
             playSong(favs[0])
+        }
+    }
+
+    fun scanLocalTracks() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isScanningLocal = true) }
+            val tracks = com.auramusic.app.data.local.LocalAudioScanner.scanDeviceAudio(getApplication())
+            _uiState.update { it.copy(localTracks = tracks, isScanningLocal = false) }
+        }
+    }
+
+    fun playAllLocalTracks() {
+        val locals = _uiState.value.localTracks
+        if (locals.isNotEmpty()) {
+            _uiState.update { it.copy(queue = locals, currentIndex = 0) }
+            playSong(locals[0])
         }
     }
 

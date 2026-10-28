@@ -75,11 +75,15 @@ fun VaultScreen(
     favorites: List<Song>,
     downloads: List<DownloadedTrack>,
     playlists: List<Playlist>,
+    localTracks: List<Song> = emptyList(),
+    isScanningLocal: Boolean = false,
     currentSong: Song,
     isPlaying: Boolean,
     onSelectSong: (Song) -> Unit,
     onPlayAllFavorites: () -> Unit,
     onPlayAllDownloads: () -> Unit,
+    onPlayAllLocalTracks: () -> Unit = {},
+    onScanLocalTracks: () -> Unit = {},
     onCreatePlaylist: (title: String) -> Unit,
     onDeletePlaylist: (playlistId: String) -> Unit,
     onOpenSongOptions: (Song) -> Unit,
@@ -303,16 +307,92 @@ fun VaultScreen(
             }
 
             VaultTab.LOCAL -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(imageVector = Icons.Default.Folder, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(text = "LOCAL AUDIO STORAGE", color = TextPrimary, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "Ready to scan device audio files (MP3/FLAC)", color = TextMuted, fontSize = 13.sp)
+                if (localTracks.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = null,
+                                tint = CyberCyan,
+                                modifier = Modifier.size(54.dp)
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(
+                                text = "LOCAL AUDIO STORAGE",
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 15.sp
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Scan your device for downloaded MP3, FLAC and WAV files.",
+                                color = TextMuted,
+                                fontSize = 13.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Button(
+                                onClick = onScanLocalTracks,
+                                colors = ButtonDefaults.buttonColors(containerColor = CyberCyan),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Text(
+                                    text = if (isScanningLocal) "Scanning Storage..." else "Scan Music Files",
+                                    color = CyberBackgroundDark,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = onPlayAllLocalTracks,
+                            colors = ButtonDefaults.buttonColors(containerColor = CyberCyan),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, tint = CyberBackgroundDark)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Play All Local", color = CyberBackgroundDark, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = onScanLocalTracks,
+                            colors = ButtonDefaults.buttonColors(containerColor = CyberSurfaceActive),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(text = "Rescan", color = CyberCyan, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(bottom = 130.dp)
+                    ) {
+                        items(localTracks) { song ->
+                            VaultSongRow(
+                                song = song,
+                                isCurrent = song.id == currentSong.id,
+                                isPlaying = isPlaying && song.id == currentSong.id,
+                                isDownloaded = true,
+                                onClick = { onSelectSong(song) },
+                                onOptionClick = { onOpenSongOptions(song) }
+                            )
+                        }
                     }
                 }
             }
