@@ -1,7 +1,15 @@
 package com.auramusic.app.network
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.os.Environment
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.auramusic.app.MainActivity
 import com.auramusic.app.data.database.AuraDatabase
 import com.auramusic.app.data.model.Song
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +32,11 @@ class AuraDownloadManager(
     private val database: AuraDatabase,
     private val scope: CoroutineScope
 ) {
+    companion object {
+        const val DOWNLOAD_CHANNEL_ID = "aura_downloads"
+        const val DOWNLOAD_CHANNEL_NAME = "Aura Descargas"
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
@@ -35,10 +48,62 @@ class AuraDownloadManager(
 
     private val activeDownloads = ConcurrentHashMap<String, Boolean>()
 
+    var onDownloadCompleted: ((Song) -> Unit)? = null
+
     private val downloadsDir: File by lazy {
         val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "aura_downloads")
         if (!dir.exists()) dir.mkdirs()
         dir
+    }
+
+    init {
+        createNotificationChannel()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val channel = NotificationChannel(
+                DOWNLOAD_CHANNEL_ID,
+                DOWNLOAD_CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Notificaciones de estado de descargas offline en Aura Music"
+                enableVibration(true)
+            }
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun notifyDownloadCompleted(song: Song) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            song.id.hashCode(),
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val notification = NotificationCompat.Builder(context, DOWNLOAD_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("Descarga completada")
+            .setContentText("${song.title} • ${song.artist}")
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText("${song.title}\n${song.artist} • Guardada en tu Bóveda offline")
+            )
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(song.id.hashCode(), notification)
+        } catch (e: SecurityException) {
+            // Ignored if notification permission denied
+        }
     }
 
     fun startDownload(song: Song) {
@@ -107,6 +172,10 @@ class AuraDownloadManager(
 
                 _downloadProgress.update { it + (song.id to 100) }
                 activeDownloads.remove(song.id)
+
+                // Trigger Android system notification & in-app event
+                notifyDownloadCompleted(song)
+                onDownloadCompleted?.invoke(song)
 
             } catch (e: Exception) {
                 e.printStackTrace()

@@ -19,24 +19,30 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.auramusic.app.ui.components.AlbumDetailSheet
 import com.auramusic.app.ui.components.ArtistDetailSheet
@@ -146,11 +152,16 @@ class MainActivity : ComponentActivity() {
                                             featuredTracks = uiState.searchResults,
                                             currentSong = uiState.currentSong,
                                             isPlaying = uiState.isPlaying,
+                                            popularArtists = uiState.popularArtists,
+                                            trendingAlbums = uiState.trendingAlbums,
+                                            userTopArtists = uiState.userTopArtists,
+                                            popularStations = uiState.popularStations,
                                             onSelectSong = { song -> playerViewModel.playSong(song, uiState.searchResults) },
                                             onSelectVibe = { vibe ->
                                                 playerViewModel.search(vibe)
                                                 playerViewModel.selectTab(MainTab.RADAR)
                                             },
+                                            onSelectAlbum = { album -> playerViewModel.openAlbumDetail(album) },
                                             onOpenSettings = { playerViewModel.setShowSettings(true) }
                                         )
                                     }
@@ -377,6 +388,35 @@ class MainActivity : ComponentActivity() {
                                     onPlayAll = { list -> playerViewModel.playPlaylist(list) },
                                     onDismiss = { playerViewModel.dismissAlbumDetail() }
                                 )
+                            }
+                        }
+
+                        // Cyber HUD Toast / In-app Notification Banner
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = uiState.toastMessage != null,
+                            enter = androidx.compose.animation.slideInVertically(initialOffsetY = { -it }) + androidx.compose.animation.fadeIn(),
+                            exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { -it }) + androidx.compose.animation.fadeOut(),
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 28.dp, start = 20.dp, end = 20.dp)
+                        ) {
+                            uiState.toastMessage?.let { msg ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                                        .background(com.auramusic.app.ui.theme.CyberBackgroundDark.copy(alpha = 0.95f))
+                                        .border(1.5.dp, com.auramusic.app.ui.theme.CyberCyan, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                                        .padding(horizontal = 18.dp, vertical = 12.dp)
+                                ) {
+                                    Text(
+                                        text = msg,
+                                        color = com.auramusic.app.ui.theme.CyberCyan,
+                                        fontSize = 13.sp,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
                             }
                         }
                     }

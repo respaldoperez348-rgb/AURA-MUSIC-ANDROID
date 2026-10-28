@@ -97,7 +97,12 @@ data class PlayerUiState(
     val selectedAlbum: Album? = null,
     val albumTracks: List<Song> = emptyList(),
     val isLoadingAlbum: Boolean = false,
-    val showAlbumDetail: Boolean = false
+    val showAlbumDetail: Boolean = false,
+    val popularArtists: List<Song> = emptyList(),
+    val trendingAlbums: List<Album> = emptyList(),
+    val userTopArtists: List<Song> = emptyList(),
+    val popularStations: List<String> = emptyList(),
+    val toastMessage: String? = null
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -118,9 +123,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         setupPlaybackBridge()
         initializeMediaController()
         startProgressUpdater()
+        setupDownloadListener()
         loadInitialData()
         observeDownloadProgress()
         observeSleepTimer()
+    }
+
+    private fun setupDownloadListener() {
+        downloadManager.onDownloadCompleted = { song ->
+            showToast("✓ DESCARGA COMPLETADA • ${song.title}")
+        }
+    }
+
+    fun showToast(message: String) {
+        _uiState.update { it.copy(toastMessage = message) }
+        viewModelScope.launch {
+            delay(3500)
+            _uiState.update { if (it.toastMessage == message) it.copy(toastMessage = null) else it }
+        }
     }
 
     private fun setupPlaybackBridge() {
@@ -155,15 +175,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val savedFavs = database.getFavorites()
             val savedDownloads = database.getDownloadedTracks()
             val savedPlaylists = database.getPlaylists()
+            val userTop = database.getTopArtistsFromHistoryAndFavorites()
 
             val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
             val savedPalette = prefs.getString("palette", "Cyber Neon") ?: "Cyber Neon"
 
             val initialTracks = YouTubeMusicEngine.searchTracks("")
+            val popArtists = YouTubeMusicEngine.getCuratedPopularArtists()
+            val trendAlbums = YouTubeMusicEngine.getCuratedTrendingAlbums()
+            val stations = YouTubeMusicEngine.getCuratedStations()
 
             _uiState.update {
                 it.copy(
                     searchResults = initialTracks,
+                    popularArtists = popArtists,
+                    trendingAlbums = trendAlbums,
+                    userTopArtists = userTop,
+                    popularStations = stations,
                     queue = if (it.queue.isEmpty()) initialTracks else it.queue,
                     favorites = if (savedFavs.isNotEmpty()) savedFavs else initialTracks.filter { s -> s.isFavorite },
                     downloads = savedDownloads,
@@ -477,6 +505,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             database.addToHistory(song)
+            val updatedUserTop = database.getTopArtistsFromHistoryAndFavorites()
+            _uiState.update { it.copy(userTopArtists = updatedUserTop) }
 
             // 5. Background prefetch for NEXT song in queue (zero-latency skipping)
             val q = _uiState.value.queue
@@ -525,6 +555,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val isNowFav = database.toggleFavorite(songToToggle)
             val updatedFavorites = database.getFavorites()
+            val updatedUserTop = database.getTopArtistsFromHistoryAndFavorites()
 
             val updatedCurrent = if (_uiState.value.currentSong.id == songToToggle.id) {
                 _uiState.value.currentSong.copy(isFavorite = isNowFav)
@@ -534,6 +565,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 state.copy(
                     currentSong = updatedCurrent,
                     favorites = updatedFavorites,
+                    userTopArtists = updatedUserTop,
                     queue = state.queue.map { if (it.id == songToToggle.id) it.copy(isFavorite = isNowFav) else it },
                     searchResults = state.searchResults.map { if (it.id == songToToggle.id) it.copy(isFavorite = isNowFav) else it }
                 )

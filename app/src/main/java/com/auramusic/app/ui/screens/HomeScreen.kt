@@ -22,10 +22,15 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,15 +40,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.auramusic.app.data.model.Album
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
@@ -62,21 +67,30 @@ fun HomeScreen(
     featuredTracks: List<Song>,
     currentSong: Song,
     isPlaying: Boolean,
+    popularArtists: List<Song> = emptyList(),
+    trendingAlbums: List<Album> = emptyList(),
+    userTopArtists: List<Song> = emptyList(),
+    popularStations: List<String> = emptyList(),
     onSelectSong: (Song) -> Unit,
     onSelectVibe: (String) -> Unit,
+    onSelectAlbum: (Album) -> Unit = {},
     onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val vibes = listOf("Cyberpunk", "Synthwave", "Lo-Fi Coding", "Dark Phonk", "Chillwave", "Rock 90s")
+    val stations = if (popularStations.isNotEmpty()) {
+        popularStations
+    } else {
+        listOf("Cyberpunk", "Synthwave", "Trap Latino", "Lo-Fi Chill", "Phonk", "Reggaetón Hits", "Rock Clásico", "Pop Global")
+    }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 120.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
-        // Futuristic Status Header with Aura Music Brand Logo
+        // 1. Futuristic Status Header with Aura Music Brand Logo
         item {
             Spacer(modifier = Modifier.height(4.dp))
             Row(
@@ -165,22 +179,33 @@ fun HomeScreen(
             }
         }
 
-        // Vibes & Moods Section
+        // 2. Popular Stations & Vibes Section
         item {
             Column {
-                Text(
-                    text = "VIBE SELECTOR",
-                    color = CyberCyan,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 1.2.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Radio,
+                        contentDescription = null,
+                        tint = CyberCyan,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "ESTACIONES & VIBES",
+                        color = CyberCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.2.sp
+                    )
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(vibes) { vibe ->
+                    items(stations) { vibe ->
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(14.dp))
@@ -201,7 +226,158 @@ fun HomeScreen(
             }
         }
 
-        // Quick Picks (Horizontal Cards)
+        // 3. Popular Artists (Trending Carousel with Circular Avatars)
+        if (popularArtists.isNotEmpty()) {
+            item {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = CyberCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "ARTISTAS POPULARES",
+                                color = CyberCyan,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 1.2.sp
+                            )
+                        }
+                        Text(
+                            text = "En Tendencia",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(popularArtists) { artistSong ->
+                            ArtistAvatarCard(
+                                song = artistSong,
+                                onClick = { onSelectSong(artistSong) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. User's Favorite / Top Listened Artists (Personalized Section from SQLite)
+        if (userTopArtists.isNotEmpty()) {
+            item {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = null,
+                                tint = CyberPink,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "TUS ARTISTAS FAVORITOS",
+                                color = CyberPink,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 1.2.sp
+                            )
+                        }
+                        Text(
+                            text = "Más Escuchados",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(userTopArtists) { artistSong ->
+                            ArtistAvatarCard(
+                                song = artistSong,
+                                accentColor = CyberPink,
+                                onClick = { onSelectSong(artistSong) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Trending & Featured Albums Carousel
+        if (trendingAlbums.isNotEmpty()) {
+            item {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Album,
+                                contentDescription = null,
+                                tint = NeonPurple,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "ÁLBUMES DESTACADOS",
+                                color = NeonPurple,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 1.2.sp
+                            )
+                        }
+                        Text(
+                            text = "Novedades",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(trendingAlbums) { album ->
+                            TrendingAlbumCard(
+                                album = album,
+                                onClick = { onSelectAlbum(album) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 6. Quick Picks (Horizontal Cards)
         item {
             Column {
                 Row(
@@ -210,7 +386,7 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "QUICK PICKS",
+                        text = "RECOMENDADOS",
                         color = CyberCyan,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -218,9 +394,9 @@ fun HomeScreen(
                         letterSpacing = 1.2.sp
                     )
                     Text(
-                        text = "Recently Played",
+                        text = "Quick Picks",
                         color = TextMuted,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace
                     )
                 }
@@ -242,7 +418,7 @@ fun HomeScreen(
             }
         }
 
-        // Top Trending Charts Section
+        // 7. Top Trending Charts Section
         item {
             Row(
                 verticalAlignment = Alignment.CenterVertically
@@ -255,7 +431,7 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "TOP CHARTS",
+                    text = "TOP CHARTS • ÉXITOS GLOBALES",
                     color = CyberPink,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
@@ -273,6 +449,128 @@ fun HomeScreen(
                 isCurrent = isCurrent,
                 isPlaying = isCurrent && isPlaying,
                 onClick = { onSelectSong(song) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtistAvatarCard(
+    song: Song,
+    accentColor: androidx.compose.ui.graphics.Color = CyberCyan,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(82.dp)
+            .clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(70.dp)
+                .clip(CircleShape)
+                .background(CyberSurfaceCard)
+                .border(1.5.dp, accentColor, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            if (song.coverUrl.isNotBlank()) {
+                AsyncImage(
+                    model = song.coverUrl,
+                    contentDescription = song.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = song.title,
+            color = TextPrimary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+
+        Text(
+            text = "Artista",
+            color = TextMuted,
+            fontSize = 10.sp,
+            maxLines = 1,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun TrendingAlbumCard(
+    album: Album,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(140.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(CyberSurfaceCard)
+            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(10.dp)
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CyberBackgroundDark),
+                contentAlignment = Alignment.Center
+            ) {
+                if (album.coverUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = album.coverUrl,
+                        contentDescription = album.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Album,
+                        contentDescription = null,
+                        tint = NeonPurple,
+                        modifier = Modifier.size(38.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = album.title,
+                color = TextPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = album.year.ifBlank { "Álbum" },
+                color = TextSecondary,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

@@ -627,41 +627,219 @@ object YouTubeMusicEngine {
                 }
 
                 val tracks = mutableListOf<Song>()
-                fun findTracksRecursive(obj: Any?) {
-                    when (obj) {
-                        is JSONObject -> {
-                            val col = obj.optJSONObject("musicResponsiveListItemRenderer")
-                            if (col != null) {
-                                val song = extractSongFromListItem(col)
-                                if (song != null) {
-                                    tracks.add(
-                                        song.copy(
-                                            artist = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else headerArtist,
-                                            album = if (song.album.isNotBlank()) song.album else albumTitle,
-                                            coverUrl = if (song.coverUrl.isNotBlank()) song.coverUrl else albumCover
-                                        )
+
+                // Direct extraction from secondaryContents (standard YouTube Music album tracklist container)
+                val secContents = two?.optJSONObject("secondaryContents")?.optJSONObject("sectionListRenderer")?.optJSONArray("contents")
+                if (secContents != null) {
+                    for (s in 0 until secContents.length()) {
+                        val shelfObj = secContents.optJSONObject(s)?.optJSONObject("musicShelfRenderer") ?: continue
+                        val shelfItems = shelfObj.optJSONArray("contents") ?: continue
+                        for (i in 0 until shelfItems.length()) {
+                            val col = shelfItems.optJSONObject(i)?.optJSONObject("musicResponsiveListItemRenderer") ?: continue
+                            val song = extractSongFromListItem(col)
+                            if (song != null) {
+                                tracks.add(
+                                    song.copy(
+                                        artist = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else headerArtist,
+                                        album = if (song.album.isNotBlank()) song.album else albumTitle,
+                                        coverUrl = if (song.coverUrl.isNotBlank()) song.coverUrl else albumCover
                                     )
-                                }
-                            }
-                            val keys = obj.keys()
-                            while (keys.hasNext()) {
-                                findTracksRecursive(obj.opt(keys.next()))
-                            }
-                        }
-                        is org.json.JSONArray -> {
-                            for (idx in 0 until obj.length()) {
-                                findTracksRecursive(obj.opt(idx))
+                                )
                             }
                         }
                     }
                 }
 
-                findTracksRecursive(root)
+                // If direct extraction did not find tracks, recursive fallback
+                if (tracks.isEmpty()) {
+                    fun findTracksRecursive(obj: Any?) {
+                        when (obj) {
+                            is JSONObject -> {
+                                val col = obj.optJSONObject("musicResponsiveListItemRenderer")
+                                if (col != null) {
+                                    val song = extractSongFromListItem(col)
+                                    if (song != null) {
+                                        tracks.add(
+                                            song.copy(
+                                                artist = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else headerArtist,
+                                                album = if (song.album.isNotBlank()) song.album else albumTitle,
+                                                coverUrl = if (song.coverUrl.isNotBlank()) song.coverUrl else albumCover
+                                            )
+                                        )
+                                    }
+                                }
+                                val keys = obj.keys()
+                                while (keys.hasNext()) {
+                                    findTracksRecursive(obj.opt(keys.next()))
+                                }
+                            }
+                            is org.json.JSONArray -> {
+                                for (idx in 0 until obj.length()) {
+                                    findTracksRecursive(obj.opt(idx))
+                                }
+                            }
+                        }
+                    }
+
+                    findTracksRecursive(root)
+                }
+
+                // If still empty (e.g. mock or browseId restricted), query fallback tracks by album title
+                if (tracks.isEmpty() && albumTitle.isNotBlank()) {
+                    val searchFallback = searchTracks("$albumTitle $headerArtist")
+                    tracks.addAll(searchFallback.filter { !it.isArtist && !it.isAlbum }.take(8))
+                }
+
+                android.util.Log.d("YouTubeMusicEngine", "fetchAlbumTracks for $albumTitle ($browseId) resolved ${tracks.size} tracks")
                 tracks
             }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
         }
+    }
+
+    fun getCuratedPopularArtists(): List<Song> {
+        return listOf(
+            Song(
+                id = "Jaze",
+                title = "Jaze",
+                artist = "Artista • Freestyle & Pop",
+                coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80",
+                isArtist = true
+            ),
+            Song(
+                id = "Bizarrap",
+                title = "Bizarrap",
+                artist = "Artista • BZRP Sessions",
+                coverUrl = "https://images.unsplash.com/photo-1571266028243-3716f02d2d2e?w=500&auto=format&fit=crop&q=80",
+                isArtist = true
+            ),
+            Song(
+                id = "Daft Punk",
+                title = "Daft Punk",
+                artist = "Artista • Electronic Legends",
+                coverUrl = "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=500&auto=format&fit=crop&q=80",
+                isArtist = true
+            ),
+            Song(
+                id = "The Weeknd",
+                title = "The Weeknd",
+                artist = "Artista • R&B & Synth-Pop",
+                coverUrl = "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&auto=format&fit=crop&q=80",
+                isArtist = true
+            ),
+            Song(
+                id = "Bad Bunny",
+                title = "Bad Bunny",
+                artist = "Artista • Trap & Reggaeton",
+                coverUrl = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80",
+                isArtist = true
+            ),
+            Song(
+                id = "Rosalía",
+                title = "Rosalía",
+                artist = "Artista • Flamenco & Avant-Pop",
+                coverUrl = "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=500&auto=format&fit=crop&q=80",
+                isArtist = true
+            ),
+            Song(
+                id = "Gorillaz",
+                title = "Gorillaz",
+                artist = "Artista • Virtual Alternative",
+                coverUrl = "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&auto=format&fit=crop&q=80",
+                isArtist = true
+            ),
+            Song(
+                id = "Trueno",
+                title = "Trueno",
+                artist = "Artista • Hip Hop & Freestyle",
+                coverUrl = "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=500&auto=format&fit=crop&q=80",
+                isArtist = true
+            ),
+            Song(
+                id = "Travis Scott",
+                title = "Travis Scott",
+                artist = "Artista • Psychedelic Trap",
+                coverUrl = "https://images.unsplash.com/photo-1511735111819-9a3f7709049c?w=500&auto=format&fit=crop&q=80",
+                isArtist = true
+            ),
+            Song(
+                id = "Kendrick Lamar",
+                title = "Kendrick Lamar",
+                artist = "Artista • Conscious Hip-Hop",
+                coverUrl = "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&auto=format&fit=crop&q=80",
+                isArtist = true
+            )
+        )
+    }
+
+    fun getCuratedTrendingAlbums(): List<Album> {
+        return listOf(
+            Album(
+                browseId = "MPREb_2aXZFmDj3m8",
+                title = "TOY LOKAZO",
+                year = "2023 • Jaze",
+                type = "Álbum",
+                coverUrl = "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=500&auto=format&fit=crop&q=80"
+            ),
+            Album(
+                browseId = "MPREb_94Qj2Lq2w1z",
+                title = "Random Access Memories",
+                year = "2013 • Daft Punk",
+                type = "Álbum",
+                coverUrl = "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=500&auto=format&fit=crop&q=80"
+            ),
+            Album(
+                browseId = "MPREb_W1bY0dE7r2e",
+                title = "After Hours",
+                year = "2020 • The Weeknd",
+                type = "Álbum",
+                coverUrl = "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&auto=format&fit=crop&q=80"
+            ),
+            Album(
+                browseId = "MPREb_81vB7yD3f1a",
+                title = "MOTOMAMI",
+                year = "2022 • Rosalía",
+                type = "Álbum",
+                coverUrl = "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=500&auto=format&fit=crop&q=80"
+            ),
+            Album(
+                browseId = "MPREb_4X1p7w2Z9e0",
+                title = "Un Verano Sin Ti",
+                year = "2022 • Bad Bunny",
+                type = "Álbum",
+                coverUrl = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80"
+            ),
+            Album(
+                browseId = "MPREb_04zT7w3q2L8",
+                title = "Demon Days",
+                year = "2005 • Gorillaz",
+                type = "Álbum",
+                coverUrl = "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&auto=format&fit=crop&q=80"
+            ),
+            Album(
+                browseId = "MPREb_1X8w4m2p9L3",
+                title = "BIEN O MAL",
+                year = "2022 • Trueno",
+                type = "Álbum",
+                coverUrl = "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=500&auto=format&fit=crop&q=80"
+            )
+        )
+    }
+
+    fun getCuratedStations(): List<String> {
+        return listOf(
+            "Cyberpunk",
+            "Synthwave",
+            "Trap Latino",
+            "Lo-Fi Chill",
+            "Phonk",
+            "Reggaetón Hits",
+            "Rock Clásico",
+            "Pop Global",
+            "Darkwave",
+            "Anime Lo-Fi"
+        )
     }
 }

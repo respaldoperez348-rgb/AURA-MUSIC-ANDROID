@@ -394,4 +394,41 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             )
         """.trimIndent())
     }
+
+    suspend fun getTopArtistsFromHistoryAndFavorites(): List<Song> = withContext(Dispatchers.IO) {
+        val list = mutableListOf<Song>()
+        val db = readableDatabase
+        val cursor: Cursor = db.rawQuery(
+            """
+            SELECT artist, coverUrl, COUNT(*) as playCount 
+            FROM (
+                SELECT artist, coverUrl FROM $TABLE_HISTORY WHERE artist != '' AND artist != 'Unknown Artist'
+                UNION ALL
+                SELECT artist, coverUrl FROM $TABLE_FAVORITES WHERE artist != '' AND artist != 'Unknown Artist'
+            )
+            GROUP BY LOWER(artist)
+            ORDER BY playCount DESC
+            LIMIT 10
+            """.trimIndent(),
+            null
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                val artistName = it.getString(0)
+                val cover = it.getString(1) ?: ""
+                list.add(
+                    Song(
+                        id = artistName,
+                        title = artistName,
+                        artist = "Artista",
+                        coverUrl = cover,
+                        durationMs = 0L,
+                        mediaUri = "",
+                        isArtist = true
+                    )
+                )
+            }
+        }
+        list
+    }
 }
