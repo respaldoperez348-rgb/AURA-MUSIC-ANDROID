@@ -51,9 +51,14 @@ class AuraDownloadManager(
             try {
                 val targetFile = File(downloadsDir, "${song.id}.mp3")
 
-                // If mediaUri is a sample or direct url, download it
-                val downloadUrl = if (song.mediaUri.startsWith("http")) song.mediaUri else {
-                    // Fallback demo stream for local testing
+                // Resolve direct audio stream (from NewPipeExtractor for YouTube or direct URL)
+                val directStreamUrl = if (song.id.startsWith("local_")) {
+                    song.mediaUri
+                } else {
+                    AuraStreamResolver.resolveAudioStream(song.id) ?: song.mediaUri
+                }
+
+                val downloadUrl = if (directStreamUrl.startsWith("http")) directStreamUrl else {
                     "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3"
                 }
 

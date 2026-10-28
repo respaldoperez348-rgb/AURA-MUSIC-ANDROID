@@ -178,9 +178,7 @@ object YouTubeMusicEngine {
             }
 
             val finalId = if (videoId.isNotBlank()) videoId else title.hashCode().toString()
-            
-            // Audio Stream URI: Use clean audio streaming endpoints with CDN fallback
-            val mediaUrl = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3"
+            val mediaUrl = "https://www.youtube.com/watch?v=$finalId"
 
             return Song(
                 id = finalId,

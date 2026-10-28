@@ -39,6 +39,9 @@ fun AudioVisualizer(
         label = "phase"
     )
 
+    val pink = CyberPink
+    val cyan = CyberCyan
+
     Canvas(
         modifier = modifier
             .fillMaxWidth()
@@ -51,7 +54,7 @@ fun AudioVisualizer(
         val gap = totalSpacing / (barCount - 1)
 
         val gradient = Brush.verticalGradient(
-            colors = listOf(CyberPink, CyberCyan)
+            colors = listOf(pink, cyan)
         )
 
         for (i in 0 until barCount) {

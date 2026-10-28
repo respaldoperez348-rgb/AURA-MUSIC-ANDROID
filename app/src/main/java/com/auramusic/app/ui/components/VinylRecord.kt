@@ -65,6 +65,12 @@ fun VinylRecord(
             .rotate(currentRotation),
         contentAlignment = Alignment.Center
     ) {
+        val vinylBody = VinylBody
+        val bgDark = CyberBackgroundDark
+        val vinylGroove = VinylGroove
+        val cyan = CyberCyan
+        val purple = NeonPurple
+
         // Base Vinyl Body
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = this.center
@@ -73,7 +79,7 @@ fun VinylRecord(
             // Vinyl outer body
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(VinylBody, CyberBackgroundDark),
+                    colors = listOf(vinylBody, bgDark),
                     center = center,
                     radius = radius
                 ),
@@ -85,7 +91,7 @@ fun VinylRecord(
             for (i in 1..grooveCount) {
                 val r = radius * (0.45f + 0.5f * (i.toFloat() / grooveCount))
                 drawCircle(
-                    color = VinylGroove,
+                    color = vinylGroove,
                     radius = r,
                     style = Stroke(width = 1.5f)
                 )
@@ -94,7 +100,7 @@ fun VinylRecord(
             // Neon outer edge accent
             drawCircle(
                 brush = Brush.sweepGradient(
-                    colors = listOf(CyberCyan.copy(alpha = 0.5f), NeonPurple.copy(alpha = 0.3f), CyberCyan.copy(alpha = 0.5f)),
+                    colors = listOf(cyan.copy(alpha = 0.5f), purple.copy(alpha = 0.3f), cyan.copy(alpha = 0.5f)),
                     center = center
                 ),
                 radius = radius - 2f,

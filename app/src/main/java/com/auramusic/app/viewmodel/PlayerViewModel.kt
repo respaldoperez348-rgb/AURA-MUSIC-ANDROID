@@ -264,7 +264,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // Check if downloaded locally for offline playback!
             val downloadedList = database.getDownloadedTracks()
             val localTrack = downloadedList.find { it.song.id == song.id }
-            val playableUri = localTrack?.localFilePath ?: song.mediaUri
+
+            val playableUri = if (localTrack != null) {
+                localTrack.localFilePath
+            } else if (song.id.startsWith("local_")) {
+                song.mediaUri
+            } else {
+                // Dynamically resolve real YouTube audio stream via NewPipeExtractor
+                val resolvedStream = com.auramusic.app.network.AuraStreamResolver.resolveAudioStream(song.id)
+                resolvedStream ?: song.mediaUri
+            }
 
             val mediaItem = MediaItem.Builder()
                 .setUri(playableUri)

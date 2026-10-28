@@ -232,16 +232,16 @@ fun SettingsSheet(
             ) {
                 ThemeCard(
                     title = "Cyber Neon",
-                    color1 = CyberCyan,
-                    color2 = CyberPink,
+                    color1 = Color(0xFF00FFCC),
+                    color2 = Color(0xFFFF79C6),
                     isSelected = currentTheme == "Cyber Neon",
                     onClick = { onSelectTheme("Cyber Neon") },
                     modifier = Modifier.weight(1f)
                 )
                 ThemeCard(
                     title = "Synthwave",
-                    color1 = Color(0xffff8c00),
-                    color2 = NeonPurple,
+                    color1 = Color(0xFFFF8C00),
+                    color2 = Color(0xFFE024C3),
                     isSelected = currentTheme == "Synthwave",
                     onClick = { onSelectTheme("Synthwave") },
                     modifier = Modifier.weight(1f)
@@ -256,16 +256,16 @@ fun SettingsSheet(
             ) {
                 ThemeCard(
                     title = "Matrix 99",
-                    color1 = Color(0xff00ff66),
-                    color2 = Color(0xff052e16),
+                    color1 = Color(0xFF00FF66),
+                    color2 = Color(0xFF059669),
                     isSelected = currentTheme == "Matrix 99",
                     onClick = { onSelectTheme("Matrix 99") },
                     modifier = Modifier.weight(1f)
                 )
                 ThemeCard(
                     title = "OLED Black",
-                    color1 = Color(0xffe2e8f0),
-                    color2 = Color(0xff1e293b),
+                    color1 = Color(0xFFFFFFFF),
+                    color2 = Color(0xFF334155),
                     isSelected = currentTheme == "OLED Black",
                     onClick = { onSelectTheme("OLED Black") },
                     modifier = Modifier.weight(1f)
