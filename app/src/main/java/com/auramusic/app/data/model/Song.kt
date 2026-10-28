@@ -9,5 +9,7 @@ data class Song(
     val coverUrl: String = "",
     val mediaUri: String = "",
     val isFavorite: Boolean = false,
-    val isArtist: Boolean = false
+    val isArtist: Boolean = false,
+    val isAlbum: Boolean = false,
+    val browseId: String = ""
 )

@@ -99,19 +99,35 @@ object YouTubeMusicEngine {
                     if (cardCover.startsWith("//")) cardCover = "https:$cardCover"
 
                     val isArtist = browseId.startsWith("UC") || cardSub.contains("artist", ignoreCase = true) || cardSub.contains("artista", ignoreCase = true)
+                    val isAlbum = browseId.startsWith("MPREb_") || cardSub.contains("álbum", ignoreCase = true) || cardSub.contains("album", ignoreCase = true)
 
-                    if (cardTitle.isNotBlank() && isArtist) {
-                        results.add(
-                            Song(
-                                id = browseId.ifBlank { cardTitle },
-                                title = cardTitle,
-                                artist = "Artista",
-                                coverUrl = cardCover,
-                                durationMs = 0L,
-                                mediaUri = "",
-                                isArtist = true
+                    if (cardTitle.isNotBlank()) {
+                        if (isArtist) {
+                            results.add(
+                                Song(
+                                    id = browseId.ifBlank { cardTitle },
+                                    title = cardTitle,
+                                    artist = "Artista",
+                                    coverUrl = cardCover,
+                                    durationMs = 0L,
+                                    mediaUri = "",
+                                    isArtist = true
+                                )
                             )
-                        )
+                        } else if (isAlbum) {
+                            results.add(
+                                Song(
+                                    id = browseId.ifBlank { cardTitle },
+                                    title = cardTitle,
+                                    artist = if (cardSub.isNotBlank()) cardSub else "Álbum",
+                                    coverUrl = cardCover,
+                                    durationMs = 0L,
+                                    mediaUri = "",
+                                    isAlbum = true,
+                                    browseId = browseId
+                                )
+                            )
+                        }
                     }
 
                     val cardContents = cardShelf.optJSONArray("contents")
@@ -245,22 +261,12 @@ object YouTubeMusicEngine {
                 isArtistItem = true
             }
 
-            // 3. If videoId is blank but it's an Album/Single (MPREb_) or Playlist (PL...), resolve first playable track!
-            if (videoId.isBlank() && !isArtistItem) {
-                val targetBrowse = if (browseId.startsWith("MPREb_") || browseId.startsWith("VL")) {
-                    browseId
-                } else if (playlistId.isNotBlank()) {
-                    if (playlistId.startsWith("VL")) playlistId else "VL$playlistId"
-                } else {
-                    ""
-                }
+            val isAlbumItem = !isArtistItem && (browseId.startsWith("MPREb_") ||
+                artist.equals("Álbum", ignoreCase = true) ||
+                artist.equals("Album", ignoreCase = true) ||
+                artist.equals("Single", ignoreCase = true))
 
-                if (targetBrowse.isNotBlank()) {
-                    videoId = resolveFirstTrackFromBrowse(targetBrowse) ?: ""
-                }
-            }
-
-            // 4. Thumbnail
+            // 3. Thumbnail
             var thumb = ""
             val thumbnails = col.optJSONObject("thumbnail")
                 ?.optJSONObject("musicThumbnailRenderer")
@@ -274,11 +280,40 @@ object YouTubeMusicEngine {
             if (thumb.startsWith("//")) {
                 thumb = "https:$thumb"
             }
-            if (thumb.isBlank() && videoId.isNotBlank()) {
-                thumb = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
-            }
             if (thumb.contains("=w") && thumb.contains("-h")) {
                 thumb = thumb.replace(Regex("=w\\d+-h\\d+"), "=w544-h544")
+            }
+
+            if (isAlbumItem) {
+                return Song(
+                    id = browseId.ifBlank { title },
+                    title = title,
+                    artist = if (artist.equals("Album", ignoreCase = true) || artist.equals("Álbum", ignoreCase = true) || artist.equals("Single", ignoreCase = true)) "Álbum" else artist,
+                    coverUrl = thumb,
+                    durationMs = 0L,
+                    mediaUri = "",
+                    isAlbum = true,
+                    browseId = browseId
+                )
+            }
+
+            // 4. If videoId is blank but playlist (PL...), resolve first playable track!
+            if (videoId.isBlank() && !isArtistItem) {
+                val targetBrowse = if (browseId.startsWith("VL")) {
+                    browseId
+                } else if (playlistId.isNotBlank()) {
+                    if (playlistId.startsWith("VL")) playlistId else "VL$playlistId"
+                } else {
+                    ""
+                }
+
+                if (targetBrowse.isNotBlank()) {
+                    videoId = resolveFirstTrackFromBrowse(targetBrowse) ?: ""
+                }
+            }
+
+            if (thumb.isBlank() && videoId.isNotBlank()) {
+                thumb = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
             }
 
             // If it's not an artist and still has no videoId, we drop the unplayable item instead of creating bogus hash URLs

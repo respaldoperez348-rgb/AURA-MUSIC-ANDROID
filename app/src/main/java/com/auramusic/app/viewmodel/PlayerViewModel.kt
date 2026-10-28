@@ -27,6 +27,7 @@ import com.auramusic.app.network.AuraStreamResolver
 import com.auramusic.app.network.LyricsEngine
 import com.auramusic.app.network.YouTubeMusicEngine
 import com.auramusic.app.playback.AuraAudioEffects
+import com.auramusic.app.playback.AuraPlaybackBridge
 import com.auramusic.app.playback.AuraPlaybackService
 import com.auramusic.app.playback.SleepTimerManager
 import com.auramusic.app.playback.SleepTimerState
@@ -114,11 +115,38 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         AuraStreamResolver.init()
+        setupPlaybackBridge()
         initializeMediaController()
         startProgressUpdater()
         loadInitialData()
         observeDownloadProgress()
         observeSleepTimer()
+    }
+
+    private fun setupPlaybackBridge() {
+        AuraPlaybackBridge.onNextRequested = {
+            viewModelScope.launch(Dispatchers.Main) {
+                next()
+            }
+        }
+        AuraPlaybackBridge.onPreviousRequested = {
+            viewModelScope.launch(Dispatchers.Main) {
+                previous()
+            }
+        }
+        val current = AuraPlaybackBridge.currentSong.value
+        if (current != null) {
+            val q = AuraPlaybackBridge.queue.value
+            _uiState.update {
+                it.copy(
+                    currentSong = current,
+                    queue = if (q.isNotEmpty()) q else it.queue,
+                    currentIndex = AuraPlaybackBridge.currentIndex,
+                    isPlaying = true
+                )
+            }
+            loadLyricsForSong(current)
+        }
     }
 
     private fun loadInitialData() {
@@ -247,6 +275,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 coverUrl = cover,
                 durationMs = dur
             )
+            AuraPlaybackBridge.currentSong.value = activeSong
             _uiState.update {
                 it.copy(
                     currentSong = activeSong,
@@ -267,9 +296,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         _uiState.update {
                             it.copy(
                                 currentPositionMs = controller.currentPosition,
-                                durationMs = controller.duration.coerceAtLeast(1L)
+                                durationMs = controller.duration.coerceAtLeast(1L),
+                                isPlaying = true
                             )
                         }
+                    }
+                    val currentItem = controller.currentMediaItem
+                    if (currentItem != null && currentItem.mediaId.isNotBlank() && currentItem.mediaId != _uiState.value.currentSong.id) {
+                        syncStateFromController()
                     }
                 }
                 delay(300)
@@ -346,19 +380,37 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             return
         }
 
+        // If the item clicked is an Album, open Album Detail View!
+        if (song.isAlbum) {
+            val targetBrowse = if (song.browseId.isNotBlank()) song.browseId else song.id
+            val album = Album(
+                browseId = targetBrowse,
+                title = song.title,
+                year = song.artist,
+                coverUrl = song.coverUrl
+            )
+            openAlbumDetail(album)
+            return
+        }
+
         // 1. Immediately reflect the selected track in the UI for instant response
+        val playQueue = if (!contextQueue.isNullOrEmpty()) {
+            contextQueue.filter { !it.isArtist && !it.isAlbum }
+        } else if (_uiState.value.queue.none { it.id == song.id }) {
+            listOf(song) + _uiState.value.queue.filter { !it.isArtist && !it.isAlbum }
+        } else {
+            _uiState.value.queue.filter { !it.isArtist && !it.isAlbum }
+        }
+        val newIndex = playQueue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+
+        AuraPlaybackBridge.currentSong.value = song
+        AuraPlaybackBridge.queue.value = playQueue
+        AuraPlaybackBridge.currentIndex = newIndex
+
         _uiState.update { state ->
-            val updatedQueue = if (!contextQueue.isNullOrEmpty()) {
-                contextQueue.filter { !it.isArtist }
-            } else if (state.queue.none { it.id == song.id }) {
-                listOf(song) + state.queue
-            } else {
-                state.queue
-            }
-            val newIndex = updatedQueue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
             state.copy(
                 currentSong = song,
-                queue = updatedQueue,
+                queue = playQueue,
                 currentIndex = newIndex,
                 isPlaying = true,
                 currentPositionMs = 0L,
@@ -443,20 +495,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun next() {
         val state = _uiState.value
-        if (state.queue.isEmpty()) return
-        val nextIdx = (state.currentIndex + 1) % state.queue.size
-        val nextSong = state.queue[nextIdx]
-        _uiState.update { it.copy(currentIndex = nextIdx) }
-        playSong(nextSong)
+        val playQueue = state.queue.filter { !it.isArtist && !it.isAlbum }
+        if (playQueue.isEmpty()) return
+        val currentPos = playQueue.indexOfFirst { it.id == state.currentSong.id }
+        val nextIdx = if (currentPos >= 0) (currentPos + 1) % playQueue.size else 0
+        val nextSong = playQueue[nextIdx]
+        AuraPlaybackBridge.currentIndex = nextIdx
+        playSong(nextSong, playQueue)
     }
 
     fun previous() {
         val state = _uiState.value
-        if (state.queue.isEmpty()) return
-        val prevIdx = if (state.currentIndex - 1 < 0) state.queue.size - 1 else state.currentIndex - 1
-        val prevSong = state.queue[prevIdx]
-        _uiState.update { it.copy(currentIndex = prevIdx) }
-        playSong(prevSong)
+        val playQueue = state.queue.filter { !it.isArtist && !it.isAlbum }
+        if (playQueue.isEmpty()) return
+        val currentPos = playQueue.indexOfFirst { it.id == state.currentSong.id }
+        val prevIdx = if (currentPos > 0) currentPos - 1 else playQueue.size - 1
+        val prevSong = playQueue[prevIdx]
+        AuraPlaybackBridge.currentIndex = prevIdx
+        playSong(prevSong, playQueue)
     }
 
     fun seekTo(positionMs: Long) {

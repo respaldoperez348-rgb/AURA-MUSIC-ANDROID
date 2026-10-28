@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.MoreVert
@@ -277,14 +278,14 @@ fun SearchResultRow(
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Thumbnail (Circular for Artist, Rounded for Song)
-        val thumbShape = if (song.isArtist) CircleShape else RoundedCornerShape(10.dp)
+        // Thumbnail (Circular for Artist, Rounded for Album/Song)
+        val thumbShape = if (song.isArtist) CircleShape else if (song.isAlbum) RoundedCornerShape(8.dp) else RoundedCornerShape(10.dp)
         Box(
             modifier = Modifier
                 .size(48.dp)
                 .clip(thumbShape)
                 .background(CyberBackgroundDark)
-                .border(1.dp, if (song.isArtist) CyberCyan else GlassBorder, thumbShape),
+                .border(1.dp, if (song.isArtist) CyberCyan else if (song.isAlbum) NeonPurple else GlassBorder, thumbShape),
             contentAlignment = Alignment.Center
         ) {
             if (song.coverUrl.isNotBlank()) {
@@ -296,9 +297,9 @@ fun SearchResultRow(
                 )
             } else {
                 Icon(
-                    imageVector = if (song.isArtist) Icons.Default.Person else Icons.Default.MusicNote,
+                    imageVector = if (song.isArtist) Icons.Default.Person else if (song.isAlbum) Icons.Default.Album else Icons.Default.MusicNote,
                     contentDescription = null,
-                    tint = CyberCyan,
+                    tint = if (song.isAlbum) NeonPurple else CyberCyan,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -333,17 +334,27 @@ fun SearchResultRow(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(2.dp))
+            val subtitleText = when {
+                song.isArtist -> "ARTISTA • VER PERFIL"
+                song.isAlbum -> "ÁLBUM • VER DISCO"
+                else -> song.artist
+            }
+            val subtitleColor = when {
+                song.isArtist -> CyberCyan
+                song.isAlbum -> NeonPurple
+                else -> TextSecondary
+            }
             Text(
-                text = if (song.isArtist) "ARTISTA • VER PERFIL" else song.artist,
-                color = if (song.isArtist) CyberCyan else TextSecondary,
+                text = subtitleText,
+                color = subtitleColor,
                 fontSize = 12.sp,
-                fontWeight = if (song.isArtist) FontWeight.Bold else FontWeight.Normal,
+                fontWeight = if (song.isArtist || song.isAlbum) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
 
-        // Quick Action Icon (Profile for Artist, Play for Song)
+        // Quick Action Icon (Profile for Artist, Album for Album, Play for Song)
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -352,10 +363,16 @@ fun SearchResultRow(
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
+            val actionIcon = when {
+                song.isArtist -> Icons.Default.Person
+                song.isAlbum -> Icons.Default.Album
+                isCurrent && isPlaying -> Icons.Default.Equalizer
+                else -> Icons.Default.PlayArrow
+            }
             Icon(
-                imageVector = if (song.isArtist) Icons.Default.Person else if (isCurrent && isPlaying) Icons.Default.Equalizer else Icons.Default.PlayArrow,
-                contentDescription = if (song.isArtist) "Ver Artista" else "Play",
-                tint = if (isCurrent) CyberBackgroundDark else TextPrimary,
+                imageVector = actionIcon,
+                contentDescription = if (song.isArtist) "Ver Artista" else if (song.isAlbum) "Ver Álbum" else "Play",
+                tint = if (isCurrent) CyberBackgroundDark else if (song.isAlbum) NeonPurple else TextPrimary,
                 modifier = Modifier.size(20.dp)
             )
         }
