@@ -10,9 +10,11 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.auramusic.app.data.model.Song
+import com.auramusic.app.network.YouTubeMusicEngine
 import com.auramusic.app.playback.AuraPlaybackService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,40 +38,16 @@ data class PlayerUiState(
     val durationMs: Long = 212000L,
     val isShuffle: Boolean = false,
     val isRepeat: Boolean = false,
-    val queue: List<Song> = listOf(
-        Song(
-            id = "1",
-            title = "Resonance",
-            artist = "HOME",
-            album = "Odyssey",
-            durationMs = 212000L,
-            coverUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80",
-            mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3",
-            isFavorite = true
-        ),
-        Song(
-            id = "2",
-            title = "Cyber City Lights",
-            artist = "Aura Synthesizer",
-            album = "Neon Drift",
-            durationMs = 184000L,
-            coverUrl = "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=600&auto=format&fit=crop&q=80",
-            mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
-            isFavorite = false
-        ),
-        Song(
-            id = "3",
-            title = "Wayland Dreams",
-            artist = "Quickshell Core",
-            album = "Abyss Protocol",
-            durationMs = 245000L,
-            coverUrl = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80",
-            mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
-            isFavorite = true
-        )
-    ),
-    val currentIndex: Int = 0
+    val queue: List<Song> = emptyList(),
+    val currentIndex: Int = 0,
+    val searchResults: List<Song> = emptyList(),
+    val isSearching: Boolean = false,
+    val currentScreen: AppScreen = AppScreen.DECK
 )
+
+enum class AppScreen {
+    DECK, SEARCH, LYRICS
+}
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -78,10 +56,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
+    private var searchJob: Job? = null
 
     init {
         initializeMediaController()
         startProgressUpdater()
+        loadInitialExploreTracks()
+    }
+
+    private fun loadInitialExploreTracks() {
+        viewModelScope.launch {
+            val initial = YouTubeMusicEngine.searchTracks("")
+            _uiState.update {
+                it.copy(
+                    searchResults = initial,
+                    queue = if (it.queue.isEmpty()) initial else it.queue
+                )
+            }
+        }
     }
 
     private fun initializeMediaController() {
@@ -130,6 +122,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun search(query: String) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            _uiState.update { it.copy(isSearching = true) }
+            val results = YouTubeMusicEngine.searchTracks(query)
+            _uiState.update {
+                it.copy(
+                    searchResults = results,
+                    isSearching = false
+                )
+            }
+        }
+    }
+
+    fun setScreen(screen: AppScreen) {
+        _uiState.update { it.copy(currentScreen = screen) }
+    }
+
     fun playPause() {
         val controller = mediaController
         if (controller != null) {
@@ -143,7 +153,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         } else {
-            // Local fallback simulation if service connecting
             _uiState.update { it.copy(isPlaying = !it.isPlaying) }
         }
     }
@@ -166,9 +175,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             play()
         }
 
-        _uiState.update {
-            it.copy(
+        _uiState.update { state ->
+            val updatedQueue = if (state.queue.none { it.id == song.id }) {
+                listOf(song) + state.queue
+            } else {
+                state.queue
+            }
+            state.copy(
                 currentSong = song,
+                queue = updatedQueue,
                 isPlaying = true,
                 currentPositionMs = 0L,
                 durationMs = song.durationMs
@@ -178,6 +193,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun next() {
         val state = _uiState.value
+        if (state.queue.isEmpty()) return
         val nextIdx = (state.currentIndex + 1) % state.queue.size
         val nextSong = state.queue[nextIdx]
         _uiState.update { it.copy(currentIndex = nextIdx) }
@@ -186,6 +202,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun previous() {
         val state = _uiState.value
+        if (state.queue.isEmpty()) return
         val prevIdx = if (state.currentIndex - 1 < 0) state.queue.size - 1 else state.currentIndex - 1
         val prevSong = state.queue[prevIdx]
         _uiState.update { it.copy(currentIndex = prevIdx) }
@@ -202,7 +219,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val updatedSong = state.currentSong.copy(isFavorite = !state.currentSong.isFavorite)
             state.copy(
                 currentSong = updatedSong,
-                queue = state.queue.map { if (it.id == updatedSong.id) updatedSong else it }
+                queue = state.queue.map { if (it.id == updatedSong.id) updatedSong else it },
+                searchResults = state.searchResults.map { if (it.id == updatedSong.id) updatedSong else it }
             )
         }
     }
