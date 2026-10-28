@@ -43,6 +43,9 @@ class AuraPlaybackService : MediaSessionService() {
             mediaSession = MediaSession.Builder(this, p)
                 .setSessionActivity(pendingIntent)
                 .build()
+
+            // Attach hardware DSP audio effects (5-band EQ, BassBoost, 3D Virtualizer)
+            AuraAudioEffects.attach(p.audioSessionId, this)
         }
     }
 
@@ -51,6 +54,7 @@ class AuraPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        AuraAudioEffects.detach()
         mediaSession?.run {
             player.release()
             release()

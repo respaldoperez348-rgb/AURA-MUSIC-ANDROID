@@ -17,7 +17,10 @@ import com.auramusic.app.data.model.Song
 import com.auramusic.app.network.AuraDownloadManager
 import com.auramusic.app.network.LyricsEngine
 import com.auramusic.app.network.YouTubeMusicEngine
+import com.auramusic.app.playback.AuraAudioEffects
 import com.auramusic.app.playback.AuraPlaybackService
+import com.auramusic.app.playback.SleepTimerManager
+import com.auramusic.app.playback.SleepTimerState
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.Job
@@ -61,7 +64,11 @@ data class PlayerUiState(
     val activeOptionSong: Song? = null,
     val downloadProgressMap: Map<String, Int> = emptyMap(),
     val localTracks: List<Song> = emptyList(),
-    val isScanningLocal: Boolean = false
+    val isScanningLocal: Boolean = false,
+    val sleepTimer: SleepTimerState = SleepTimerState(),
+    val showEqualizer: Boolean = false,
+    val showSleepTimer: Boolean = false,
+    val showQueue: Boolean = false
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -82,6 +89,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         startProgressUpdater()
         loadInitialData()
         observeDownloadProgress()
+        observeSleepTimer()
     }
 
     private fun loadInitialData() {
@@ -127,6 +135,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun observeSleepTimer() {
+        viewModelScope.launch {
+            SleepTimerManager.timerState.collect { timerState ->
+                _uiState.update { it.copy(sleepTimer = timerState) }
+            }
+        }
+    }
+
     private fun loadLyricsForSong(song: Song) {
         lyricsJob?.cancel()
         lyricsJob = viewModelScope.launch {
@@ -162,6 +178,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 if (playbackState == Player.STATE_READY) {
                     val duration = mediaController?.duration?.takeIf { it > 0 } ?: _uiState.value.durationMs
                     _uiState.update { it.copy(durationMs = duration) }
+                } else if (playbackState == Player.STATE_ENDED) {
+                    SleepTimerManager.notifyTrackEnded()
+                    if (!_uiState.value.sleepTimer.isEndOfTrack) {
+                        next()
+                    }
                 }
             }
         })
@@ -404,6 +425,64 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun toggleRepeat() {
         _uiState.update { it.copy(isRepeat = !it.isRepeat) }
+    }
+
+    // ==========================================
+    // AUDIO FX, SLEEP TIMER & QUEUE SHEETS
+    // ==========================================
+
+    fun setShowEqualizer(show: Boolean) {
+        _uiState.update { it.copy(showEqualizer = show) }
+    }
+
+    fun setShowSleepTimer(show: Boolean) {
+        _uiState.update { it.copy(showSleepTimer = show) }
+    }
+
+    fun setShowQueue(show: Boolean) {
+        _uiState.update { it.copy(showQueue = show) }
+    }
+
+    fun startSleepTimer(minutes: Int) {
+        SleepTimerManager.startTimer(minutes) {
+            mediaController?.pause()
+            _uiState.update { it.copy(isPlaying = false) }
+        }
+    }
+
+    fun setSleepTimerEndOfTrack() {
+        SleepTimerManager.setEndOfTrack {
+            mediaController?.pause()
+            _uiState.update { it.copy(isPlaying = false) }
+        }
+    }
+
+    fun cancelSleepTimer() {
+        SleepTimerManager.cancelTimer()
+    }
+
+    fun removeFromQueue(index: Int) {
+        _uiState.update { state ->
+            val updated = state.queue.toMutableList()
+            if (index in updated.indices) {
+                updated.removeAt(index)
+            }
+            state.copy(queue = updated)
+        }
+    }
+
+    fun clearQueue() {
+        _uiState.update { state ->
+            state.copy(queue = listOf(state.currentSong), currentIndex = 0)
+        }
+    }
+
+    fun playQueueItem(index: Int) {
+        val state = _uiState.value
+        if (index in state.queue.indices) {
+            _uiState.update { it.copy(currentIndex = index) }
+            playSong(state.queue[index])
+        }
     }
 
     override fun onCleared() {

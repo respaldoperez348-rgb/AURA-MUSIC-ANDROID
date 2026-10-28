@@ -20,9 +20,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
@@ -87,6 +90,10 @@ fun StudioDeck(
     onToggleFavorite: () -> Unit,
     onToggleShuffle: () -> Unit,
     onToggleRepeat: () -> Unit,
+    onOpenEqualizer: () -> Unit = {},
+    onOpenSleepTimer: () -> Unit = {},
+    onOpenQueue: () -> Unit = {},
+    sleepTimerRemaining: String? = null,
     onCollapse: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -343,7 +350,74 @@ fun StudioDeck(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Studio Quick Tools (EQ, SLEEP TIMER, QUEUE)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Equalizer Quick Button
+                StudioToolPill(
+                    icon = Icons.Default.GraphicEq,
+                    label = "EQ DSP",
+                    activeHighlight = false,
+                    onClick = onOpenEqualizer
+                )
+
+                // Sleep Timer Quick Button
+                StudioToolPill(
+                    icon = Icons.Default.Bedtime,
+                    label = sleepTimerRemaining ?: "SLEEP",
+                    activeHighlight = sleepTimerRemaining != null,
+                    onClick = onOpenSleepTimer
+                )
+
+                // Up Next Queue Button
+                StudioToolPill(
+                    icon = Icons.AutoMirrored.Filled.QueueMusic,
+                    label = "QUEUE",
+                    activeHighlight = false,
+                    onClick = onOpenQueue
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun StudioToolPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    activeHighlight: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (activeHighlight) CyberCyan.copy(alpha = 0.2f) else CyberSurfaceActive)
+            .border(1.dp, if (activeHighlight) CyberCyan else GlassBorder, RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (activeHighlight) CyberCyan else TextSecondary,
+            modifier = Modifier.size(15.dp)
+        )
+        Spacer(modifier = Modifier.width(5.dp))
+        Text(
+            text = label,
+            color = if (activeHighlight) CyberCyan else TextSecondary,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 0.5.sp
+        )
     }
 }
 

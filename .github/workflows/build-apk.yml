@@ -1,0 +1,66 @@
+name: Build Aura Music Android APK
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Package APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-music-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      - name: Create GitHub Release on Tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/debug/app-debug.apk
+          name: Aura Music ${{ github.ref_name }}
+          body: |
+            ## ✨ Aura Music ${{ github.ref_name }}
+            
+            Cyberpunk Frosted Glass Studio Music Player for Android.
+            
+            ### Highlights
+            - 🎛️ **DSP 5-Band Studio Equalizer**: Hardware Bass Boost & 3D Surround Virtualizer.
+            - ⏱️ **Sleep Timer**: Auto-standby countdown & end-of-track fadeout.
+            - 📋 **Up Next Queue**: Real-time track reordering, jumping & queue manager.
+            - 💿 **Studio Deck**: Concentric spinning vinyl physics & synced LRCLIB karaoke lyrics.
+            - ⚡ **Offline Downloads**: High-speed multi-threaded downloader with persistent SQLite library.
+            - 📂 **Device Scanner**: Native MediaStore integration for local MP3/FLAC music.
+            - 🌐 **YouTube Music Streamer**: Instant search & high-fidelity playback.
+          draft: false
+          prerelease: false

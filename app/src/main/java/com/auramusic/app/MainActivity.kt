@@ -31,8 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.unit.dp
+import com.auramusic.app.ui.components.EqualizerSheet
 import com.auramusic.app.ui.components.GlassBottomDock
 import com.auramusic.app.ui.components.MiniPlayer
+import com.auramusic.app.ui.components.QueueSheet
+import com.auramusic.app.ui.components.SleepTimerDialog
 import com.auramusic.app.ui.components.StudioDeck
 import com.auramusic.app.ui.components.TrackOptionsBottomSheet
 import com.auramusic.app.ui.screens.HomeScreen
@@ -199,9 +202,48 @@ class MainActivity : ComponentActivity() {
                                     onToggleFavorite = { playerViewModel.toggleFavorite() },
                                     onToggleShuffle = { playerViewModel.toggleShuffle() },
                                     onToggleRepeat = { playerViewModel.toggleRepeat() },
+                                    onOpenEqualizer = { playerViewModel.setShowEqualizer(true) },
+                                    onOpenSleepTimer = { playerViewModel.setShowSleepTimer(true) },
+                                    onOpenQueue = { playerViewModel.setShowQueue(true) },
+                                    sleepTimerRemaining = if (uiState.sleepTimer.remainingSeconds != null) {
+                                        val mins = uiState.sleepTimer.remainingSeconds!! / 60
+                                        val secs = uiState.sleepTimer.remainingSeconds!! % 60
+                                        String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
+                                    } else if (uiState.sleepTimer.isEndOfTrack) "END" else null,
                                     onCollapse = { playerViewModel.setPlayerExpanded(false) }
                                 )
                             }
+                        }
+
+                        // Equalizer DSP BottomSheet
+                        if (uiState.showEqualizer) {
+                            EqualizerSheet(
+                                onDismiss = { playerViewModel.setShowEqualizer(false) }
+                            )
+                        }
+
+                        // Sleep Timer Dialog
+                        if (uiState.showSleepTimer) {
+                            SleepTimerDialog(
+                                sleepTimerState = uiState.sleepTimer,
+                                onStartTimer = { mins -> playerViewModel.startSleepTimer(mins) },
+                                onSetEndOfTrack = { playerViewModel.setSleepTimerEndOfTrack() },
+                                onCancelTimer = { playerViewModel.cancelSleepTimer() },
+                                onDismiss = { playerViewModel.setShowSleepTimer(false) }
+                            )
+                        }
+
+                        // Up Next Queue BottomSheet
+                        if (uiState.showQueue) {
+                            QueueSheet(
+                                queue = uiState.queue,
+                                currentIndex = uiState.currentIndex,
+                                currentSong = uiState.currentSong,
+                                onPlayItem = { idx -> playerViewModel.playQueueItem(idx) },
+                                onRemoveItem = { idx -> playerViewModel.removeFromQueue(idx) },
+                                onClearQueue = { playerViewModel.clearQueue() },
+                                onDismiss = { playerViewModel.setShowQueue(false) }
+                            )
                         }
 
                         // Track Options BottomSheet (Download, Add to Playlist, Favorite)
