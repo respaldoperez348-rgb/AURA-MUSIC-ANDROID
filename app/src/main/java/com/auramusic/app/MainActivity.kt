@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.auramusic.app.ui.components.AlbumDetailSheet
 import com.auramusic.app.ui.components.ArtistDetailSheet
 import com.auramusic.app.ui.components.EqualizerSheet
 import com.auramusic.app.ui.components.FullscreenLyricsDialog
@@ -352,13 +353,31 @@ class MainActivity : ComponentActivity() {
                         uiState.selectedArtist?.let { artist ->
                             ArtistDetailSheet(
                                 artist = artist,
+                                profile = uiState.artistProfile,
                                 artistSongs = uiState.artistTopSongs,
                                 isLoading = uiState.isLoadingArtist,
                                 currentPlayingId = uiState.currentSong.id,
                                 onPlaySong = { s, list -> playerViewModel.playSong(s, list) },
                                 onPlayAll = { list -> playerViewModel.playPlaylist(list) },
+                                onSelectAlbum = { album -> playerViewModel.openAlbumDetail(album) },
+                                onPlayAlbum = { album -> playerViewModel.playAlbum(album) },
                                 onDismiss = { playerViewModel.dismissArtistDetail() }
                             )
+                        }
+
+                        // Album Detail BottomSheet
+                        if (uiState.showAlbumDetail) {
+                            uiState.selectedAlbum?.let { album ->
+                                AlbumDetailSheet(
+                                    album = album,
+                                    tracks = uiState.albumTracks,
+                                    isLoading = uiState.isLoadingAlbum,
+                                    currentPlayingId = uiState.currentSong.id,
+                                    onPlaySong = { s, list -> playerViewModel.playSong(s, list) },
+                                    onPlayAll = { list -> playerViewModel.playPlaylist(list) },
+                                    onDismiss = { playerViewModel.dismissAlbumDetail() }
+                                )
+                            }
                         }
                     }
                 }

@@ -18,6 +18,8 @@ import coil.request.SuccessResult
 import com.auramusic.app.data.database.AuraDatabase
 import com.auramusic.app.data.database.DownloadedTrack
 import com.auramusic.app.data.database.Playlist
+import com.auramusic.app.data.model.Album
+import com.auramusic.app.data.model.ArtistProfile
 import com.auramusic.app.data.model.LyricLine
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.network.AuraDownloadManager
@@ -88,8 +90,13 @@ data class PlayerUiState(
     val currentTheme: String = "Cyber Neon",
     val showFullscreenLyrics: Boolean = false,
     val selectedArtist: Song? = null,
+    val artistProfile: ArtistProfile? = null,
     val artistTopSongs: List<Song> = emptyList(),
-    val isLoadingArtist: Boolean = false
+    val isLoadingArtist: Boolean = false,
+    val selectedAlbum: Album? = null,
+    val albumTracks: List<Song> = emptyList(),
+    val isLoadingAlbum: Boolean = false,
+    val showAlbumDetail: Boolean = false
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -687,15 +694,66 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun openArtistDetail(artist: Song) {
-        _uiState.update { it.copy(selectedArtist = artist, isLoadingArtist = true, artistTopSongs = emptyList()) }
+        _uiState.update {
+            it.copy(
+                selectedArtist = artist,
+                isLoadingArtist = true,
+                artistTopSongs = emptyList(),
+                artistProfile = null
+            )
+        }
         viewModelScope.launch {
-            val tracks = YouTubeMusicEngine.fetchArtistTopTracks(artist.title)
-            _uiState.update { it.copy(artistTopSongs = tracks, isLoadingArtist = false) }
+            val queryOrId = if (artist.id.startsWith("UC")) artist.id else artist.title
+            val profile = YouTubeMusicEngine.fetchArtistProfile(queryOrId)
+            if (profile != null) {
+                _uiState.update {
+                    it.copy(
+                        artistProfile = profile,
+                        artistTopSongs = profile.topTracks,
+                        isLoadingArtist = false
+                    )
+                }
+            } else {
+                val tracks = YouTubeMusicEngine.fetchArtistTopTracks(artist.title)
+                _uiState.update { it.copy(artistTopSongs = tracks, isLoadingArtist = false) }
+            }
         }
     }
 
     fun dismissArtistDetail() {
-        _uiState.update { it.copy(selectedArtist = null, artistTopSongs = emptyList()) }
+        _uiState.update { it.copy(selectedArtist = null, artistTopSongs = emptyList(), artistProfile = null) }
+    }
+
+    fun openAlbumDetail(album: Album) {
+        _uiState.update {
+            it.copy(
+                selectedAlbum = album,
+                showAlbumDetail = true,
+                isLoadingAlbum = true,
+                albumTracks = emptyList()
+            )
+        }
+        viewModelScope.launch {
+            val tracks = YouTubeMusicEngine.fetchAlbumTracks(album.browseId)
+            _uiState.update { it.copy(albumTracks = tracks, isLoadingAlbum = false) }
+        }
+    }
+
+    fun dismissAlbumDetail() {
+        _uiState.update { it.copy(showAlbumDetail = false, selectedAlbum = null, albumTracks = emptyList()) }
+    }
+
+    fun playAlbum(album: Album) {
+        viewModelScope.launch {
+            val tracks = if (_uiState.value.selectedAlbum?.browseId == album.browseId && _uiState.value.albumTracks.isNotEmpty()) {
+                _uiState.value.albumTracks
+            } else {
+                YouTubeMusicEngine.fetchAlbumTracks(album.browseId)
+            }
+            if (tracks.isNotEmpty()) {
+                playSong(tracks[0], tracks)
+            }
+        }
     }
 
     override fun onCleared() {
