@@ -1,10 +1,17 @@
 package com.auramusic.app.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +44,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -63,6 +74,7 @@ import com.auramusic.app.ui.theme.GlassBorder
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,6 +100,18 @@ fun FullscreenLyricsDialog(
         val listState = rememberLazyListState()
         val activeIndex = lyrics.indexOfLast { it.timestampMs <= currentPositionMs }.coerceAtLeast(0)
 
+        // Controls auto-hide state and touch toggle
+        var controlsVisible by remember { mutableStateOf(true) }
+        var lastInteraction by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+        // Automatically hide controls after 3.5 seconds of inactivity
+        LaunchedEffect(controlsVisible, lastInteraction) {
+            if (controlsVisible) {
+                delay(3500L)
+                controlsVisible = false
+            }
+        }
+
         // Keep active lyric smoothly centered
         LaunchedEffect(activeIndex) {
             if (lyrics.isNotEmpty() && activeIndex in lyrics.indices) {
@@ -97,7 +121,19 @@ fun FullscreenLyricsDialog(
             }
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    controlsVisible = !controlsVisible
+                    if (controlsVisible) {
+                        lastInteraction = System.currentTimeMillis()
+                    }
+                }
+        ) {
             // 1. Ambient Frosted Glass Background (Cover Art blurred)
             if (song.coverUrl.isNotBlank()) {
                 AsyncImage(
@@ -106,7 +142,7 @@ fun FullscreenLyricsDialog(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .blur(80.dp)
+                        .blur(85.dp)
                 )
             }
 
@@ -125,13 +161,93 @@ fun FullscreenLyricsDialog(
                     )
             )
 
-            // 2. Main Content Column
-            Column(
+            // 2. Middle: Big Synced Karaoke Typography (Full Screen Viewport)
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (lyrics.isEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Letra no disponible",
+                            color = TextPrimary,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Disfruta de la pista instrumental o vuelve a intentar",
+                            color = TextMuted,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(top = 110.dp, bottom = 140.dp, start = 14.dp, end = 14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        itemsIndexed(lyrics) { index, line ->
+                            val isActive = index == activeIndex
+                            val isUpcoming = index > activeIndex
+
+                            val textColor by animateColorAsState(
+                                targetValue = when {
+                                    isActive -> CyberCyan
+                                    isUpcoming -> TextMuted.copy(alpha = 0.40f)
+                                    else -> TextSecondary.copy(alpha = 0.50f)
+                                },
+                                animationSpec = tween(durationMillis = 250),
+                                label = "lyric_color"
+                            )
+
+                            val textScale by animateFloatAsState(
+                                targetValue = if (isActive) 1.12f else 1.0f,
+                                animationSpec = tween(durationMillis = 250),
+                                label = "lyric_scale"
+                            )
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onSeekTo(line.timestampMs)
+                                        lastInteraction = System.currentTimeMillis()
+                                    }
+                                    .padding(vertical = 18.dp)
+                                    .scale(textScale),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = line.text,
+                                    color = textColor,
+                                    fontSize = if (isActive) 27.sp else 21.sp,
+                                    fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = if (isActive) 36.sp else 28.sp,
+                                    modifier = Modifier.fillMaxWidth(0.92f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Top Header with Smooth Slide & Fade
+            AnimatedVisibility(
+                visible = controlsVisible,
+                enter = fadeIn(tween(250)) + slideInVertically(initialOffsetY = { -it }),
+                exit = fadeOut(tween(250)) + slideOutVertically(targetOffsetY = { -it }),
                 modifier = Modifier
-                    .fillMaxSize()
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 24.dp)
             ) {
-                // Top Header (Dismiss button, Track details, Badge)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -156,7 +272,9 @@ fun FullscreenLyricsDialog(
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 12.dp)
                     ) {
                         Text(
                             text = song.title,
@@ -191,89 +309,30 @@ fun FullscreenLyricsDialog(
                         )
                     }
                 }
+            }
 
-                // 3. Middle: Big Synced Karaoke Typography
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                ) {
-                    if (lyrics.isEmpty()) {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = "Letra no disponible",
-                                color = TextPrimary,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Disfruta de la pista instrumental o vuelve a intentar",
-                                color = TextMuted,
-                                fontSize = 13.sp,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(vertical = 140.dp, horizontal = 12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            itemsIndexed(lyrics) { index, line ->
-                                val isActive = index == activeIndex
-                                val isUpcoming = index > activeIndex
-
-                                val textColor by animateColorAsState(
-                                    targetValue = when {
-                                        isActive -> CyberCyan
-                                        isUpcoming -> TextMuted.copy(alpha = 0.45f)
-                                        else -> TextSecondary.copy(alpha = 0.55f)
-                                    },
-                                    animationSpec = tween(durationMillis = 250),
-                                    label = "lyric_color"
-                                )
-
-                                val textScale by animateFloatAsState(
-                                    targetValue = if (isActive) 1.12f else 1.0f,
-                                    animationSpec = tween(durationMillis = 250),
-                                    label = "lyric_scale"
-                                )
-
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onSeekTo(line.timestampMs) }
-                                        .padding(vertical = 18.dp)
-                                        .scale(textScale),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = line.text,
-                                        color = textColor,
-                                        fontSize = if (isActive) 27.sp else 21.sp,
-                                        fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = if (isActive) 36.sp else 28.sp,
-                                        modifier = Modifier.fillMaxWidth(0.92f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 4. Floating Mini-Player Bottom Bar
+            // 4. Floating Mini-Player Bottom Bar (Automatically hides for pure full-screen view)
+            AnimatedVisibility(
+                visible = controlsVisible,
+                enter = fadeIn(tween(300)) + slideInVertically(initialOffsetY = { it }),
+                exit = fadeOut(tween(300)) + slideOutVertically(targetOffsetY = { it }),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 24.dp)
+            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(26.dp))
                         .background(CyberSurfaceCard.copy(alpha = 0.95f))
+                        .border(1.2.dp, GlassBorder, RoundedCornerShape(26.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            lastInteraction = System.currentTimeMillis()
+                        }
                         .padding(horizontal = 20.dp, vertical = 14.dp)
                 ) {
                     // Seek Slider
@@ -283,12 +342,13 @@ fun FullscreenLyricsDialog(
                     Slider(
                         value = progressFraction,
                         onValueChange = { frac ->
+                            lastInteraction = System.currentTimeMillis()
                             onSeekTo((frac * safeDuration).toLong())
                         },
                         colors = SliderDefaults.colors(
                             thumbColor = CyberCyan,
                             activeTrackColor = CyberCyan,
-                            inactiveTrackColor = CyberSurfaceCard
+                            inactiveTrackColor = CyberBackgroundDark
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -323,14 +383,28 @@ fun FullscreenLyricsDialog(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onPrevious, modifier = Modifier.size(44.dp)) {
-                            Icon(Icons.Default.SkipPrevious, contentDescription = "Anterior", tint = TextPrimary, modifier = Modifier.size(28.dp))
+                        IconButton(
+                            onClick = {
+                                lastInteraction = System.currentTimeMillis()
+                                onPrevious()
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SkipPrevious,
+                                contentDescription = "Anterior",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(28.dp)
+                            )
                         }
 
                         Spacer(modifier = Modifier.width(24.dp))
 
                         IconButton(
-                            onClick = onPlayPause,
+                            onClick = {
+                                lastInteraction = System.currentTimeMillis()
+                                onPlayPause()
+                            },
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(CircleShape)
@@ -346,8 +420,19 @@ fun FullscreenLyricsDialog(
 
                         Spacer(modifier = Modifier.width(24.dp))
 
-                        IconButton(onClick = onNext, modifier = Modifier.size(44.dp)) {
-                            Icon(Icons.Default.SkipNext, contentDescription = "Siguiente", tint = TextPrimary, modifier = Modifier.size(28.dp))
+                        IconButton(
+                            onClick = {
+                                lastInteraction = System.currentTimeMillis()
+                                onNext()
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SkipNext,
+                                contentDescription = "Siguiente",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(28.dp)
+                            )
                         }
                     }
                 }
