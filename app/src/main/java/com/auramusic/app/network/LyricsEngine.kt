@@ -1,11 +1,15 @@
 package com.auramusic.app.network
 
+import android.util.Log
 import com.auramusic.app.data.model.LyricLine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
@@ -14,64 +18,107 @@ import java.util.regex.Pattern
 
 object LyricsEngine {
 
+    private const val TAG = "LyricsEngine"
+
     private val client = OkHttpClient.Builder()
         .connectionPool(okhttp3.ConnectionPool(10, 5, TimeUnit.MINUTES))
-        .connectTimeout(6, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.SECONDS)
         .build()
 
-    private const val BROWSER_USER_AGENT =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    // Identified User-Agent required by LRCLIB to prevent Cloudflare blocks
+    private const val LRCLIB_USER_AGENT = "AuraMusic/1.0 (https://github.com/auramusic/app)"
+    private const val YOUTUBE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
+
+    private const val YOUTUBE_NEXT_URL = "https://music.youtube.com/youtubei/v1/next"
+    private const val YOUTUBE_BROWSE_URL = "https://music.youtube.com/youtubei/v1/browse"
 
     private val LRC_PATTERN = Pattern.compile("\\[(\\d+):(\\d+(?:\\.\\d+)?)\\](.*)")
 
-    // In-memory cache: "title|artist" -> List<LyricLine>
+    // In-memory cache: "cacheKey" -> List<LyricLine>
     private val lyricsCache = ConcurrentHashMap<String, List<LyricLine>>()
 
     suspend fun fetchSyncedLyrics(
         trackName: String,
         artistName: String,
-        durationSec: Long
+        durationSec: Long,
+        videoId: String = ""
     ): List<LyricLine> = withContext(Dispatchers.IO) {
         if (trackName.isBlank()) return@withContext emptyList()
 
         val (extractedArtist, extractedTitle) = parseArtistAndTitle(trackName, artistName)
-        val cacheKey = "$extractedTitle|$extractedArtist".lowercase()
+        val cleanRaw = cleanTitle(trackName)
+        val cacheKey = if (videoId.isNotBlank()) "vid:$videoId" else "$extractedTitle|$extractedArtist".lowercase()
 
         // 1. Check in-memory cache
-        lyricsCache[cacheKey]?.let { return@withContext it }
+        lyricsCache[cacheKey]?.let {
+            Log.d(TAG, "Cache hit for $cacheKey (${it.size} lines)")
+            return@withContext it
+        }
 
-        // 2. Try direct LRCLIB /api/get if artist is identified
-        if (extractedArtist.isNotBlank() && extractedTitle.isNotBlank()) {
-            val directLyrics = fetchFromGetEndpoint(extractedTitle, extractedArtist, durationSec)
-            if (directLyrics.isNotEmpty()) {
-                lyricsCache[cacheKey] = directLyrics
-                return@withContext directLyrics
+        Log.d(TAG, "Fetching lyrics for '$cleanRaw' by '$extractedArtist' (videoId: $videoId)")
+
+        // 2. Fetch from LRCLIB and YouTube Music concurrently for speed & resilience
+        val lrclibDeferred = async(Dispatchers.IO) {
+            try {
+                if (extractedArtist.isNotBlank() && extractedTitle.isNotBlank()) {
+                    val direct = fetchFromGetEndpoint(extractedTitle, extractedArtist, durationSec)
+                    if (direct.isNotEmpty()) return@async direct
+                }
+                val query = if (extractedArtist.isNotBlank()) "$extractedArtist $cleanRaw" else cleanRaw
+                fetchFromSearchEndpoint(query)
+            } catch (e: Exception) {
+                Log.w(TAG, "LRCLIB fetch error: ${e.message}")
+                emptyList()
             }
         }
 
-        // 3. Try LRCLIB /api/search with cleaned "Artist Title" query
-        val searchQueries = mutableListOf<String>()
-        if (extractedArtist.isNotBlank() && extractedTitle.isNotBlank()) {
-            searchQueries.add("$extractedArtist $extractedTitle")
-        }
-        if (extractedTitle.isNotBlank()) {
-            searchQueries.add(extractedTitle)
-        }
-        val cleanRaw = cleanTitle(trackName)
-        if (cleanRaw.isNotBlank() && !searchQueries.contains(cleanRaw)) {
-            searchQueries.add(cleanRaw)
-        }
-
-        for (query in searchQueries) {
-            val searchLyrics = fetchFromSearchEndpoint(query)
-            if (searchLyrics.isNotEmpty()) {
-                lyricsCache[cacheKey] = searchLyrics
-                return@withContext searchLyrics
+        val ytMusicDeferred = async(Dispatchers.IO) {
+            try {
+                if (videoId.isNotBlank()) {
+                    fetchFromYouTubeMusicLyrics(videoId, durationSec)
+                } else {
+                    emptyList()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "YouTube Music lyrics error: ${e.message}")
+                emptyList()
             }
         }
 
-        // 4. No lyrics found - return empty list
+        val lrclibResult = lrclibDeferred.await()
+        if (lrclibResult.isNotEmpty()) {
+            Log.d(TAG, "Resolved ${lrclibResult.size} lines from LRCLIB")
+            lyricsCache[cacheKey] = lrclibResult
+            return@withContext lrclibResult
+        }
+
+        val ytResult = ytMusicDeferred.await()
+        if (ytResult.isNotEmpty()) {
+            Log.d(TAG, "Resolved ${ytResult.size} lines from YouTube Music official lyrics")
+            lyricsCache[cacheKey] = ytResult
+            return@withContext ytResult
+        }
+
+        // 3. Fallback: If videoId was empty or not matched, search YouTube for the videoId and fetch its lyrics
+        if (videoId.isBlank()) {
+            try {
+                val searchFallback = YouTubeMusicEngine.searchTracks("$cleanRaw $extractedArtist")
+                val candidateTrack = searchFallback.firstOrNull { !it.isArtist && !it.isAlbum && it.id.isNotBlank() }
+                if (candidateTrack != null) {
+                    val fallbackLyrics = fetchFromYouTubeMusicLyrics(candidateTrack.id, durationSec)
+                    if (fallbackLyrics.isNotEmpty()) {
+                        Log.d(TAG, "Resolved ${fallbackLyrics.size} lines from YouTube fallback search")
+                        lyricsCache[cacheKey] = fallbackLyrics
+                        return@withContext fallbackLyrics
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Fallback search error: ${e.message}")
+            }
+        }
+
+        Log.w(TAG, "No lyrics found for '$trackName'")
         emptyList()
     }
 
@@ -88,7 +135,7 @@ object LyricsEngine {
 
             val request = Request.Builder()
                 .url(urlBuilder.build())
-                .header("User-Agent", BROWSER_USER_AGENT)
+                .header("User-Agent", LRCLIB_USER_AGENT)
                 .get()
                 .build()
 
@@ -105,10 +152,10 @@ object LyricsEngine {
 
             val plainText = json.optString("plainLyrics")
             if (plainText.isNotBlank()) {
-                return parsePlain(plainText)
+                return parsePlain(plainText, durationSec)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            // Silently handled by caller
         }
         return emptyList()
     }
@@ -120,7 +167,7 @@ object LyricsEngine {
 
             val request = Request.Builder()
                 .url(urlBuilder.build())
-                .header("User-Agent", BROWSER_USER_AGENT)
+                .header("User-Agent", LRCLIB_USER_AGENT)
                 .get()
                 .build()
 
@@ -144,11 +191,78 @@ object LyricsEngine {
                 val item = jsonArray.optJSONObject(i) ?: continue
                 val plainText = item.optString("plainLyrics")
                 if (plainText.isNotBlank()) {
-                    return parsePlain(plainText)
+                    return parsePlain(plainText, 0)
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            // Silently handled by caller
+        }
+        return emptyList()
+    }
+
+    private fun fetchFromYouTubeMusicLyrics(videoId: String, durationSec: Long): List<LyricLine> {
+        if (videoId.isBlank()) return emptyList()
+        try {
+            val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"videoId":"$videoId"}"""
+            val req = Request.Builder()
+                .url(YOUTUBE_NEXT_URL)
+                .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .header("User-Agent", YOUTUBE_USER_AGENT)
+                .header("Content-Type", "application/json")
+                .build()
+
+            val resp = client.newCall(req).execute()
+            if (!resp.isSuccessful) return emptyList()
+            val body = resp.body?.string() ?: return emptyList()
+            val root = JSONObject(body)
+
+            val tabs = root.optJSONObject("contents")
+                ?.optJSONObject("singleColumnMusicWatchNextResultsRenderer")
+                ?.optJSONObject("tabbedRenderer")
+                ?.optJSONObject("watchNextTabbedResultsRenderer")
+                ?.optJSONArray("tabs") ?: return emptyList()
+
+            var lyricsBrowseId = ""
+            for (i in 0 until tabs.length()) {
+                val tab = tabs.optJSONObject(i)?.optJSONObject("tabRenderer") ?: continue
+                val ep = tab.optJSONObject("endpoint")?.optJSONObject("browseEndpoint")
+                val bid = ep?.optString("browseId") ?: ""
+                if (bid.startsWith("MPLY")) {
+                    lyricsBrowseId = bid
+                    break
+                }
+            }
+
+            if (lyricsBrowseId.isBlank()) return emptyList()
+
+            val browsePayload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"browseId":"$lyricsBrowseId"}"""
+            val browseReq = Request.Builder()
+                .url(YOUTUBE_BROWSE_URL)
+                .post(browsePayload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .header("User-Agent", YOUTUBE_USER_AGENT)
+                .header("Content-Type", "application/json")
+                .build()
+
+            val browseResp = client.newCall(browseReq).execute()
+            if (!browseResp.isSuccessful) return emptyList()
+            val browseBody = browseResp.body?.string() ?: return emptyList()
+            val browseRoot = JSONObject(browseBody)
+
+            val shelf = browseRoot.optJSONObject("contents")
+                ?.optJSONObject("sectionListRenderer")
+                ?.optJSONArray("contents")?.optJSONObject(0)
+                ?.optJSONObject("musicDescriptionShelfRenderer")
+
+            val runs = shelf?.optJSONObject("description")?.optJSONArray("runs")
+            val text = if (runs != null && runs.length() > 0) {
+                (0 until runs.length()).joinToString("") { runs.getJSONObject(it).optString("text") }
+            } else ""
+
+            if (text.isNotBlank()) {
+                return parsePlain(text, durationSec)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error fetching YouTube Music lyrics: ${e.message}")
         }
         return emptyList()
     }
@@ -177,12 +291,24 @@ object LyricsEngine {
         return lines.sortedBy { it.timestampMs }
     }
 
-    private fun parsePlain(plainText: String): List<LyricLine> {
-        return plainText.split("\n")
+    private fun parsePlain(plainText: String, durationSec: Long = 0): List<LyricLine> {
+        val rawLines = plainText.split("\n")
+            .map { it.trim() }
             .filter { it.isNotBlank() }
-            .mapIndexed { index, text ->
-                LyricLine(timestampMs = index * 4000L, text = text.trim())
-            }
+
+        if (rawLines.isEmpty()) return emptyList()
+
+        val intervalMs = if (durationSec > 0) {
+            val totalMs = durationSec * 1000L
+            val step = totalMs / (rawLines.size + 1)
+            step.coerceIn(2500L, 7000L)
+        } else {
+            3500L
+        }
+
+        return rawLines.mapIndexed { index, text ->
+            LyricLine(timestampMs = index * intervalMs, text = text)
+        }
     }
 
     fun parseArtistAndTitle(rawTitle: String, rawArtist: String): Pair<String, String> {
@@ -213,7 +339,7 @@ object LyricsEngine {
     private fun isGenericArtist(artist: String): Boolean {
         val lower = artist.lowercase()
         return lower.endsWith("vevo") || lower.contains("official") || lower.contains("records") ||
-               lower.contains("channel") || lower.contains("records") || lower.contains("topic") ||
+               lower.contains("channel") || lower.contains("topic") ||
                lower.matches(Regex(".*\\d+[a-z]?"))
     }
 

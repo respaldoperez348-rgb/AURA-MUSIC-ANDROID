@@ -238,7 +238,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val lyrics = LyricsEngine.fetchSyncedLyrics(
                 trackName = song.title,
                 artistName = song.artist,
-                durationSec = song.durationMs / 1000
+                durationSec = song.durationMs / 1000,
+                videoId = song.id
             )
             _uiState.update { it.copy(lyrics = lyrics) }
         }
@@ -822,7 +823,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         viewModelScope.launch {
-            val tracks = YouTubeMusicEngine.fetchAlbumTracks(album.browseId)
+            val tracks = YouTubeMusicEngine.fetchAlbumTracks(album.browseId, album.title, album.year)
             _uiState.update { it.copy(albumTracks = tracks, isLoadingAlbum = false) }
         }
     }
@@ -836,7 +837,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val tracks = if (_uiState.value.selectedAlbum?.browseId == album.browseId && _uiState.value.albumTracks.isNotEmpty()) {
                 _uiState.value.albumTracks
             } else {
-                YouTubeMusicEngine.fetchAlbumTracks(album.browseId)
+                YouTubeMusicEngine.fetchAlbumTracks(album.browseId, album.title, album.year)
             }
             if (tracks.isNotEmpty()) {
                 playSong(tracks[0], tracks)

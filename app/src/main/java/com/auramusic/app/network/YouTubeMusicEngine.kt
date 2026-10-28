@@ -588,111 +588,125 @@ object YouTubeMusicEngine {
         }
     }
 
-    suspend fun fetchAlbumTracks(browseId: String): List<Song> = withContext(Dispatchers.IO) {
+    suspend fun fetchAlbumTracks(
+        browseId: String,
+        fallbackTitle: String = "",
+        fallbackArtist: String = ""
+    ): List<Song> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"browseId":"$browseId"}"""
-            val req = Request.Builder()
-                .url(BROWSE_URL)
-                .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
-                .header("Content-Type", "application/json")
-                .build()
+            val tracks = mutableListOf<Song>()
+            var resolvedTitle = fallbackTitle
+            var resolvedArtist = fallbackArtist
+            var resolvedCover = ""
 
-            client.newCall(req).execute().use { resp ->
-                val body = resp.body?.string() ?: return@withContext emptyList()
-                val root = JSONObject(body)
+            if (browseId.isNotBlank()) {
+                val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"browseId":"$browseId"}"""
+                val req = Request.Builder()
+                    .url(BROWSE_URL)
+                    .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                    .header("Content-Type", "application/json")
+                    .build()
 
-                val two = root.optJSONObject("contents")?.optJSONObject("twoColumnBrowseResultsRenderer")
-                val tabs = two?.optJSONArray("tabs")?.optJSONObject(0)?.optJSONObject("tabRenderer")
-                    ?.optJSONObject("content")?.optJSONObject("sectionListRenderer")?.optJSONArray("contents")
-                val header = tabs?.optJSONObject(0)?.optJSONObject("musicResponsiveHeaderRenderer")
+                client.newCall(req).execute().use { resp ->
+                    val body = resp.body?.string()
+                    if (body != null) {
+                        val root = JSONObject(body)
 
-                val albumTitle = header?.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: ""
-                val albumCoverThumbs = header?.optJSONObject("thumbnail")?.optJSONObject("musicThumbnailRenderer")
-                    ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
-                val albumCover = if (albumCoverThumbs != null && albumCoverThumbs.length() > 0) {
-                    albumCoverThumbs.getJSONObject(albumCoverThumbs.length() - 1).optString("url")
-                } else ""
+                        val two = root.optJSONObject("contents")?.optJSONObject("twoColumnBrowseResultsRenderer")
+                        val tabs = two?.optJSONArray("tabs")?.optJSONObject(0)?.optJSONObject("tabRenderer")
+                            ?.optJSONObject("content")?.optJSONObject("sectionListRenderer")?.optJSONArray("contents")
+                        val header = tabs?.optJSONObject(0)?.optJSONObject("musicResponsiveHeaderRenderer")
 
-                val subtitleRuns = header?.optJSONObject("subtitle")?.optJSONArray("runs")
-                var headerArtist = ""
-                if (subtitleRuns != null) {
-                    for (sIdx in 0 until subtitleRuns.length()) {
-                        val cand = subtitleRuns.getJSONObject(sIdx).optString("text").trim()
-                        if (cand.isNotBlank() && cand != "•" && cand != "Álbum" && cand != "Single" && cand != "EP" && !cand.matches(Regex("\\d{4}"))) {
-                            headerArtist = cand
-                            break
-                        }
-                    }
-                }
+                        val albumTitle = header?.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: ""
+                        if (albumTitle.isNotBlank()) resolvedTitle = albumTitle
 
-                val tracks = mutableListOf<Song>()
+                        val albumCoverThumbs = header?.optJSONObject("thumbnail")?.optJSONObject("musicThumbnailRenderer")
+                            ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+                        val albumCover = if (albumCoverThumbs != null && albumCoverThumbs.length() > 0) {
+                            albumCoverThumbs.getJSONObject(albumCoverThumbs.length() - 1).optString("url")
+                        } else ""
+                        if (albumCover.isNotBlank()) resolvedCover = albumCover
 
-                // Direct extraction from secondaryContents (standard YouTube Music album tracklist container)
-                val secContents = two?.optJSONObject("secondaryContents")?.optJSONObject("sectionListRenderer")?.optJSONArray("contents")
-                if (secContents != null) {
-                    for (s in 0 until secContents.length()) {
-                        val shelfObj = secContents.optJSONObject(s)?.optJSONObject("musicShelfRenderer") ?: continue
-                        val shelfItems = shelfObj.optJSONArray("contents") ?: continue
-                        for (i in 0 until shelfItems.length()) {
-                            val col = shelfItems.optJSONObject(i)?.optJSONObject("musicResponsiveListItemRenderer") ?: continue
-                            val song = extractSongFromListItem(col)
-                            if (song != null) {
-                                tracks.add(
-                                    song.copy(
-                                        artist = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else headerArtist,
-                                        album = if (song.album.isNotBlank()) song.album else albumTitle,
-                                        coverUrl = if (song.coverUrl.isNotBlank()) song.coverUrl else albumCover
-                                    )
-                                )
+                        val subtitleRuns = header?.optJSONObject("subtitle")?.optJSONArray("runs")
+                        if (subtitleRuns != null) {
+                            for (sIdx in 0 until subtitleRuns.length()) {
+                                val cand = subtitleRuns.getJSONObject(sIdx).optString("text").trim()
+                                if (cand.isNotBlank() && cand != "•" && cand != "Álbum" && cand != "Single" && cand != "EP" && !cand.matches(Regex("\\d{4}"))) {
+                                    resolvedArtist = cand
+                                    break
+                                }
                             }
                         }
-                    }
-                }
 
-                // If direct extraction did not find tracks, recursive fallback
-                if (tracks.isEmpty()) {
-                    fun findTracksRecursive(obj: Any?) {
-                        when (obj) {
-                            is JSONObject -> {
-                                val col = obj.optJSONObject("musicResponsiveListItemRenderer")
-                                if (col != null) {
+                        // Direct extraction from secondaryContents (standard YouTube Music album tracklist container)
+                        val secContents = two?.optJSONObject("secondaryContents")?.optJSONObject("sectionListRenderer")?.optJSONArray("contents")
+                        if (secContents != null) {
+                            for (s in 0 until secContents.length()) {
+                                val shelfObj = secContents.optJSONObject(s)?.optJSONObject("musicShelfRenderer") ?: continue
+                                val shelfItems = shelfObj.optJSONArray("contents") ?: continue
+                                for (i in 0 until shelfItems.length()) {
+                                    val col = shelfItems.optJSONObject(i)?.optJSONObject("musicResponsiveListItemRenderer") ?: continue
                                     val song = extractSongFromListItem(col)
                                     if (song != null) {
                                         tracks.add(
                                             song.copy(
-                                                artist = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else headerArtist,
-                                                album = if (song.album.isNotBlank()) song.album else albumTitle,
-                                                coverUrl = if (song.coverUrl.isNotBlank()) song.coverUrl else albumCover
+                                                artist = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else resolvedArtist,
+                                                album = if (song.album.isNotBlank()) song.album else resolvedTitle,
+                                                coverUrl = if (song.coverUrl.isNotBlank()) song.coverUrl else resolvedCover
                                             )
                                         )
                                     }
                                 }
-                                val keys = obj.keys()
-                                while (keys.hasNext()) {
-                                    findTracksRecursive(obj.opt(keys.next()))
-                                }
-                            }
-                            is org.json.JSONArray -> {
-                                for (idx in 0 until obj.length()) {
-                                    findTracksRecursive(obj.opt(idx))
-                                }
                             }
                         }
+
+                        // If direct extraction did not find tracks, recursive fallback
+                        if (tracks.isEmpty()) {
+                            fun findTracksRecursive(obj: Any?) {
+                                when (obj) {
+                                    is JSONObject -> {
+                                        val col = obj.optJSONObject("musicResponsiveListItemRenderer")
+                                        if (col != null) {
+                                            val song = extractSongFromListItem(col)
+                                            if (song != null) {
+                                                tracks.add(
+                                                    song.copy(
+                                                        artist = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else resolvedArtist,
+                                                        album = if (song.album.isNotBlank()) song.album else resolvedTitle,
+                                                        coverUrl = if (song.coverUrl.isNotBlank()) song.coverUrl else resolvedCover
+                                                    )
+                                                )
+                                            }
+                                        }
+                                        val keys = obj.keys()
+                                        while (keys.hasNext()) {
+                                            findTracksRecursive(obj.opt(keys.next()))
+                                        }
+                                    }
+                                    is org.json.JSONArray -> {
+                                        for (idx in 0 until obj.length()) {
+                                            findTracksRecursive(obj.opt(idx))
+                                        }
+                                    }
+                                }
+                            }
+
+                            findTracksRecursive(root)
+                        }
                     }
-
-                    findTracksRecursive(root)
                 }
-
-                // If still empty (e.g. mock or browseId restricted), query fallback tracks by album title
-                if (tracks.isEmpty() && albumTitle.isNotBlank()) {
-                    val searchFallback = searchTracks("$albumTitle $headerArtist")
-                    tracks.addAll(searchFallback.filter { !it.isArtist && !it.isAlbum }.take(8))
-                }
-
-                android.util.Log.d("YouTubeMusicEngine", "fetchAlbumTracks for $albumTitle ($browseId) resolved ${tracks.size} tracks")
-                tracks
             }
+
+            // Fallback search if empty (e.g. mock or restricted browseId)
+            if (tracks.isEmpty() && (resolvedTitle.isNotBlank() || fallbackTitle.isNotBlank())) {
+                val q = "${resolvedTitle.ifBlank { fallbackTitle }} ${resolvedArtist.ifBlank { fallbackArtist }}".trim()
+                val searchFallback = searchTracks(q)
+                tracks.addAll(searchFallback.filter { !it.isArtist && !it.isAlbum }.take(12))
+            }
+
+            android.util.Log.d("YouTubeMusicEngine", "fetchAlbumTracks for $resolvedTitle ($browseId) resolved ${tracks.size} tracks")
+            tracks
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
@@ -781,49 +795,63 @@ object YouTubeMusicEngine {
                 title = "TOY LOKAZO",
                 year = "2023 • Jaze",
                 type = "Álbum",
-                coverUrl = "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=500&auto=format&fit=crop&q=80"
+                coverUrl = "https://yt3.googleusercontent.com/0zYeBkT9UqfvBK8l9OHJfMgXs6mTLtE8tDPq7FzwTgjSit9rI0X2c7ruJE4hKACIsCPBBbEV3QEhngc=w544-h544-l90-rj"
             ),
             Album(
-                browseId = "MPREb_94Qj2Lq2w1z",
+                browseId = "MPREb_K8qWMWVqXGi",
                 title = "Random Access Memories",
                 year = "2013 • Daft Punk",
                 type = "Álbum",
-                coverUrl = "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=500&auto=format&fit=crop&q=80"
+                coverUrl = "https://yt3.googleusercontent.com/N55arCGj69gtw6thXK8JUPisxoVYiwuIEQ7I6SGlkEyNcSJ7xIWPe76Vuu1SiUqRyx5w9qvR_zV8fV3CWQ=w544-h544-l90-rj"
             ),
             Album(
-                browseId = "MPREb_W1bY0dE7r2e",
+                browseId = "MPREb_TH6Wut5eTMQ",
                 title = "After Hours",
                 year = "2020 • The Weeknd",
                 type = "Álbum",
-                coverUrl = "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&auto=format&fit=crop&q=80"
+                coverUrl = "https://yt3.googleusercontent.com/JDKz3Anlyo49xBhFcFx13QD_Tk4-kqdiYTo15gtkL93nE8biWyZ7o0BPyW6RnXVxcXaJ5DgU5nJ_0NjJ=w544-h544-l90-rj"
             ),
             Album(
-                browseId = "MPREb_81vB7yD3f1a",
+                browseId = "MPREb_VdtEnJZ2vqp",
                 title = "MOTOMAMI",
                 year = "2022 • Rosalía",
                 type = "Álbum",
-                coverUrl = "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=500&auto=format&fit=crop&q=80"
+                coverUrl = "https://yt3.googleusercontent.com/NcPO6bbPE3euQSRNRwFC0FvRJ-TEzKRql9-FeyO6c0CP1Ow0YdPZhfDFgnEpro7N1rhZ3LxOxKUjqNo=w544-h544-l90-rj"
             ),
             Album(
-                browseId = "MPREb_4X1p7w2Z9e0",
+                browseId = "MPREb_NMmY1n1NJFS",
                 title = "Un Verano Sin Ti",
                 year = "2022 • Bad Bunny",
                 type = "Álbum",
-                coverUrl = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80"
+                coverUrl = "https://yt3.googleusercontent.com/0Ke36SSY53TQbmpqzKP4hMPoGiWYQiGI0KJ2CzcwjW4ore9vUMUmyzEi7irEU2MR3FCpNPdwIIuNslS6hg=w544-h544-l90-rj"
             ),
             Album(
-                browseId = "MPREb_04zT7w3q2L8",
+                browseId = "MPREb_2az20wG4HxN",
                 title = "Demon Days",
                 year = "2005 • Gorillaz",
                 type = "Álbum",
-                coverUrl = "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&auto=format&fit=crop&q=80"
+                coverUrl = "https://yt3.googleusercontent.com/_3LJKVh0dy-71CwQzWKt0q7JHI7M2rxIMGGAdT0wEhmGEEELRX98ACJFdKK5Fyl226nuNfQ0OAMc-JtP=w544-h544-l90-rj"
             ),
             Album(
-                browseId = "MPREb_1X8w4m2p9L3",
+                browseId = "MPREb_h2I0XmdWznM",
                 title = "BIEN O MAL",
                 year = "2022 • Trueno",
                 type = "Álbum",
-                coverUrl = "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=500&auto=format&fit=crop&q=80"
+                coverUrl = "https://yt3.googleusercontent.com/G5eyMcGCE8xBp6Qq6NNHpL6GlbgtrqA5NrHWrm9849QlBFLyWCJOMY8e3bB9BDeuwZ692zKOVfE0cBID=w544-h544-l90-rj"
+            ),
+            Album(
+                browseId = "MPREb_w7oqKXSwULM",
+                title = "ASTROWORLD",
+                year = "2018 • Travis Scott",
+                type = "Álbum",
+                coverUrl = "https://yt3.googleusercontent.com/PSIZ9cf9hpESZwcSz2ylS5I-zIREqCSagxV-X4CJqefrE0sRCktRtFw-a7PlkLygmg7k1nZREKCaSzY=w544-h544-l90-rj"
+            ),
+            Album(
+                browseId = "MPREb_FWIMEPTHFsY",
+                title = "Starboy",
+                year = "2016 • The Weeknd",
+                type = "Álbum",
+                coverUrl = "https://yt3.googleusercontent.com/dcxXIIlest09vnvKznWM9VWQXu1EL7lKxBzXGzwgmVjmMNBm1dEWT_0qn1xrEZYyKF_qRE1TLq8P_JY_mQ=w544-h544-l90-rj"
             )
         )
     }
