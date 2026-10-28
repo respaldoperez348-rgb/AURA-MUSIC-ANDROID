@@ -48,19 +48,22 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: Aura Music ${{ github.ref_name }}
+          name: Aura Music ${{ github.ref_name }} (Fase Beta)
           body: |
-            ## ✨ Aura Music ${{ github.ref_name }}
+            ## 🚀 Aura Music ${{ github.ref_name }} [FASE BETA]
             
-            Cyberpunk Frosted Glass Studio Music Player for Android.
+            > ⚠️ **Estado**: Esta versión se encuentra actualmente en **Fase Beta** de pruebas continuas. La versión estable oficial comenzará a partir de la versión **v2.5.0**.
             
-            ### Highlights
-            - 🎛️ **DSP 5-Band Studio Equalizer**: Hardware Bass Boost & 3D Surround Virtualizer.
-            - ⏱️ **Sleep Timer**: Auto-standby countdown & end-of-track fadeout.
-            - 📋 **Up Next Queue**: Real-time track reordering, jumping & queue manager.
-            - 💿 **Studio Deck**: Concentric spinning vinyl physics & synced LRCLIB karaoke lyrics.
-            - ⚡ **Offline Downloads**: High-speed multi-threaded downloader with persistent SQLite library.
-            - 📂 **Device Scanner**: Native MediaStore integration for local MP3/FLAC music.
-            - 🌐 **YouTube Music Streamer**: Instant search & high-fidelity playback.
+            **Creador & Desarrollador Principal**: MANUEL DAVID TINEO
+            
+            ### ✨ Novedades de la versión 1.5.0 (Beta Edition)
+            - 👤 **Créditos y Acerca de**: Reconocimiento oficial a **MANUEL DAVID TINEO** en la sección de Ajustes con versión 1.5.0 Cyber Edition.
+            - 🌐 **Selector Multilenguaje**: Soporte de idiomas integrado (Español, English, Português, Français, Deutsch, 日本語).
+            - ⚡ **Arranque Instantáneo y Modo Offline (0 ms)**: El inicio carga inmediatamente sin pantallas en blanco ni esperas por red.
+            - 🎤 **Letras Inmersivas con Controles Persistentes**: Píldora sutil flotante `[ ⏸ PAUSAR ]`, controles siempre visibles en pausa y salida suave deslizando.
+            - 🧭 **Nueva Dock Navegación y MiniPlayer Circular**: Cápsula de Inicio y Biblioteca con botón circular flotante de búsqueda y anillo de progreso acústico.
+            - 🧹 **Gestor de Caché**: Limpieza rápida de memoria y carátulas de audio.
+            - 🔔 **Notificaciones de Descarga**: Feedback instantáneo al completar descargas a la bóveda offline.
+            - 💿 **Studio Deck**: Vinilo giratorio interactivo, letras oficiales sincronizadas y ecualizador DSP.
           draft: false
-          prerelease: false
+          prerelease: true
