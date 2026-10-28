@@ -103,7 +103,7 @@ fun SettingsSheet(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "CONFIGURACIÓN // STUDIO",
+                            text = "CONFIGURACIÓN",
                             color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,

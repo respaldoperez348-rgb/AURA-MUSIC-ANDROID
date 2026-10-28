@@ -255,7 +255,7 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "TOP CHARTS // CYBERPUNK 100",
+                    text = "TOP CHARTS",
                     color = CyberPink,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,

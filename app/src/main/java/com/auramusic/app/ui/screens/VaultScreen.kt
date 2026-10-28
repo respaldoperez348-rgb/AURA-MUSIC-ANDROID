@@ -107,7 +107,7 @@ fun VaultScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "AURA // VAULT",
+                text = "AURA",
                 color = CyberCyan,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,

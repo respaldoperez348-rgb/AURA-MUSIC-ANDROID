@@ -102,6 +102,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var lyricsJob: Job? = null
 
     init {
+        AuraStreamResolver.init()
         initializeMediaController()
         startProgressUpdater()
         loadInitialData()

@@ -13,14 +13,18 @@ import java.util.concurrent.TimeUnit
 object YouTubeMusicEngine {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectionPool(okhttp3.ConnectionPool(10, 5, TimeUnit.MINUTES))
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
         .build()
 
     private const val SEARCH_URL = "https://music.youtube.com/youtubei/v1/search?prettyPrint=false"
+    private val searchCache = java.util.concurrent.ConcurrentHashMap<String, List<Song>>()
 
     suspend fun searchTracks(query: String): List<Song> = withContext(Dispatchers.IO) {
-        val effectiveQuery = if (query.isBlank()) "Cyberpunk Synthwave Top Hits" else query
+        val effectiveQuery = if (query.isBlank()) "Cyberpunk Synthwave Top Hits" else query.trim()
+        val cacheKey = effectiveQuery.lowercase()
+        searchCache[cacheKey]?.let { return@withContext it }
 
         try {
             val payload = JSONObject().apply {
@@ -45,7 +49,9 @@ object YouTubeMusicEngine {
             val response = client.newCall(request).execute()
             val rawBody = response.body?.string() ?: return@withContext getCuratedFallbackTracks(effectiveQuery)
             val parsed = parseSearchResponse(rawBody)
-            if (parsed.isNotEmpty()) parsed else getCuratedFallbackTracks(effectiveQuery)
+            val result = if (parsed.isNotEmpty()) parsed else getCuratedFallbackTracks(effectiveQuery)
+            if (result.isNotEmpty()) searchCache[cacheKey] = result
+            result
         } catch (e: Exception) {
             e.printStackTrace()
             getCuratedFallbackTracks(effectiveQuery)

@@ -1,5 +1,6 @@
 package com.auramusic.app.network
 
+import okhttp3.ConnectionPool
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -14,8 +15,10 @@ class AuraDownloaderImpl private constructor(private val client: OkHttpClient) :
     companion object {
         val instance by lazy {
             val client = OkHttpClient.Builder()
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
+                .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
+                .connectTimeout(8, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
                 .build()
             AuraDownloaderImpl(client)
         }
