@@ -30,8 +30,8 @@ object LocalAudioScanner {
             MediaStore.Audio.Media.ALBUM_ID
         )
 
-        // Ignore short audios like WhatsApp voice notes, ringtones, UI sounds (< 30 seconds)
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= 30000"
+        // Filter out short notification beeps and UI sounds (< 15 seconds)
+        val selection = "${MediaStore.Audio.Media.DURATION} >= 15000"
         val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
         try {

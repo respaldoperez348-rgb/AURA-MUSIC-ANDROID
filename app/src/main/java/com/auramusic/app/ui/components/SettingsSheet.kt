@@ -58,8 +58,10 @@ import com.auramusic.app.ui.theme.TextSecondary
 fun SettingsSheet(
     audioQuality: String,
     loudnessNormalizer: Boolean,
+    currentTheme: String = "Cyber Neon",
     onQualitySelected: (String) -> Unit,
     onToggleLoudness: () -> Unit,
+    onSelectTheme: (String) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -232,14 +234,16 @@ fun SettingsSheet(
                     title = "Cyber Neon",
                     color1 = CyberCyan,
                     color2 = CyberPink,
-                    isSelected = true,
+                    isSelected = currentTheme == "Cyber Neon",
+                    onClick = { onSelectTheme("Cyber Neon") },
                     modifier = Modifier.weight(1f)
                 )
                 ThemeCard(
                     title = "Synthwave",
                     color1 = Color(0xffff8c00),
                     color2 = NeonPurple,
-                    isSelected = false,
+                    isSelected = currentTheme == "Synthwave",
+                    onClick = { onSelectTheme("Synthwave") },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -254,14 +258,16 @@ fun SettingsSheet(
                     title = "Matrix 99",
                     color1 = Color(0xff00ff66),
                     color2 = Color(0xff052e16),
-                    isSelected = false,
+                    isSelected = currentTheme == "Matrix 99",
+                    onClick = { onSelectTheme("Matrix 99") },
                     modifier = Modifier.weight(1f)
                 )
                 ThemeCard(
                     title = "OLED Black",
                     color1 = Color(0xffe2e8f0),
                     color2 = Color(0xff1e293b),
-                    isSelected = false,
+                    isSelected = currentTheme == "OLED Black",
+                    onClick = { onSelectTheme("OLED Black") },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -332,13 +338,15 @@ private fun ThemeCard(
     color1: Color,
     color2: Color,
     isSelected: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(CyberSurfaceCard)
+            .background(if (isSelected) CyberCyan.copy(alpha = 0.15f) else CyberSurfaceCard)
             .border(1.2.dp, if (isSelected) CyberCyan else GlassBorder, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
             .padding(12.dp)
     ) {
         Column {

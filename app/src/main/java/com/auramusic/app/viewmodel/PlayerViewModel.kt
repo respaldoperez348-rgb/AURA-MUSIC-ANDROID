@@ -73,7 +73,8 @@ data class PlayerUiState(
     val playlistSongs: List<Song> = emptyList(),
     val showSettings: Boolean = false,
     val audioQuality: String = "Hi-Res (320 kbps)",
-    val loudnessNormalizer: Boolean = true
+    val loudnessNormalizer: Boolean = true,
+    val currentTheme: String = "Cyber Neon"
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -104,6 +105,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val savedDownloads = database.getDownloadedTracks()
             val savedPlaylists = database.getPlaylists()
 
+            val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+            val savedPalette = prefs.getString("palette", "Cyber Neon") ?: "Cyber Neon"
+
             val initialTracks = YouTubeMusicEngine.searchTracks("")
 
             _uiState.update {
@@ -112,7 +116,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     queue = if (it.queue.isEmpty()) initialTracks else it.queue,
                     favorites = if (savedFavs.isNotEmpty()) savedFavs else initialTracks.filter { s -> s.isFavorite },
                     downloads = savedDownloads,
-                    playlists = savedPlaylists
+                    playlists = savedPlaylists,
+                    currentTheme = savedPalette
                 )
             }
 
@@ -464,6 +469,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun toggleLoudnessNormalizer() {
         _uiState.update { it.copy(loudnessNormalizer = !it.loudnessNormalizer) }
+    }
+
+    fun setThemePalette(paletteName: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("palette", paletteName).apply()
+        _uiState.update { it.copy(currentTheme = paletteName) }
     }
 
     fun addToQueueNext(song: Song) {

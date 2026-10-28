@@ -1,10 +1,15 @@
 package com.auramusic.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -30,7 +35,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.auramusic.app.ui.components.EqualizerSheet
 import com.auramusic.app.ui.components.GlassBottomDock
 import com.auramusic.app.ui.components.MiniPlayer
@@ -59,9 +66,33 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AuraMusicTheme {
-                val uiState by playerViewModel.uiState.collectAsState()
+            val uiState by playerViewModel.uiState.collectAsState()
+            val context = LocalContext.current
 
+            val audioPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Manifest.permission.READ_MEDIA_AUDIO
+            } else {
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            }
+
+            val permissionLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                if (isGranted) {
+                    playerViewModel.scanLocalTracks()
+                }
+            }
+
+            val requestScanLocalAudio = {
+                val status = ContextCompat.checkSelfPermission(context, audioPermission)
+                if (status == PackageManager.PERMISSION_GRANTED) {
+                    playerViewModel.scanLocalTracks()
+                } else {
+                    permissionLauncher.launch(audioPermission)
+                }
+            }
+
+            AuraMusicTheme(themeName = uiState.currentTheme) {
                 BackHandler(enabled = uiState.isPlayerExpanded) {
                     playerViewModel.setPlayerExpanded(false)
                 }
@@ -144,7 +175,7 @@ class MainActivity : ComponentActivity() {
                                             onPlayAllFavorites = { playerViewModel.playAllFavorites() },
                                             onPlayAllDownloads = { playerViewModel.playAllDownloads() },
                                             onPlayAllLocalTracks = { playerViewModel.playAllLocalTracks() },
-                                            onScanLocalTracks = { playerViewModel.scanLocalTracks() },
+                                            onScanLocalTracks = requestScanLocalAudio,
                                             onCreatePlaylist = { title -> playerViewModel.createPlaylist(title) },
                                             onDeletePlaylist = { id -> playerViewModel.deletePlaylist(id) },
                                             onOpenPlaylist = { pl -> playerViewModel.openPlaylist(pl) },
@@ -271,8 +302,10 @@ class MainActivity : ComponentActivity() {
                             SettingsSheet(
                                 audioQuality = uiState.audioQuality,
                                 loudnessNormalizer = uiState.loudnessNormalizer,
+                                currentTheme = uiState.currentTheme,
                                 onQualitySelected = { q -> playerViewModel.setAudioQuality(q) },
                                 onToggleLoudness = { playerViewModel.toggleLoudnessNormalizer() },
+                                onSelectTheme = { themeName -> playerViewModel.setThemePalette(themeName) },
                                 onDismiss = { playerViewModel.setShowSettings(false) }
                             )
                         }
