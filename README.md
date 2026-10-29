@@ -14,13 +14,7 @@
 </div>
 <img width="792" height="1599" alt="WhatsApp Image 2026-10-28 at 21 46 40(1)" src="https://github.com/user-attachments/assets/b022832e-d6aa-46f5-89e3-56c2aee24a4e" />
 <img width="788" height="1600" alt="WhatsApp Image 2026-10-28 at 21 46 40(2)" src="https://github.com/user-attachments/assets/5c6f0a75-9309-46bc-b212-e75b665af4f7" />
-<img width="788" height="1600" alt="WhatsApp Image 2026-10-28 at 21 46 40" src="https://github.com/user-attachments/assets/3ba5ae8f-eaf8-4ad0-8c79-07dd55c4ae8c" />
-<img width="789" height="1600" alt="WhatsApp Image 2026-10-28 at 21 46 40(4)" src="https://github.com/user-attachments/assets/0867c25b-57a9-447f-838c-1c5a8aa9ab25" />
-<img width="791" height="1600" alt="WhatsApp Image 2026-10-28 at 21 46 40(3)" src="https://github.com/user-attachments/assets/8806de3d-06b9-4dd4-9f48-6497dfa650df" />
-<img width="638" height="1280" alt="WhatsApp Image 2026-10-28 at 21 46 41(2)" src="https://github.com/user-attachments/assets/1c1a43a9-d4c2-4e21-85f3-586da5635e06" />
-<img width="797" height="1600" alt="WhatsApp Image 2026-10-28 at 21 46 41(1)" src="https://github.com/user-attachments/assets/b1a1e718-d018-41ad-ba43-fca2fe3418d7" />
-<img width="791" height="1600" alt="WhatsApp Image 2026-10-28 at 21 46 41" src="https://github.com/user-attachments/assets/9d76d646-4fd8-4fc3-b168-4e1e72bde5ba" />
-<img width="813" height="1600" alt="WhatsApp Image 2026-10-28 at 21 46 40(5)" src="https://github.com/user-attachments/assets/6cf0abc1-38ba-4a7c-a534-8731b989b528" />
+
 
 
 
