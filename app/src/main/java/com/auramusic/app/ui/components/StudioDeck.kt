@@ -157,13 +157,13 @@ fun StudioDeck(
                 ) {
                     ModePillButton(
                         icon = Icons.Default.Album,
-                        label = "VINYL",
+                        label = "Disco",
                         isSelected = displayMode == DeckDisplayMode.VINYL,
                         onClick = { displayMode = DeckDisplayMode.VINYL }
                     )
                     ModePillButton(
                         icon = Icons.Default.Lyrics,
-                        label = "LYRICS",
+                        label = "Letras",
                         isSelected = displayMode == DeckDisplayMode.LYRICS,
                         onClick = { displayMode = DeckDisplayMode.LYRICS }
                     )
@@ -430,7 +430,7 @@ fun StudioDeck(
                 // Equalizer Quick Button
                 StudioToolPill(
                     icon = Icons.Default.GraphicEq,
-                    label = "EQ DSP",
+                    label = "Ecualizador",
                     activeHighlight = false,
                     onClick = onOpenEqualizer
                 )
@@ -438,7 +438,7 @@ fun StudioDeck(
                 // Sleep Timer Quick Button
                 StudioToolPill(
                     icon = Icons.Default.Bedtime,
-                    label = sleepTimerRemaining ?: "SLEEP",
+                    label = sleepTimerRemaining ?: "Dormir",
                     activeHighlight = sleepTimerRemaining != null,
                     onClick = onOpenSleepTimer
                 )
@@ -446,7 +446,7 @@ fun StudioDeck(
                 // Up Next Queue Button
                 StudioToolPill(
                     icon = Icons.AutoMirrored.Filled.QueueMusic,
-                    label = "QUEUE",
+                    label = "Cola",
                     activeHighlight = false,
                     onClick = onOpenQueue
                 )
@@ -464,27 +464,26 @@ private fun StudioToolPill(
 ) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (activeHighlight) CyberCyan.copy(alpha = 0.2f) else CyberSurfaceActive)
-            .border(1.dp, if (activeHighlight) CyberCyan else GlassBorder, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (activeHighlight) CyberCyan.copy(alpha = 0.16f) else CyberSurfaceActive)
+            .border(1.dp, if (activeHighlight) CyberCyan else GlassBorder, RoundedCornerShape(14.dp))
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 14.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = if (activeHighlight) CyberCyan else TextSecondary,
-            modifier = Modifier.size(15.dp)
+            modifier = Modifier.size(16.dp)
         )
-        Spacer(modifier = Modifier.width(5.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = label,
-            color = if (activeHighlight) CyberCyan else TextSecondary,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 0.5.sp
+            color = if (activeHighlight) CyberCyan else TextPrimary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = (-0.1).sp
         )
     }
 }
@@ -498,25 +497,24 @@ private fun ModePillButton(
 ) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (isSelected) CyberCyan else Color.Transparent)
+            .clip(RoundedCornerShape(11.dp))
+            .background(if (isSelected) Color(0xFF282E3F) else Color.Transparent)
             .clickable { onClick() }
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (isSelected) CyberBackgroundDark else TextSecondary,
+            tint = if (isSelected) CyberCyan else TextSecondary,
             modifier = Modifier.size(14.dp)
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(5.dp))
         Text(
             text = label,
-            color = if (isSelected) CyberBackgroundDark else TextSecondary,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace
+            color = if (isSelected) TextPrimary else TextSecondary,
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
         )
     }
 }

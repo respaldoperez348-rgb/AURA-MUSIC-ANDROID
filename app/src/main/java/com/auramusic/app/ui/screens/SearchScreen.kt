@@ -116,17 +116,27 @@ fun SearchScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 18.dp)
     ) {
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Frosted Glass Search Bar
+        Text(
+            text = "Explorar",
+            color = TextPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.6).sp
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Clean Editorial Search Bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(CyberSurfaceCard)
-                .border(1.2.dp, GlassBorder, RoundedCornerShape(22.dp))
+                .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
         ) {
             TextField(
                 value = searchText,
@@ -135,7 +145,7 @@ fun SearchScreen(
                 },
                 placeholder = {
                     Text(
-                        text = "Buscar canciones, artistas, álbumes...",
+                        text = "Canciones, artistas o álbumes",
                         color = TextMuted,
                         fontSize = 14.sp
                     )
@@ -144,8 +154,8 @@ fun SearchScreen(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Search",
-                        tint = CyberCyan,
-                        modifier = Modifier.size(22.dp)
+                        tint = TextSecondary,
+                        modifier = Modifier.size(20.dp)
                     )
                 },
                 trailingIcon = {
@@ -196,37 +206,34 @@ fun SearchScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(
                         color = CyberCyan,
-                        strokeWidth = 3.dp,
-                        modifier = Modifier.size(36.dp)
+                        strokeWidth = 2.5.dp,
+                        modifier = Modifier.size(32.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "EXPLORANDO FRECUENCIAS...",
-                        color = CyberCyan,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.sp
+                        text = "Buscando en el catálogo...",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 150.dp)
             ) {
                 // 1. Live Search Suggestions (when typing)
                 if (searchText.isNotBlank() && searchSuggestions.isNotEmpty()) {
                     item {
                         Text(
-                            text = "SUGERENCIAS",
-                            color = CyberCyan,
-                            fontSize = 11.sp,
+                            text = "Sugerencias",
+                            color = TextPrimary,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 1.sp,
-                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp)
+                            letterSpacing = (-0.3).sp,
+                            modifier = Modifier.padding(vertical = 4.dp)
                         )
                     }
 
@@ -280,32 +287,22 @@ fun SearchScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 4.dp, vertical = 4.dp),
+                                .padding(vertical = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.History,
-                                    contentDescription = null,
-                                    tint = CyberCyan,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "BÚSQUEDAS RECIENTES",
-                                    color = CyberCyan,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 1.sp
-                                )
-                            }
+                            Text(
+                                text = "Búsquedas recientes",
+                                color = TextPrimary,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-0.3).sp
+                            )
                             Text(
                                 text = "Borrar todo",
                                 color = TextMuted,
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Medium,
                                 modifier = Modifier
                                     .clickable { onClearHistory() }
                                     .padding(4.dp)
@@ -364,26 +361,14 @@ fun SearchScreen(
                 // 3. Trending & Popular Genre Chips (when search input is empty)
                 if (searchText.isBlank()) {
                     item {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.TrendingUp,
-                                contentDescription = null,
-                                tint = CyberPink,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "TENDENCIAS & GÉNEROS",
-                                color = CyberPink,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                letterSpacing = 1.sp
-                            )
-                        }
+                        Text(
+                            text = "Explorar por género",
+                            color = TextPrimary,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.3).sp,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
                     }
 
                     item {
@@ -395,21 +380,21 @@ fun SearchScreen(
                             trendingTags.forEach { tag ->
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(16.dp))
+                                        .clip(RoundedCornerShape(18.dp))
                                         .background(CyberSurfaceCard)
-                                        .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                        .border(1.dp, GlassBorder, RoundedCornerShape(18.dp))
                                         .clickable {
                                             searchText = tag
                                             focusManager.clearFocus()
                                             onSearch(tag)
                                         }
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                        .padding(horizontal = 15.dp, vertical = 8.dp)
                                 ) {
                                     Text(
                                         text = tag,
-                                        color = TextSecondary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        color = TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
                             }
@@ -417,7 +402,7 @@ fun SearchScreen(
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
                     }
                 }
 
@@ -425,13 +410,12 @@ fun SearchScreen(
                 if (searchResults.isNotEmpty()) {
                     item {
                         Text(
-                            text = if (searchText.isNotBlank()) "RESULTADOS DE BÚSQUEDA" else "DESTACADOS",
-                            color = TextSecondary,
-                            fontSize = 11.sp,
+                            text = if (searchText.isNotBlank()) "Resultados" else "Destacados",
+                            color = TextPrimary,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 1.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                            letterSpacing = (-0.3).sp,
+                            modifier = Modifier.padding(vertical = 4.dp)
                         )
                     }
 

@@ -109,102 +109,101 @@ fun VaultScreen(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Bottom
         ) {
             Text(
-                text = "AURA",
-                color = CyberCyan,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 1.5.sp
+                text = "Biblioteca",
+                color = TextPrimary,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.6).sp
             )
             val infoText = when (selectedTab) {
-                VaultTab.FAVORITES -> "${favorites.size} Favorites"
-                VaultTab.DOWNLOADS -> "${downloads.size} Offline"
-                VaultTab.PLAYLISTS -> "${playlists.size} Playlists"
-                VaultTab.LOCAL -> "Local Storage"
+                VaultTab.FAVORITES -> "${favorites.size} favoritos"
+                VaultTab.DOWNLOADS -> "${downloads.size} descargas"
+                VaultTab.PLAYLISTS -> "${playlists.size} listas"
+                VaultTab.LOCAL -> "${localTracks.size} locales"
             }
             Text(
                 text = infoText,
-                color = TextMuted,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace
+                color = TextSecondary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
             )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Aura Wrapped 2.0 Compact Telemetry Banner
+        // Editorial Listening Summary Pill
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .background(CyberSurfaceCard)
                 .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                Text(text = "${listeningStats.totalPlays}", color = CyberCyan, fontWeight = FontWeight.Black, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-                Text(text = "PLAYS", color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            Column(horizontalAlignment = Alignment.Start, modifier = Modifier.weight(1f)) {
+                Text(text = "${listeningStats.totalPlays}", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(text = "Reproducciones", color = TextMuted, fontSize = 11.sp)
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                Text(text = "${listeningStats.totalMinutes}m", color = CyberPink, fontWeight = FontWeight.Black, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-                Text(text = "TIEMPO", color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            Column(horizontalAlignment = Alignment.Start, modifier = Modifier.weight(1f)) {
+                Text(text = "${listeningStats.totalMinutes} min", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(text = "Tiempo", color = TextMuted, fontSize = 11.sp)
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1.4f)) {
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1.4f)) {
                 Text(
                     text = listeningStats.topArtist,
-                    color = NeonPurple,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
+                    color = CyberCyan,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(text = "TOP ARTISTA", color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                Text(text = "Artista frecuente", color = TextMuted, fontSize = 11.sp)
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Vault 4-Tab Navigation Selector
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(CyberSurfaceCard)
-                .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
                 .padding(4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             VaultTabButton(
                 icon = Icons.Default.Favorite,
-                label = "FAVS",
+                label = "Favoritos",
                 isSelected = selectedTab == VaultTab.FAVORITES,
-                accentColor = CyberPink,
+                accentColor = CyberSurfaceActive,
                 onClick = { selectedTab = VaultTab.FAVORITES }
             )
             VaultTabButton(
                 icon = Icons.Default.Download,
-                label = "OFFLINE",
+                label = "Offline",
                 isSelected = selectedTab == VaultTab.DOWNLOADS,
-                accentColor = CyberCyan,
+                accentColor = CyberSurfaceActive,
                 onClick = { selectedTab = VaultTab.DOWNLOADS }
             )
             VaultTabButton(
                 icon = Icons.AutoMirrored.Filled.PlaylistPlay,
-                label = "LISTS",
+                label = "Listas",
                 isSelected = selectedTab == VaultTab.PLAYLISTS,
-                accentColor = CyberCyan,
+                accentColor = CyberSurfaceActive,
                 onClick = { selectedTab = VaultTab.PLAYLISTS }
             )
             VaultTabButton(
-                icon = Icons.Default.Folder,
-                label = "LOCAL",
+                icon = Icons.Default.MusicNote,
+                label = "Local",
                 isSelected = selectedTab == VaultTab.LOCAL,
-                accentColor = CyberCyan,
+                accentColor = CyberSurfaceActive,
                 onClick = { selectedTab = VaultTab.LOCAL }
             )
         }
@@ -489,8 +488,7 @@ private fun EmptyVaultState(message: String) {
         Text(
             text = message,
             color = TextMuted,
-            fontSize = 13.sp,
-            fontFamily = FontFamily.Monospace,
+            fontSize = 14.sp,
             modifier = Modifier.padding(32.dp)
         )
     }
@@ -506,7 +504,7 @@ private fun VaultTabButton(
 ) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(if (isSelected) accentColor else Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -515,16 +513,16 @@ private fun VaultTabButton(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (isSelected) CyberBackgroundDark else TextSecondary,
+            tint = if (isSelected) CyberCyan else TextSecondary,
             modifier = Modifier.size(15.dp)
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(5.dp))
         Text(
             text = label,
-            color = if (isSelected) CyberBackgroundDark else TextSecondary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace
+            color = if (isSelected) TextPrimary else TextSecondary,
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+            letterSpacing = (-0.1).sp
         )
     }
 }

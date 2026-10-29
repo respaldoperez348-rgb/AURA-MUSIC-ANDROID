@@ -156,27 +156,13 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .padding(innerPadding)
                     ) {
-                        // Ambient Cyberpunk Neon Glow Blobs
+                        // Subtle Top Ambient Studio Light
                         Box(
                             modifier = Modifier
-                                .size(340.dp)
-                                .offset(x = (-90).dp, y = (-60).dp)
-                                .blur(100.dp)
-                                .background(CyberCyan.copy(alpha = 0.20f), CircleShape)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(300.dp)
-                                .offset(x = 190.dp, y = 220.dp)
-                                .blur(100.dp)
-                                .background(NeonPurple.copy(alpha = 0.16f), CircleShape)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(280.dp)
-                                .offset(x = (-50).dp, y = 560.dp)
-                                .blur(110.dp)
-                                .background(CyberPink.copy(alpha = 0.14f), CircleShape)
+                                .size(380.dp)
+                                .offset(x = (-100).dp, y = (-120).dp)
+                                .blur(130.dp)
+                                .background(CyberCyan.copy(alpha = 0.08f), CircleShape)
                         )
 
                         // Main Content View (Studio / Radar / Vault)

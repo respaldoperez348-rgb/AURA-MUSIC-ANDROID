@@ -15,9 +15,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.LibraryMusic
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,9 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
-import com.auramusic.app.ui.theme.CyberCyanGlow
 import com.auramusic.app.ui.theme.GlassBorder
-import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
 import com.auramusic.app.viewmodel.MainTab
@@ -59,48 +60,50 @@ fun GlassBottomDock(
         Box(
             modifier = Modifier
                 .shadow(
-                    elevation = 16.dp,
-                    shape = RoundedCornerShape(32.dp),
-                    spotColor = CyberCyanGlow.copy(alpha = 0.2f)
+                    elevation = 20.dp,
+                    shape = RoundedCornerShape(30.dp),
+                    spotColor = Color.Black.copy(alpha = 0.6f)
                 )
-                .clip(RoundedCornerShape(32.dp))
+                .clip(RoundedCornerShape(30.dp))
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF1E212B),
-                            Color(0xFF14161E)
+                            Color(0xFF181B24),
+                            Color(0xFF11131A)
                         )
                     )
                 )
-                .border(1.2.dp, GlassBorder, RoundedCornerShape(32.dp))
+                .border(1.dp, GlassBorder, RoundedCornerShape(30.dp))
                 .padding(horizontal = 6.dp, vertical = 5.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                val isStudio = currentTab == MainTab.STUDIO
                 DockTabItem(
-                    icon = Icons.Default.Home,
+                    icon = if (isStudio) Icons.Filled.Home else Icons.Outlined.Home,
                     label = com.auramusic.app.data.locale.AuraStrings.get("tab_studio", appLanguage),
-                    isSelected = currentTab == MainTab.STUDIO,
+                    isSelected = isStudio,
                     onClick = { onSelectTab(MainTab.STUDIO) }
                 )
 
+                val isVault = currentTab == MainTab.VAULT
                 DockTabItem(
-                    icon = Icons.Default.Folder,
+                    icon = if (isVault) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic,
                     label = com.auramusic.app.data.locale.AuraStrings.get("tab_library", appLanguage),
-                    isSelected = currentTab == MainTab.VAULT,
+                    isSelected = isVault,
                     onClick = { onSelectTab(MainTab.VAULT) }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
         // Separate Circular Search Button
         val isSearchSelected = currentTab == MainTab.RADAR
         val searchBg by animateColorAsState(
-            targetValue = if (isSearchSelected) CyberCyan else Color(0xFF1A1C25),
+            targetValue = if (isSearchSelected) CyberCyan else Color(0xFF151821),
             label = "search_bg"
         )
         val searchIconColor by animateColorAsState(
@@ -110,16 +113,16 @@ fun GlassBottomDock(
 
         Box(
             modifier = Modifier
-                .size(52.dp)
+                .size(50.dp)
                 .shadow(
-                    elevation = 16.dp,
+                    elevation = 20.dp,
                     shape = CircleShape,
-                    spotColor = if (isSearchSelected) CyberCyanGlow else Color.Transparent
+                    spotColor = Color.Black.copy(alpha = 0.6f)
                 )
                 .clip(CircleShape)
                 .background(searchBg)
                 .border(
-                    1.2.dp,
+                    1.dp,
                     if (isSearchSelected) CyberCyan else GlassBorder,
                     CircleShape
                 )
@@ -127,10 +130,10 @@ fun GlassBottomDock(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Search,
+                imageVector = if (isSearchSelected) Icons.Filled.Search else Icons.Outlined.Search,
                 contentDescription = "Buscar",
                 tint = searchIconColor,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(22.dp)
             )
         }
     }
@@ -145,11 +148,11 @@ private fun DockTabItem(
 ) {
     val bgModifier = if (isSelected) {
         Modifier
-            .clip(RoundedCornerShape(26.dp))
-            .background(Color(0xFF2C303E))
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color(0xFF242938))
     } else {
         Modifier
-            .clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(Color.Transparent)
     }
 
@@ -163,14 +166,15 @@ private fun DockTabItem(
             imageVector = icon,
             contentDescription = label,
             tint = if (isSelected) CyberCyan else TextSecondary,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(19.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = label,
             color = if (isSelected) TextPrimary else TextSecondary,
             fontSize = 13.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+            letterSpacing = (-0.1).sp
         )
     }
 }

@@ -51,30 +51,30 @@ fun AuraIcon(
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(9.dp * scale))
-            .background(Color(0x1AFFFFFF))
-            .border(1.dp, GlassBorder, RoundedCornerShape(9.dp * scale)),
+            .clip(RoundedCornerShape(10.dp * scale))
+            .background(Color(0xFF161922))
+            .border(1.dp, GlassBorder, RoundedCornerShape(10.dp * scale)),
         contentAlignment = Alignment.Center
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(2.dp * scale),
+            horizontalArrangement = Arrangement.spacedBy(2.2.dp * scale),
             verticalAlignment = Alignment.CenterVertically
         ) {
             barHeights.forEachIndexed { index, baseHeight ->
-                val t = index / 8f
-                val barColor = lerp(CyberPink, CyberCyan, t)
+                val t = kotlin.math.abs(index - 4) / 4f
+                val barColor = lerp(CyberCyan, Color.White.copy(alpha = 0.85f), 1f - t)
                 val dynamicHeight = if (isAnimated) {
                     val factor = if (index % 2 == 0) pulse else (2f - pulse)
-                    (baseHeight * factor).coerceIn(4f, 32f)
+                    (baseHeight * factor).coerceIn(4f, 30f)
                 } else {
                     baseHeight
                 }
 
                 Box(
                     modifier = Modifier
-                        .width(2.5.dp * scale)
+                        .width(2.2.dp * scale)
                         .height((dynamicHeight * scale).dp)
-                        .clip(RoundedCornerShape(1.25.dp * scale))
+                        .clip(RoundedCornerShape(1.2.dp * scale))
                         .background(barColor)
                 )
             }
