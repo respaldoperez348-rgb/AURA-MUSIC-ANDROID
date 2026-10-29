@@ -12,12 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
-<img width="792" height="1599" alt="WhatsApp Image 2026-10-28 at 21 46 40(1)" src="https://github.com/user-attachments/assets/b022832e-d6aa-46f5-89e3-56c2aee24a4e" /> <img width="788" height="1600" alt="WhatsApp Image 2026-10-28 at 21 46 40(2)" src="https://github.com/user-attachments/assets/5c6f0a75-9309-46bc-b212-e75b665af4f7" />
-
-
-
-
-
+<img width="749" height="1600" alt="WhatsApp Image 2026-10-29 at 10 12 09" src="https://github.com/user-attachments/assets/de842f76-fdff-4c30-8e34-bd283cc9c668" />
 
 
 
