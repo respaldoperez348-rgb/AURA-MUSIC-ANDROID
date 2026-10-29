@@ -97,6 +97,17 @@ fun SearchScreen(
     var searchText by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
+    // Debounce suggestions by 300ms to eliminate keystroke queue bottlenecks
+    androidx.compose.runtime.LaunchedEffect(searchText) {
+        val query = searchText.trim()
+        if (query.length < 2) {
+            onFetchSuggestions("")
+            return@LaunchedEffect
+        }
+        kotlinx.coroutines.delay(300L)
+        onFetchSuggestions(query)
+    }
+
     val trendingTags = listOf(
         "Daft Punk", "Jaze", "The Weeknd", "Bad Bunny", "Rosalía",
         "Synthwave", "Cyberpunk", "Trap Latino", "Lo-Fi Chill", "Phonk", "Trueno", "Gorillaz"
@@ -121,7 +132,6 @@ fun SearchScreen(
                 value = searchText,
                 onValueChange = {
                     searchText = it
-                    onFetchSuggestions(it)
                 },
                 placeholder = {
                     Text(

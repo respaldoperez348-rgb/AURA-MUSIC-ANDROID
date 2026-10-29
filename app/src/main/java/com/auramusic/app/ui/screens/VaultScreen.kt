@@ -79,7 +79,7 @@ fun VaultScreen(
     isScanningLocal: Boolean = false,
     currentSong: Song,
     isPlaying: Boolean,
-    onSelectSong: (Song) -> Unit,
+    onSelectSong: (Song, List<Song>) -> Unit,
     onPlayAllFavorites: () -> Unit,
     onPlayAllDownloads: () -> Unit,
     onPlayAllLocalTracks: () -> Unit = {},
@@ -205,7 +205,7 @@ fun VaultScreen(
                                 song = song,
                                 isCurrent = song.id == currentSong.id,
                                 isPlaying = isPlaying && song.id == currentSong.id,
-                                onClick = { onSelectSong(song) },
+                                onClick = { onSelectSong(song, favorites) },
                                 onOptionClick = { onOpenSongOptions(song) }
                             )
                         }
@@ -243,6 +243,7 @@ fun VaultScreen(
                         )
                     }
 
+                    val dlSongs = remember(downloads) { downloads.map { it.song } }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -254,7 +255,7 @@ fun VaultScreen(
                                 isCurrent = dt.song.id == currentSong.id,
                                 isPlaying = isPlaying && dt.song.id == currentSong.id,
                                 isDownloaded = true,
-                                onClick = { onSelectSong(dt.song) },
+                                onClick = { onSelectSong(dt.song, dlSongs) },
                                 onOptionClick = { onOpenSongOptions(dt.song) }
                             )
                         }
@@ -391,7 +392,7 @@ fun VaultScreen(
                                 isCurrent = song.id == currentSong.id,
                                 isPlaying = isPlaying && song.id == currentSong.id,
                                 isDownloaded = true,
-                                onClick = { onSelectSong(song) },
+                                onClick = { onSelectSong(song, localTracks) },
                                 onOptionClick = { onOpenSongOptions(song) }
                             )
                         }

@@ -57,11 +57,13 @@ class AuraPlaybackService : MediaSessionService() {
             .build()
         rawPlayer = exo
 
-        // Listen for playback state changes (e.g. auto advance on song end)
+        // Listen for playback state changes (auto advance when running standalone without active UI controller)
         exo.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) {
-                    handleSkipNext()
+                    if (AuraPlaybackBridge.onNextRequested == null) {
+                        playQueueOffset(1)
+                    }
                 }
             }
         })
@@ -172,8 +174,14 @@ class AuraPlaybackService : MediaSessionService() {
         AuraPlaybackBridge.currentSong.value = nextSong
 
         serviceScope.launch(Dispatchers.IO) {
-            val fallbackQuery = "${nextSong.title} ${nextSong.artist}"
-            val streamUri = AuraStreamResolver.resolveAudioStream(nextSong.id, fallbackQuery)
+            val streamUri = if (nextSong.mediaUri.isNotBlank()) {
+                nextSong.mediaUri
+            } else if (nextSong.id.startsWith("local_")) {
+                nextSong.mediaUri
+            } else {
+                val fallbackQuery = "${nextSong.title} ${nextSong.artist}"
+                AuraStreamResolver.resolveAudioStream(nextSong.id, fallbackQuery)
+            }
             if (!streamUri.isNullOrBlank() && !streamUri.startsWith("https://www.youtube.com")) {
                 withContext(Dispatchers.Main) {
                     val exo = rawPlayer ?: return@withContext

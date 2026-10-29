@@ -35,13 +35,17 @@ import com.auramusic.app.ui.theme.TextSecondary
 fun LyricsView(
     lyrics: List<LyricLine>,
     currentPositionMs: Long,
+    lyricsOffsetMs: Long = -200L,
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
 
-    // Find active index
-    val activeIndex = lyrics.indexOfLast { it.timestampMs <= currentPositionMs }.coerceAtLeast(0)
+    // Compensate for audio hardware latency so UI does not advance prematurely
+    val effectivePosition = (currentPositionMs + lyricsOffsetMs).coerceAtLeast(0L)
+
+    // Find active index strictly when current audio reached timestamp
+    val activeIndex = lyrics.indexOfLast { it.timestampMs <= effectivePosition }
 
     // Smooth auto-scroll to keep active line centered
     LaunchedEffect(activeIndex) {
@@ -73,8 +77,8 @@ fun LyricsView(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 itemsIndexed(lyrics) { index, line ->
-                    val isActive = index == activeIndex
-                    val isUpcoming = index > activeIndex
+                    val isActive = activeIndex >= 0 && index == activeIndex
+                    val isUpcoming = activeIndex < 0 || index > activeIndex
 
                     val textColor by animateColorAsState(
                         targetValue = when {

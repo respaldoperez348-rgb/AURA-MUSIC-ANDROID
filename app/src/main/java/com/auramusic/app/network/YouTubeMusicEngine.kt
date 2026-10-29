@@ -4,20 +4,26 @@ import com.auramusic.app.data.model.Album
 import com.auramusic.app.data.model.ArtistProfile
 import com.auramusic.app.data.model.Song
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONObject
+import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
 
 object YouTubeMusicEngine {
 
     private val client = OkHttpClient.Builder()
         .connectionPool(okhttp3.ConnectionPool(10, 5, TimeUnit.MINUTES))
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(6, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
@@ -42,14 +48,36 @@ object YouTubeMusicEngine {
                 .header("Content-Type", "application/json")
                 .build()
 
-            val response = client.newCall(request).execute()
-            val rawBody = response.body?.string() ?: return@withContext getCuratedFallbackTracks(effectiveQuery)
+            val rawBody = suspendCancellableCoroutine<String?> { continuation ->
+                val call = client.newCall(request)
+                continuation.invokeOnCancellation {
+                    call.cancel()
+                }
+                call.enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (!continuation.isCancelled) {
+                            continuation.resume(null)
+                        }
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        response.use { resp ->
+                            if (!resp.isSuccessful) {
+                                continuation.resume(null)
+                            } else {
+                                continuation.resume(resp.body?.string())
+                            }
+                        }
+                    }
+                })
+            } ?: return@withContext getCuratedFallbackTracks(effectiveQuery)
+
             val parsed = parseSearchResponse(rawBody)
             val result = if (parsed.isNotEmpty()) parsed else getCuratedFallbackTracks(effectiveQuery)
             if (result.isNotEmpty()) searchCache[cacheKey] = result
             result
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (e is kotlinx.coroutines.CancellationException) throw e
             getCuratedFallbackTracks(effectiveQuery)
         }
     }
@@ -66,24 +94,46 @@ object YouTubeMusicEngine {
                 .get()
                 .build()
 
-            client.newCall(req).execute().use { resp ->
-                val body = resp.body?.string() ?: return@withContext emptyList()
-                val jsonArray = org.json.JSONArray(body)
-                if (jsonArray.length() > 1) {
-                    val suggestionsArray = jsonArray.optJSONArray(1) ?: return@withContext emptyList()
-                    val result = mutableListOf<String>()
-                    for (i in 0 until suggestionsArray.length()) {
-                        val s = suggestionsArray.optString(i)
-                        if (s.isNotBlank() && !result.contains(s)) {
-                            result.add(s)
+            val body = suspendCancellableCoroutine<String?> { continuation ->
+                val call = client.newCall(req)
+                continuation.invokeOnCancellation {
+                    call.cancel()
+                }
+                call.enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (!continuation.isCancelled) {
+                            continuation.resume(null)
                         }
                     }
-                    result.take(8)
-                } else {
-                    emptyList()
+
+                    override fun onResponse(call: Call, response: Response) {
+                        response.use { resp ->
+                            if (!resp.isSuccessful) {
+                                continuation.resume(null)
+                            } else {
+                                continuation.resume(resp.body?.string())
+                            }
+                        }
+                    }
+                })
+            } ?: return@withContext emptyList()
+
+            val jsonArray = org.json.JSONArray(body)
+            if (jsonArray.length() > 1) {
+                val suggestionsArray = jsonArray.optJSONArray(1) ?: return@withContext emptyList()
+                val result = mutableListOf<String>()
+                for (i in 0 until suggestionsArray.length()) {
+                    val s = suggestionsArray.optString(i)
+                    if (s.isNotBlank() && !result.contains(s)) {
+                        result.add(s)
+                    }
                 }
+                result.take(8)
+            } else {
+                emptyList()
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             emptyList()
         }
     }

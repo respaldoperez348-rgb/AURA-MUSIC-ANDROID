@@ -65,10 +65,12 @@ fun SettingsSheet(
     loudnessNormalizer: Boolean,
     currentTheme: String = "Cyber Neon",
     appLanguage: String = "Español",
+    lyricsOffsetMs: Long = -200L,
     onQualitySelected: (String) -> Unit,
     onToggleLoudness: () -> Unit,
     onSelectTheme: (String) -> Unit = {},
     onSelectLanguage: (String) -> Unit = {},
+    onSelectLyricsOffset: (Long) -> Unit = {},
     onClearCache: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
@@ -292,6 +294,58 @@ fun SettingsSheet(
                 }
             }
 
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Section: LYRICS LATENCY COMPENSATION
+            SettingsSectionHeader(
+                title = "SINCRONIZACIÓN DE LETRAS (LATENCIA)",
+                icon = Icons.Default.Equalizer
+            )
+
+            val offsetOptions = listOf(
+                -400L to "-400 ms (Compensación Alta / Bluetooth)",
+                -200L to "-200 ms (Recomendado / Anti-adelanto)",
+                0L to "0 ms (Sin compensación)",
+                200L to "+200 ms (Retrasar texto)"
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                offsetOptions.forEach { (offset, label) ->
+                    val isSelected = lyricsOffsetMs == offset
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isSelected) CyberCyan.copy(alpha = 0.12f) else CyberSurfaceCard)
+                            .border(1.dp, if (isSelected) CyberCyan else GlassBorder, RoundedCornerShape(14.dp))
+                            .clickable { onSelectLyricsOffset(offset) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) CyberCyan else TextPrimary,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(CyberCyan)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
 
             // Section 3: CACHE MANAGEMENT
@@ -452,7 +506,7 @@ fun SettingsSheet(
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "v1.5.0",
+                                text = "v1.5.5",
                                 color = CyberCyan,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,

@@ -75,6 +75,24 @@ class AuraDownloadManager(
         }
     }
 
+    private fun notifyDownloadProgress(song: Song, progress: Int) {
+        val notification = NotificationCompat.Builder(context, DOWNLOAD_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle("Descargando: ${song.title}")
+            .setContentText("${song.artist} • $progress%")
+            .setProgress(100, progress, false)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(song.id.hashCode(), notification)
+        } catch (e: SecurityException) {
+            // Ignored if permission not granted
+        }
+    }
+
     private fun notifyDownloadCompleted(song: Song) {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -150,6 +168,9 @@ class AuraDownloadManager(
                 val buffer = ByteArray(8 * 1024)
                 var bytesRead: Int
                 var downloadedBytes = 0L
+                var lastReported = 0
+
+                notifyDownloadProgress(song, 0)
 
                 while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                     outputStream.write(buffer, 0, bytesRead)
@@ -157,6 +178,11 @@ class AuraDownloadManager(
 
                     val progress = ((downloadedBytes * 100) / totalBytes).toInt().coerceIn(0, 99)
                     _downloadProgress.update { it + (song.id to progress) }
+
+                    if (progress - lastReported >= 10) {
+                        lastReported = progress
+                        notifyDownloadProgress(song, progress)
+                    }
                 }
 
                 outputStream.flush()
@@ -185,6 +211,9 @@ class AuraDownloadManager(
     }
 
     private fun cleanFailedDownload(songId: String) {
+        try {
+            NotificationManagerCompat.from(context).cancel(songId.hashCode())
+        } catch (e: Exception) {}
         activeDownloads.remove(songId)
         _downloadProgress.update { it - songId }
         val targetFile = File(downloadsDir, "$songId.mp3")

@@ -23,8 +23,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -86,6 +88,7 @@ fun FullscreenLyricsDialog(
     isPlaying: Boolean,
     currentPositionMs: Long,
     durationMs: Long,
+    lyricsOffsetMs: Long = -200L,
     onSeekTo: (Long) -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -100,7 +103,10 @@ fun FullscreenLyricsDialog(
         )
     ) {
         val listState = rememberLazyListState()
-        val activeIndex = lyrics.indexOfLast { it.timestampMs <= currentPositionMs }.coerceAtLeast(0)
+
+        // Compensate for audio latency so text is not ahead of the song
+        val effectivePosition = (currentPositionMs + lyricsOffsetMs).coerceAtLeast(0L)
+        val activeIndex = lyrics.indexOfLast { it.timestampMs <= effectivePosition }
 
         // Controls visibility state
         var controlsVisible by remember { mutableStateOf(true) }
@@ -127,7 +133,7 @@ fun FullscreenLyricsDialog(
 
         // Keep active lyric smoothly centered
         LaunchedEffect(activeIndex) {
-            if (lyrics.isNotEmpty() && activeIndex in lyrics.indices) {
+            if (lyrics.isNotEmpty() && activeIndex >= 0 && activeIndex in lyrics.indices) {
                 listState.animateScrollToItem(
                     index = (activeIndex - 2).coerceAtLeast(0)
                 )
@@ -137,6 +143,8 @@ fun FullscreenLyricsDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -215,8 +223,8 @@ fun FullscreenLyricsDialog(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         itemsIndexed(lyrics) { index, line ->
-                            val isActive = index == activeIndex
-                            val isUpcoming = index > activeIndex
+                            val isActive = activeIndex >= 0 && index == activeIndex
+                            val isUpcoming = activeIndex < 0 || index > activeIndex
 
                             val textColor by animateColorAsState(
                                 targetValue = when {

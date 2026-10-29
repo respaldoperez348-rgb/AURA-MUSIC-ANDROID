@@ -23,12 +23,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
@@ -73,31 +76,61 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.isAppearanceLightStatusBars = false
+        insetsController.isAppearanceLightNavigationBars = false
+
         setContent {
             val uiState by playerViewModel.uiState.collectAsState()
             val context = LocalContext.current
 
-            val audioPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                Manifest.permission.READ_MEDIA_AUDIO
-            } else {
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            }
-
             val permissionLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.RequestPermission()
-            ) { isGranted ->
-                if (isGranted) {
+                contract = ActivityResultContracts.RequestMultiplePermissions()
+            ) { perms ->
+                if (perms[Manifest.permission.READ_MEDIA_AUDIO] == true || perms[Manifest.permission.READ_EXTERNAL_STORAGE] == true) {
                     playerViewModel.scanLocalTracks()
                 }
             }
 
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                val neededPermissions = mutableListOf<String>()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        neededPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        neededPermissions.add(Manifest.permission.READ_MEDIA_AUDIO)
+                    }
+                } else {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                        neededPermissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    }
+                }
+                if (neededPermissions.isNotEmpty()) {
+                    permissionLauncher.launch(neededPermissions.toTypedArray())
+                }
+            }
+
             val requestScanLocalAudio = {
-                val status = ContextCompat.checkSelfPermission(context, audioPermission)
-                if (status == PackageManager.PERMISSION_GRANTED) {
+                val needed = mutableListOf<String>()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        needed.add(Manifest.permission.READ_MEDIA_AUDIO)
+                    }
+                } else {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                        needed.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    }
+                }
+                if (needed.isEmpty()) {
                     playerViewModel.scanLocalTracks()
                 } else {
-                    permissionLauncher.launch(audioPermission)
+                    permissionLauncher.launch(needed.toTypedArray())
                 }
             }
 
@@ -107,7 +140,11 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding(),
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     containerColor = CyberBackgroundDark
                 ) { innerPadding ->
                     Box(
@@ -190,7 +227,9 @@ class MainActivity : ComponentActivity() {
                                             isScanningLocal = uiState.isScanningLocal,
                                             currentSong = uiState.currentSong,
                                             isPlaying = uiState.isPlaying,
-                                            onSelectSong = { song -> playerViewModel.playSong(song) },
+                                            onSelectSong = { song, queue ->
+                                                playerViewModel.playSongWithQueue(song, queue, resetShuffle = true)
+                                            },
                                             onPlayAllFavorites = { playerViewModel.playAllFavorites() },
                                             onPlayAllDownloads = { playerViewModel.playAllDownloads() },
                                             onPlayAllLocalTracks = { playerViewModel.playAllLocalTracks() },
@@ -254,6 +293,7 @@ class MainActivity : ComponentActivity() {
                                     isShuffle = uiState.isShuffle,
                                     isRepeat = uiState.isRepeat,
                                     lyrics = uiState.lyrics,
+                                    lyricsOffsetMs = uiState.lyricsOffsetMs,
                                     onPlayPause = { playerViewModel.playPause() },
                                     onNext = { playerViewModel.next() },
                                     onPrevious = { playerViewModel.previous() },
@@ -315,7 +355,10 @@ class MainActivity : ComponentActivity() {
                                 isPlaying = uiState.isPlaying,
                                 onPlayAll = { playerViewModel.playPlaylist(uiState.playlistSongs, 0, false) },
                                 onShufflePlay = { playerViewModel.playPlaylist(uiState.playlistSongs, 0, true) },
-                                onPlaySong = { s -> playerViewModel.playSong(s) },
+                                onPlaySong = { s ->
+                                    val idx = uiState.playlistSongs.indexOfFirst { it.id == s.id }.coerceAtLeast(0)
+                                    playerViewModel.playPlaylist(uiState.playlistSongs, idx, false)
+                                },
                                 onRemoveSong = { sId -> playerViewModel.removeSongFromPlaylist(pl.id, sId) },
                                 onOpenSongOptions = { s -> playerViewModel.openSongOptions(s) },
                                 onDismiss = { playerViewModel.openPlaylist(null) }
@@ -329,10 +372,12 @@ class MainActivity : ComponentActivity() {
                                 loudnessNormalizer = uiState.loudnessNormalizer,
                                 currentTheme = uiState.currentTheme,
                                 appLanguage = uiState.appLanguage,
+                                lyricsOffsetMs = uiState.lyricsOffsetMs,
                                 onQualitySelected = { q -> playerViewModel.setAudioQuality(q) },
                                 onToggleLoudness = { playerViewModel.toggleLoudnessNormalizer() },
                                 onSelectTheme = { themeName -> playerViewModel.setThemePalette(themeName) },
                                 onSelectLanguage = { lang -> playerViewModel.setAppLanguage(lang) },
+                                onSelectLyricsOffset = { offset -> playerViewModel.setLyricsOffsetMs(offset) },
                                 onClearCache = { playerViewModel.clearAppCache() },
                                 onDismiss = { playerViewModel.setShowSettings(false) }
                             )
@@ -365,6 +410,7 @@ class MainActivity : ComponentActivity() {
                                 isPlaying = uiState.isPlaying,
                                 currentPositionMs = uiState.currentPositionMs,
                                 durationMs = uiState.durationMs,
+                                lyricsOffsetMs = uiState.lyricsOffsetMs,
                                 onSeekTo = { pos -> playerViewModel.seekTo(pos) },
                                 onPlayPause = { playerViewModel.playPause() },
                                 onNext = { playerViewModel.next() },
@@ -411,7 +457,7 @@ class MainActivity : ComponentActivity() {
                             exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { -it }) + androidx.compose.animation.fadeOut(),
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .padding(top = 28.dp, start = 20.dp, end = 20.dp)
+                                .padding(top = 16.dp, start = 20.dp, end = 20.dp)
                         ) {
                             uiState.toastMessage?.let { msg ->
                                 Box(

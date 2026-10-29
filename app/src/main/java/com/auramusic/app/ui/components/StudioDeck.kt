@@ -84,6 +84,7 @@ fun StudioDeck(
     isShuffle: Boolean,
     isRepeat: Boolean,
     lyrics: List<LyricLine> = emptyList(),
+    lyricsOffsetMs: Long = -200L,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
@@ -210,6 +211,7 @@ fun StudioDeck(
                             LyricsView(
                                 lyrics = lyrics,
                                 currentPositionMs = currentPositionMs,
+                                lyricsOffsetMs = lyricsOffsetMs,
                                 onSeekTo = onSeekTo
                             )
 
