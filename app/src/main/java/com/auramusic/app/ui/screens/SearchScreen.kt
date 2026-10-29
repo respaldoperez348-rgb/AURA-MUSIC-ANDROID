@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.auramusic.app.data.locale.AuraStrings
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
@@ -86,6 +87,7 @@ fun SearchScreen(
     isPlaying: Boolean,
     searchHistory: List<String> = emptyList(),
     searchSuggestions: List<String> = emptyList(),
+    appLanguage: String = "Español",
     onSearch: (String) -> Unit,
     onFetchSuggestions: (String) -> Unit = {},
     onDeleteHistoryItem: (String) -> Unit = {},
@@ -121,7 +123,7 @@ fun SearchScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Explorar",
+            text = AuraStrings.get("search_title", appLanguage),
             color = TextPrimary,
             fontSize = 24.sp,
             fontWeight = FontWeight.ExtraBold,
@@ -145,7 +147,7 @@ fun SearchScreen(
                 },
                 placeholder = {
                     Text(
-                        text = "Canciones, artistas o álbumes",
+                        text = AuraStrings.get("search_placeholder", appLanguage),
                         color = TextMuted,
                         fontSize = 14.sp
                     )
@@ -211,7 +213,7 @@ fun SearchScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Buscando en el catálogo...",
+                        text = AuraStrings.get("searching_catalog", appLanguage),
                         color = TextSecondary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
@@ -228,7 +230,7 @@ fun SearchScreen(
                 if (searchText.isNotBlank() && searchSuggestions.isNotEmpty()) {
                     item {
                         Text(
-                            text = "Sugerencias",
+                            text = AuraStrings.get("suggestions", appLanguage),
                             color = TextPrimary,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
@@ -292,14 +294,14 @@ fun SearchScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Búsquedas recientes",
+                                text = AuraStrings.get("recent_searches", appLanguage),
                                 color = TextPrimary,
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = (-0.3).sp
                             )
                             Text(
-                                text = "Borrar todo",
+                                text = AuraStrings.get("clear_all", appLanguage),
                                 color = TextMuted,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
@@ -362,7 +364,7 @@ fun SearchScreen(
                 if (searchText.isBlank()) {
                     item {
                         Text(
-                            text = "Explorar por género",
+                            text = AuraStrings.get("trending_genres", appLanguage),
                             color = TextPrimary,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
@@ -410,7 +412,11 @@ fun SearchScreen(
                 if (searchResults.isNotEmpty()) {
                     item {
                         Text(
-                            text = if (searchText.isNotBlank()) "Resultados" else "Destacados",
+                            text = if (searchText.isNotBlank()) {
+                                AuraStrings.get("search_results", appLanguage)
+                            } else {
+                                AuraStrings.get("featured_tracks", appLanguage)
+                            },
                             color = TextPrimary,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,

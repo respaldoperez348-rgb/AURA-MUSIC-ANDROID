@@ -26,12 +26,10 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -44,26 +42,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.auramusic.app.data.database.DownloadedTrack
 import com.auramusic.app.data.database.ListeningStats
 import com.auramusic.app.data.database.Playlist
+import com.auramusic.app.data.locale.AuraStrings
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.ui.components.CreatePlaylistDialog
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
-import com.auramusic.app.ui.theme.CyberCyanGlow
-import com.auramusic.app.ui.theme.CyberPink
 import com.auramusic.app.ui.theme.CyberSurfaceActive
 import com.auramusic.app.ui.theme.CyberSurfaceCard
 import com.auramusic.app.ui.theme.GlassBorder
-import com.auramusic.app.ui.theme.NeonPurple
+import com.auramusic.app.ui.theme.GlassBorderSubtle
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
@@ -77,16 +74,17 @@ fun VaultScreen(
     favorites: List<Song>,
     downloads: List<DownloadedTrack>,
     playlists: List<Playlist>,
-    localTracks: List<Song> = emptyList(),
-    isScanningLocal: Boolean = false,
-    listeningStats: ListeningStats = ListeningStats(),
+    localTracks: List<Song>,
+    isScanningLocal: Boolean,
     currentSong: Song,
     isPlaying: Boolean,
+    appLanguage: String = "Español",
+    listeningStats: ListeningStats = ListeningStats(),
     onSelectSong: (Song, List<Song>) -> Unit,
     onPlayAllFavorites: () -> Unit,
     onPlayAllDownloads: () -> Unit,
-    onPlayAllLocalTracks: () -> Unit = {},
-    onScanLocalTracks: () -> Unit = {},
+    onPlayAllLocalTracks: () -> Unit,
+    onScanLocalTracks: () -> Unit,
     onCreatePlaylist: (title: String) -> Unit,
     onImportPlaylist: (urlOrQuery: String) -> Unit = {},
     onDeletePlaylist: (playlistId: String) -> Unit,
@@ -101,28 +99,28 @@ fun VaultScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 18.dp)
     ) {
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Header Title
+        // Editorial Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom
         ) {
             Text(
-                text = "Biblioteca",
+                text = AuraStrings.get("library_title", appLanguage),
                 color = TextPrimary,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-0.6).sp
             )
             val infoText = when (selectedTab) {
-                VaultTab.FAVORITES -> "${favorites.size} favoritos"
-                VaultTab.DOWNLOADS -> "${downloads.size} descargas"
-                VaultTab.PLAYLISTS -> "${playlists.size} listas"
-                VaultTab.LOCAL -> "${localTracks.size} locales"
+                VaultTab.FAVORITES -> "${favorites.size} ${AuraStrings.get("count_favorites", appLanguage)}"
+                VaultTab.DOWNLOADS -> "${downloads.size} ${AuraStrings.get("count_downloads", appLanguage)}"
+                VaultTab.PLAYLISTS -> "${playlists.size} ${AuraStrings.get("count_playlists", appLanguage)}"
+                VaultTab.LOCAL -> "${localTracks.size} ${AuraStrings.get("count_local", appLanguage)}"
             }
             Text(
                 text = infoText,
@@ -132,28 +130,73 @@ fun VaultScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        // Editorial Listening Summary Pill
+        // Clean Editorial Listening Summary Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .background(CyberSurfaceCard)
                 .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 11.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(horizontalAlignment = Alignment.Start, modifier = Modifier.weight(1f)) {
-                Text(text = "${listeningStats.totalPlays}", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text(text = "Reproducciones", color = TextMuted, fontSize = 11.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${listeningStats.totalPlays}",
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    letterSpacing = (-0.2).sp
+                )
+                Text(
+                    text = AuraStrings.get("stat_plays", appLanguage),
+                    color = TextMuted,
+                    fontSize = 11.sp
+                )
             }
-            Column(horizontalAlignment = Alignment.Start, modifier = Modifier.weight(1f)) {
-                Text(text = "${listeningStats.totalMinutes} min", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text(text = "Tiempo", color = TextMuted, fontSize = 11.sp)
+
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(24.dp)
+                    .background(GlassBorderSubtle)
+            )
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp)
+            ) {
+                Text(
+                    text = "${listeningStats.totalMinutes} min",
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    letterSpacing = (-0.2).sp
+                )
+                Text(
+                    text = AuraStrings.get("stat_time", appLanguage),
+                    color = TextMuted,
+                    fontSize = 11.sp
+                )
             }
-            Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1.4f)) {
+
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(24.dp)
+                    .background(GlassBorderSubtle)
+            )
+
+            Column(
+                horizontalAlignment = Alignment.End,
+                modifier = Modifier
+                    .weight(1.3f)
+                    .padding(start = 10.dp)
+            ) {
                 Text(
                     text = listeningStats.topArtist,
                     color = CyberCyan,
@@ -162,49 +205,49 @@ fun VaultScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(text = "Artista frecuente", color = TextMuted, fontSize = 11.sp)
+                Text(
+                    text = AuraStrings.get("stat_top_artist", appLanguage),
+                    color = TextMuted,
+                    fontSize = 11.sp
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        // Vault 4-Tab Navigation Selector
+        // Segmented 4-Tab Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(13.dp))
                 .background(CyberSurfaceCard)
-                .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                .border(1.dp, GlassBorder, RoundedCornerShape(13.dp))
                 .padding(4.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             VaultTabButton(
-                icon = Icons.Default.Favorite,
-                label = "Favoritos",
+                label = AuraStrings.get("tab_favs", appLanguage),
                 isSelected = selectedTab == VaultTab.FAVORITES,
-                accentColor = CyberSurfaceActive,
-                onClick = { selectedTab = VaultTab.FAVORITES }
+                onClick = { selectedTab = VaultTab.FAVORITES },
+                modifier = Modifier.weight(1f)
             )
             VaultTabButton(
-                icon = Icons.Default.Download,
-                label = "Offline",
+                label = AuraStrings.get("tab_offline", appLanguage),
                 isSelected = selectedTab == VaultTab.DOWNLOADS,
-                accentColor = CyberSurfaceActive,
-                onClick = { selectedTab = VaultTab.DOWNLOADS }
+                onClick = { selectedTab = VaultTab.DOWNLOADS },
+                modifier = Modifier.weight(1f)
             )
             VaultTabButton(
-                icon = Icons.AutoMirrored.Filled.PlaylistPlay,
-                label = "Listas",
+                label = AuraStrings.get("tab_lists", appLanguage),
                 isSelected = selectedTab == VaultTab.PLAYLISTS,
-                accentColor = CyberSurfaceActive,
-                onClick = { selectedTab = VaultTab.PLAYLISTS }
+                onClick = { selectedTab = VaultTab.PLAYLISTS },
+                modifier = Modifier.weight(1f)
             )
             VaultTabButton(
-                icon = Icons.Default.MusicNote,
-                label = "Local",
+                label = AuraStrings.get("tab_local", appLanguage),
                 isSelected = selectedTab == VaultTab.LOCAL,
-                accentColor = CyberSurfaceActive,
-                onClick = { selectedTab = VaultTab.LOCAL }
+                onClick = { selectedTab = VaultTab.LOCAL },
+                modifier = Modifier.weight(1f)
             )
         }
 
@@ -213,7 +256,10 @@ fun VaultScreen(
         when (selectedTab) {
             VaultTab.FAVORITES -> {
                 if (favorites.isEmpty()) {
-                    EmptyVaultState("No favorites saved yet. Tap the heart on any song!")
+                    EmptyVaultState(
+                        icon = Icons.Default.Favorite,
+                        message = AuraStrings.get("empty_favorites", appLanguage)
+                    )
                 } else {
                     Row(
                         modifier = Modifier
@@ -222,20 +268,16 @@ fun VaultScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Button(
-                            onClick = onPlayAllFavorites,
-                            colors = ButtonDefaults.buttonColors(containerColor = CyberPink),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, tint = CyberBackgroundDark)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Play All", color = CyberBackgroundDark, fontWeight = FontWeight.Bold)
-                        }
+                        PrimaryActionPill(
+                            icon = Icons.Default.PlayArrow,
+                            text = AuraStrings.get("play_all", appLanguage),
+                            onClick = onPlayAllFavorites
+                        )
                     }
 
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 160.dp)
                     ) {
                         items(favorites) { song ->
@@ -259,7 +301,10 @@ fun VaultScreen(
 
             VaultTab.DOWNLOADS -> {
                 if (downloads.isEmpty()) {
-                    EmptyVaultState("No offline tracks downloaded yet. Tap the download button on any song to listen without internet!")
+                    EmptyVaultState(
+                        icon = Icons.Default.Download,
+                        message = AuraStrings.get("empty_downloads", appLanguage)
+                    )
                 } else {
                     val totalMb = downloads.sumOf { it.fileSize } / (1024 * 1024)
                     Row(
@@ -269,28 +314,24 @@ fun VaultScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Button(
-                            onClick = onPlayAllDownloads,
-                            colors = ButtonDefaults.buttonColors(containerColor = CyberCyan),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, tint = CyberBackgroundDark)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Play All Offline", color = CyberBackgroundDark, fontWeight = FontWeight.Bold)
-                        }
+                        PrimaryActionPill(
+                            icon = Icons.Default.PlayArrow,
+                            text = AuraStrings.get("play_all", appLanguage),
+                            onClick = onPlayAllDownloads
+                        )
 
                         Text(
-                            text = "${downloads.size} tracks • ${totalMb} MB",
-                            color = TextMuted,
+                            text = "${downloads.size} ${AuraStrings.get("tracks_unit", appLanguage)} • ${totalMb} MB",
+                            color = TextSecondary,
                             fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace
+                            fontWeight = FontWeight.Medium
                         )
                     }
 
                     val dlSongs = remember(downloads) { downloads.map { it.song } }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 160.dp)
                     ) {
                         items(downloads) { dt ->
@@ -316,47 +357,42 @@ fun VaultScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "YOUR PLAYLISTS",
-                        color = CyberCyan,
-                        fontSize = 12.sp,
+                        text = AuraStrings.get("your_playlists", appLanguage),
+                        color = TextPrimary,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        letterSpacing = (-0.3).sp
                     )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = { showImportDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = CyberSurfaceActive),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Download, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Import YT", color = CyberCyan, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-
-                        Button(
-                            onClick = { showCreateDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = CyberCyan),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = CyberBackgroundDark, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "New", color = CyberBackgroundDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
+                        SecondaryActionPill(
+                            icon = Icons.Default.Download,
+                            text = AuraStrings.get("import_yt", appLanguage),
+                            onClick = { showImportDialog = true }
+                        )
+                        PrimaryActionPill(
+                            icon = Icons.Default.Add,
+                            text = AuraStrings.get("new_playlist", appLanguage),
+                            onClick = { showCreateDialog = true }
+                        )
                     }
                 }
 
                 if (playlists.isEmpty()) {
-                    EmptyVaultState("No custom playlists yet. Tap '+ New Playlist' to create your first collection!")
+                    EmptyVaultState(
+                        icon = Icons.AutoMirrored.Filled.PlaylistPlay,
+                        message = AuraStrings.get("empty_playlists", appLanguage)
+                    )
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                         contentPadding = PaddingValues(bottom = 130.dp)
                     ) {
                         items(playlists) { pl ->
                             PlaylistCard(
                                 playlist = pl,
+                                tracksUnit = AuraStrings.get("tracks_unit", appLanguage),
                                 onClick = { onOpenPlaylist(pl) },
                                 onDelete = { onDeletePlaylist(pl.id) }
                             )
@@ -373,41 +409,49 @@ fun VaultScreen(
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(24.dp)
+                            modifier = Modifier.padding(28.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Folder,
-                                contentDescription = null,
-                                tint = CyberCyan,
-                                modifier = Modifier.size(54.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(CyberSurfaceCard)
+                                    .border(1.dp, GlassBorder, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.GraphicEq,
+                                    contentDescription = null,
+                                    tint = CyberCyan,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.height(14.dp))
                             Text(
-                                text = "LOCAL AUDIO STORAGE",
+                                text = AuraStrings.get("local_storage_title", appLanguage),
                                 color = TextPrimary,
                                 fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 15.sp
+                                fontSize = 17.sp,
+                                letterSpacing = (-0.3).sp
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Scan your device for downloaded MP3, FLAC and WAV files.",
-                                color = TextMuted,
+                                text = AuraStrings.get("local_storage_desc", appLanguage),
+                                color = TextSecondary,
                                 fontSize = 13.sp,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                textAlign = TextAlign.Center,
+                                lineHeight = 19.sp
                             )
                             Spacer(modifier = Modifier.height(18.dp))
-                            Button(
-                                onClick = onScanLocalTracks,
-                                colors = ButtonDefaults.buttonColors(containerColor = CyberCyan),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Text(
-                                    text = if (isScanningLocal) "Scanning Storage..." else "Scan Music Files",
-                                    color = CyberBackgroundDark,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            PrimaryActionPill(
+                                icon = Icons.Default.MusicNote,
+                                text = if (isScanningLocal) {
+                                    AuraStrings.get("scanning_storage", appLanguage)
+                                } else {
+                                    AuraStrings.get("scan_music_btn", appLanguage)
+                                },
+                                onClick = onScanLocalTracks
+                            )
                         }
                     }
                 } else {
@@ -418,28 +462,22 @@ fun VaultScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Button(
-                            onClick = onPlayAllLocalTracks,
-                            colors = ButtonDefaults.buttonColors(containerColor = CyberCyan),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, tint = CyberBackgroundDark)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Play All Local", color = CyberBackgroundDark, fontWeight = FontWeight.Bold)
-                        }
+                        PrimaryActionPill(
+                            icon = Icons.Default.PlayArrow,
+                            text = AuraStrings.get("play_all", appLanguage),
+                            onClick = onPlayAllLocalTracks
+                        )
 
-                        Button(
-                            onClick = onScanLocalTracks,
-                            colors = ButtonDefaults.buttonColors(containerColor = CyberSurfaceActive),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Text(text = "Rescan", color = CyberCyan, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
+                        SecondaryActionPill(
+                            icon = Icons.Default.GraphicEq,
+                            text = AuraStrings.get("rescan_btn", appLanguage),
+                            onClick = onScanLocalTracks
+                        )
                     }
 
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 160.dp)
                     ) {
                         items(localTracks) { song ->
@@ -480,49 +518,130 @@ fun VaultScreen(
 }
 
 @Composable
-private fun EmptyVaultState(message: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = message,
-            color = TextMuted,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(32.dp)
-        )
-    }
-}
-
-@Composable
-private fun VaultTabButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    isSelected: Boolean,
-    accentColor: Color,
+private fun PrimaryActionPill(
+    icon: ImageVector,
+    text: String,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (isSelected) accentColor else Color.Transparent)
+            .clip(RoundedCornerShape(20.dp))
+            .background(CyberCyan)
             .clickable { onClick() }
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (isSelected) CyberCyan else TextSecondary,
+            tint = CyberBackgroundDark,
+            modifier = Modifier.size(17.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = text,
+            color = CyberBackgroundDark,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
+            letterSpacing = (-0.1).sp
+        )
+    }
+}
+
+@Composable
+private fun SecondaryActionPill(
+    icon: ImageVector,
+    text: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(CyberSurfaceCard)
+            .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = TextPrimary,
             modifier = Modifier.size(15.dp)
         )
-        Spacer(modifier = Modifier.width(5.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = text,
+            color = TextPrimary,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+private fun EmptyVaultState(
+    icon: ImageVector,
+    message: String
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(CyberSurfaceCard)
+                    .border(1.dp, GlassBorder, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = message,
+                color = TextSecondary,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 19.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun VaultTabButton(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (isSelected) CyberSurfaceActive else Color.Transparent)
+            .clickable { onClick() }
+            .padding(vertical = 8.dp, horizontal = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
         Text(
             text = label,
             color = if (isSelected) TextPrimary else TextSecondary,
             fontSize = 12.sp,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-            letterSpacing = (-0.1).sp
+            letterSpacing = (-0.1).sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -539,22 +658,22 @@ private fun VaultSongRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (isCurrent) CyberCyanGlow.copy(alpha = 0.18f) else CyberSurfaceCard)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isCurrent) CyberSurfaceActive else CyberSurfaceCard.copy(alpha = 0.65f))
             .border(
                 1.dp,
-                if (isCurrent) CyberCyan.copy(alpha = 0.7f) else GlassBorder.copy(alpha = 0.3f),
-                RoundedCornerShape(14.dp)
+                if (isCurrent) CyberCyan.copy(alpha = 0.45f) else GlassBorder,
+                RoundedCornerShape(12.dp)
             )
             .clickable { onClick() }
-            .padding(10.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(CyberSurfaceCard),
+                .size(44.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(CyberBackgroundDark),
             contentAlignment = Alignment.Center
         ) {
             if (song.coverUrl.isNotBlank()) {
@@ -571,8 +690,8 @@ private fun VaultSongRow(
                             Icon(
                                 imageVector = Icons.Default.MusicNote,
                                 contentDescription = null,
-                                tint = CyberCyan.copy(alpha = 0.35f),
-                                modifier = Modifier.size(20.dp)
+                                tint = TextMuted,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     },
@@ -584,14 +703,19 @@ private fun VaultSongRow(
                             Icon(
                                 imageVector = Icons.Default.MusicNote,
                                 contentDescription = null,
-                                tint = CyberCyan,
-                                modifier = Modifier.size(20.dp)
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                 )
             } else {
-                Icon(imageVector = Icons.Default.MusicNote, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(20.dp))
+                Icon(
+                    imageVector = Icons.Default.MusicNote,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
 
@@ -603,7 +727,8 @@ private fun VaultSongRow(
                     text = song.title,
                     color = if (isCurrent) CyberCyan else TextPrimary,
                     fontSize = 14.sp,
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                    letterSpacing = (-0.1).sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
@@ -618,6 +743,7 @@ private fun VaultSongRow(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = song.artist,
                 color = TextSecondary,
@@ -627,12 +753,12 @@ private fun VaultSongRow(
             )
         }
 
-        IconButton(onClick = onOptionClick) {
+        IconButton(onClick = onOptionClick, modifier = Modifier.size(32.dp)) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = "Options",
-                tint = TextSecondary,
-                modifier = Modifier.size(20.dp)
+                tint = TextMuted,
+                modifier = Modifier.size(18.dp)
             )
         }
     }
@@ -641,39 +767,61 @@ private fun VaultSongRow(
 @Composable
 private fun PlaylistCard(
     playlist: Playlist,
+    tracksUnit: String,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(CyberSurfaceCard)
-            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+            .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
             .clickable { onClick() }
-            .padding(14.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(CyberSurfaceActive),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(28.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
+                    contentDescription = null,
+                    tint = CyberCyan,
+                    modifier = Modifier.size(24.dp)
+                )
             }
             Spacer(modifier = Modifier.width(14.dp))
             Column {
-                Text(text = playlist.title, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text(text = "${playlist.trackCount} tracks", color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                Text(
+                    text = playlist.title,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    letterSpacing = (-0.2).sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${playlist.trackCount} $tracksUnit",
+                    color = TextSecondary,
+                    fontSize = 12.sp
+                )
             }
         }
 
-        IconButton(onClick = onDelete) {
-            Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = TextMuted, modifier = Modifier.size(20.dp))
+        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Delete",
+                tint = TextMuted,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }

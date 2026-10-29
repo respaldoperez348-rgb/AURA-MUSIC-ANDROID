@@ -187,6 +187,7 @@ class MainActivity : ComponentActivity() {
                                             trendingAlbums = uiState.trendingAlbums,
                                             userTopArtists = uiState.userTopArtists,
                                             popularStations = uiState.popularStations,
+                                            appLanguage = uiState.appLanguage,
                                             onSelectSong = { song -> playerViewModel.playSong(song, uiState.searchResults) },
                                             onSelectVibe = { vibe ->
                                                 playerViewModel.search(vibe)
@@ -204,6 +205,7 @@ class MainActivity : ComponentActivity() {
                                             isPlaying = uiState.isPlaying,
                                             searchHistory = uiState.searchHistory,
                                             searchSuggestions = uiState.searchSuggestions,
+                                            appLanguage = uiState.appLanguage,
                                             onSearch = { q -> playerViewModel.search(q) },
                                             onFetchSuggestions = { q -> playerViewModel.fetchSearchSuggestions(q) },
                                             onDeleteHistoryItem = { q -> playerViewModel.deleteSearchHistoryItem(q) },
@@ -221,6 +223,7 @@ class MainActivity : ComponentActivity() {
                                             isScanningLocal = uiState.isScanningLocal,
                                             currentSong = uiState.currentSong,
                                             isPlaying = uiState.isPlaying,
+                                            appLanguage = uiState.appLanguage,
                                             listeningStats = uiState.listeningStats,
                                             onSelectSong = { song, queue ->
                                                 playerViewModel.playSongWithQueue(song, queue, resetShuffle = true)
@@ -292,6 +295,7 @@ class MainActivity : ComponentActivity() {
                                     isRepeat = uiState.isRepeat,
                                     lyrics = uiState.lyrics,
                                     lyricsOffsetMs = uiState.lyricsOffsetMs,
+                                    appLanguage = uiState.appLanguage,
                                     showTranslation = uiState.showLyricsTranslation,
                                     onToggleTranslation = { playerViewModel.toggleLyricsTranslation() },
                                     onPlayPause = { playerViewModel.playPause() },

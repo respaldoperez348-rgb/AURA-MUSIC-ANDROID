@@ -287,6 +287,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun getLanguageCode(langName: String): String {
+        return when {
+            langName.startsWith("English", ignoreCase = true) -> "en"
+            langName.startsWith("Português", ignoreCase = true) -> "pt"
+            langName.startsWith("Français", ignoreCase = true) -> "fr"
+            langName.startsWith("Deutsch", ignoreCase = true) -> "de"
+            langName.startsWith("日本語") -> "ja"
+            else -> "es"
+        }
+    }
+
     private fun loadLyricsForSong(song: Song) {
         lyricsJob?.cancel()
         lyricsJob = viewModelScope.launch {
@@ -298,7 +309,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             )
             _uiState.update { it.copy(lyrics = lyrics) }
             if (_uiState.value.showLyricsTranslation && lyrics.isNotEmpty()) {
-                val targetLang = if (_uiState.value.appLanguage == "English") "en" else "es"
+                val targetLang = getLanguageCode(_uiState.value.appLanguage)
                 val translated = LyricsEngine.translateLyrics(lyrics, targetLang)
                 _uiState.update { it.copy(lyrics = translated) }
             }
@@ -310,9 +321,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(showLyricsTranslation = newShow) }
         if (newShow) {
             val currentLyrics = _uiState.value.lyrics
-            if (currentLyrics.isNotEmpty() && currentLyrics.all { it.translatedText.isNullOrBlank() }) {
+            if (currentLyrics.isNotEmpty()) {
                 viewModelScope.launch {
-                    val targetLang = if (_uiState.value.appLanguage == "English") "en" else "es"
+                    val targetLang = getLanguageCode(_uiState.value.appLanguage)
                     val translated = LyricsEngine.translateLyrics(currentLyrics, targetLang)
                     _uiState.update { it.copy(lyrics = translated) }
                 }
@@ -1231,7 +1242,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
         prefs.edit().putString("app_language", language).apply()
         _uiState.update { it.copy(appLanguage = language) }
-        showToast("✓ Idioma: $language")
+        if (_uiState.value.showLyricsTranslation && _uiState.value.lyrics.isNotEmpty()) {
+            viewModelScope.launch {
+                val targetLang = getLanguageCode(language)
+                val translated = LyricsEngine.translateLyrics(_uiState.value.lyrics, targetLang)
+                _uiState.update { it.copy(lyrics = translated) }
+            }
+        }
+        showToast("✓ $language")
     }
 
     fun setLyricsOffsetMs(offsetMs: Long) {

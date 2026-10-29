@@ -18,17 +18,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Equalizer
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
@@ -40,20 +33,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.auramusic.app.data.locale.AuraStrings
+import com.auramusic.app.ui.theme.CyberBackground
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
-import com.auramusic.app.ui.theme.CyberPink
 import com.auramusic.app.ui.theme.CyberSurfaceActive
 import com.auramusic.app.ui.theme.CyberSurfaceCard
 import com.auramusic.app.ui.theme.GlassBorder
-import com.auramusic.app.ui.theme.NeonPurple
+import com.auramusic.app.ui.theme.GlassBorderSubtle
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
@@ -85,500 +77,123 @@ fun SettingsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = CyberBackgroundDark,
-        tonalElevation = 8.dp,
+        containerColor = CyberBackground,
+        tonalElevation = 0.dp,
         dragHandle = null
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp)
+                .padding(horizontal = 20.dp, vertical = 14.dp)
         ) {
-            // Drag pill handle
+            // Subtle Top Drag Pill
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .size(width = 40.dp, height = 4.dp)
+                    .size(width = 36.dp, height = 4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(TextMuted.copy(alpha = 0.4f))
+                    .background(TextMuted.copy(alpha = 0.35f))
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Header
+            // Clean Editorial Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(CyberCyan.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = null,
-                            tint = CyberCyan,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = AuraStrings.get("settings_title", appLanguage),
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = AuraStrings.get("settings_subtitle", appLanguage),
-                            color = CyberCyan,
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
+                Column {
+                    Text(
+                        text = AuraStrings.get("settings_title", appLanguage),
+                        color = TextPrimary,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 24.sp,
+                        letterSpacing = (-0.6).sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = AuraStrings.get("settings_subtitle", appLanguage),
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Normal
+                    )
                 }
 
-                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextSecondary)
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(CyberSurfaceCard)
+                        .border(1.dp, GlassBorder, CircleShape)
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cerrar",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Section 1: APP LANGUAGE SELECTOR
-            SettingsSectionHeader(
-                title = AuraStrings.get("language_title", appLanguage),
-                icon = Icons.Default.Language
-            )
+            // 1. LANGUAGE SELECTOR (Clean 2x3 Editorial Grid)
+            EditorialGroupHeader(title = AuraStrings.get("language_title", appLanguage))
 
             val languages = listOf(
-                "Español" to "🇪🇸",
-                "English" to "🇺🇸",
-                "Português" to "🇧🇷",
-                "Français" to "🇫🇷",
-                "Deutsch" to "🇩🇪",
-                "日本語" to "🇯🇵"
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                languages.take(3).forEach { (lang, flag) ->
-                    val isSelected = appLanguage.startsWith(lang)
-                    LanguagePill(
-                        title = "$flag $lang",
-                        isSelected = isSelected,
-                        onClick = { onSelectLanguage(lang) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                languages.drop(3).forEach { (lang, flag) ->
-                    val isSelected = appLanguage.startsWith(lang)
-                    LanguagePill(
-                        title = "$flag $lang",
-                        isSelected = isSelected,
-                        onClick = { onSelectLanguage(lang) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Section 2: AUDIO STREAMING & QUALITY
-            SettingsSectionHeader(
-                title = AuraStrings.get("audio_quality", appLanguage),
-                icon = Icons.Default.Equalizer
-            )
-
-            val qualityOptions = listOf(
-                "Hi-Res (320 kbps)" to "Máxima fidelidad sin pérdidas acústicas",
-                "Estándar (160 kbps)" to "Equilibrio ideal entre datos y sonido",
-                "Ahorro de datos (96 kbps)" to "Optimizado para redes móviles lentas"
+                "Español" to "ES",
+                "English" to "EN",
+                "Português" to "PT",
+                "Français" to "FR",
+                "Deutsch" to "DE",
+                "日本語" to "JA"
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                qualityOptions.forEach { (title, subtitle) ->
-                    val isSelected = audioQuality == title
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) CyberCyan.copy(alpha = 0.12f) else CyberSurfaceCard)
-                            .border(1.dp, if (isSelected) CyberCyan else GlassBorder, RoundedCornerShape(14.dp))
-                            .clickable { onQualitySelected(title) }
-                            .padding(14.dp)
+                languages.chunked(3).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = title,
-                                    color = if (isSelected) CyberCyan else TextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                                Text(
-                                    text = subtitle,
-                                    color = TextSecondary,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            if (isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(CyberCyan)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // Loudness Normalizer Card
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(CyberSurfaceCard)
-                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
-                    .padding(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = AuraStrings.get("normalizer_title", appLanguage),
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = AuraStrings.get("normalizer_desc", appLanguage),
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                    Switch(
-                        checked = loudnessNormalizer,
-                        onCheckedChange = { onToggleLoudness() },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = CyberBackgroundDark,
-                            checkedTrackColor = CyberCyan,
-                            uncheckedThumbColor = TextMuted,
-                            uncheckedTrackColor = CyberSurfaceActive
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Auto-Radio (Infinite Queue Automix) Card
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(CyberSurfaceCard)
-                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
-                    .padding(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Radio Infinita (Automix 2.0)",
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = "Encola canciones similares automáticamente al terminar la cola",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                    Switch(
-                        checked = autoRadioEnabled,
-                        onCheckedChange = { onToggleAutoRadio() },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = CyberBackgroundDark,
-                            checkedTrackColor = CyberCyan,
-                            uncheckedThumbColor = TextMuted,
-                            uncheckedTrackColor = CyberSurfaceActive
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Skip Silence Card
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(CyberSurfaceCard)
-                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
-                    .padding(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Eliminar Silencios (Skip Silence)",
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = "Recorta silencios muertos al inicio y final de cada pista",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                    Switch(
-                        checked = skipSilenceEnabled,
-                        onCheckedChange = { onToggleSkipSilence() },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = CyberBackgroundDark,
-                            checkedTrackColor = CyberCyan,
-                            uncheckedThumbColor = TextMuted,
-                            uncheckedTrackColor = CyberSurfaceActive
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // Section: LYRICS LATENCY COMPENSATION
-            SettingsSectionHeader(
-                title = "SINCRONIZACIÓN DE LETRAS (LATENCIA)",
-                icon = Icons.Default.Equalizer
-            )
-
-            val offsetOptions = listOf(
-                -400L to "-400 ms (Compensación Alta / Bluetooth)",
-                -200L to "-200 ms (Recomendado / Anti-adelanto)",
-                0L to "0 ms (Sin compensación)",
-                200L to "+200 ms (Retrasar texto)"
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                offsetOptions.forEach { (offset, label) ->
-                    val isSelected = lyricsOffsetMs == offset
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) CyberCyan.copy(alpha = 0.12f) else CyberSurfaceCard)
-                            .border(1.dp, if (isSelected) CyberCyan else GlassBorder, RoundedCornerShape(14.dp))
-                            .clickable { onSelectLyricsOffset(offset) }
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = label,
-                                color = if (isSelected) CyberCyan else TextPrimary,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            if (isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(CyberCyan)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Section 3: CACHE MANAGEMENT
-            SettingsSectionHeader(
-                title = AuraStrings.get("clean_cache_title", appLanguage),
-                icon = Icons.Default.CleaningServices
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(CyberSurfaceCard)
-                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
-                    .padding(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = AuraStrings.get("clean_cache_title", appLanguage),
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = AuraStrings.get("clean_cache_desc", appLanguage),
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(CyberCyan.copy(alpha = 0.15f))
-                            .border(1.dp, CyberCyan.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-                            .clickable { onClearCache() }
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = AuraStrings.get("clean_cache_btn", appLanguage),
-                            color = CyberCyan,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Backup & Restore Card (v2.0)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(CyberSurfaceCard)
-                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
-                    .padding(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Copia de Seguridad (Bóveda)",
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = "Guarda o restaura tus favoritos y playlists en JSON",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(CyberCyan.copy(alpha = 0.15f))
-                                .border(1.dp, CyberCyan.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-                                .clickable { onExportBackup() }
-                                .padding(horizontal = 10.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = "EXPORTAR",
-                                color = CyberCyan,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(CyberPink.copy(alpha = 0.15f))
-                                .border(1.dp, CyberPink.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-                                .clickable { onImportBackup() }
-                                .padding(horizontal = 10.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = "RESTAURAR",
-                                color = CyberPink,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace
+                        rowItems.forEach { (lang, code) ->
+                            val isSelected = appLanguage.startsWith(lang, ignoreCase = true)
+                            LanguageOptionPill(
+                                label = lang,
+                                code = code,
+                                isSelected = isSelected,
+                                onClick = { onSelectLanguage(lang) },
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-            SettingsSectionHeader(
-                title = AuraStrings.get("theme_title", appLanguage),
-                icon = Icons.Default.Palette
-            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 2. APPEARANCE / STUDIO THEMES
+            EditorialGroupHeader(title = AuraStrings.get("theme_title", appLanguage))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                ThemeCard(
-                    title = "Cyber Neon",
-                    color1 = Color(0xFF00FFCC),
-                    color2 = Color(0xFFFF79C6),
+                ThemeSwatchCard(
+                    title = "Obsidian",
+                    color1 = Color(0xFF2DD4BF),
+                    color2 = Color(0xFF161922),
                     isSelected = currentTheme == "Cyber Neon",
                     onClick = { onSelectTheme("Cyber Neon") },
                     modifier = Modifier.weight(1f)
                 )
-                ThemeCard(
+                ThemeSwatchCard(
                     title = "Synthwave",
-                    color1 = Color(0xFFFF8C00),
-                    color2 = Color(0xFFE024C3),
+                    color1 = Color(0xFFF59E0B),
+                    color2 = Color(0xFF2A203B),
                     isSelected = currentTheme == "Synthwave",
                     onClick = { onSelectTheme("Synthwave") },
                     modifier = Modifier.weight(1f)
@@ -591,18 +206,18 @@ fun SettingsSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                ThemeCard(
-                    title = "Matrix 99",
-                    color1 = Color(0xFF00FF66),
-                    color2 = Color(0xFF059669),
+                ThemeSwatchCard(
+                    title = "Emerald",
+                    color1 = Color(0xFF10B981),
+                    color2 = Color(0xFF131D17),
                     isSelected = currentTheme == "Matrix 99",
                     onClick = { onSelectTheme("Matrix 99") },
                     modifier = Modifier.weight(1f)
                 )
-                ThemeCard(
+                ThemeSwatchCard(
                     title = "OLED Black",
                     color1 = Color(0xFFFFFFFF),
-                    color2 = Color(0xFF334155),
+                    color2 = Color(0xFF000000),
                     isSelected = currentTheme == "OLED Black",
                     onClick = { onSelectTheme("OLED Black") },
                     modifier = Modifier.weight(1f)
@@ -611,113 +226,307 @@ fun SettingsSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Section 5: ABOUT US / SOBRE NOSOTROS (Requested by Manuel David Tineo)
-            SettingsSectionHeader(
-                title = AuraStrings.get("about_title", appLanguage),
-                icon = Icons.Default.Info
+            // 3. STREAMING QUALITY (Single Grouped Surface Card)
+            EditorialGroupHeader(title = AuraStrings.get("audio_quality", appLanguage))
+
+            val qualityOptions = listOf(
+                Triple(
+                    "Hi-Res (320 kbps)",
+                    AuraStrings.get("quality_high_title", appLanguage),
+                    AuraStrings.get("quality_high_desc", appLanguage)
+                ),
+                Triple(
+                    "Estándar (160 kbps)",
+                    AuraStrings.get("quality_std_title", appLanguage),
+                    AuraStrings.get("quality_std_desc", appLanguage)
+                ),
+                Triple(
+                    "Ahorro de datos (96 kbps)",
+                    AuraStrings.get("quality_low_title", appLanguage),
+                    AuraStrings.get("quality_low_desc", appLanguage)
+                )
             )
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(CyberSurfaceCard)
-                    .border(1.2.dp, GlassBorder, RoundedCornerShape(18.dp))
-                    .padding(18.dp)
-            ) {
-                Column {
+            GroupedSurfaceCard {
+                qualityOptions.forEachIndexed { index, (internalKey, displayTitle, displayDesc) ->
+                    val isSelected = audioQuality == internalKey
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onQualitySelected(internalKey) }
+                            .padding(horizontal = 16.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = displayTitle,
+                                color = if (isSelected) CyberCyan else TextPrimary,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                fontSize = 14.sp,
+                                letterSpacing = (-0.1).sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = displayDesc,
+                                color = TextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(if (isSelected) CyberCyan else Color.Transparent)
+                                .border(
+                                    1.5.dp,
+                                    if (isSelected) CyberCyan else TextMuted.copy(alpha = 0.5f),
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = CyberBackgroundDark,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                        }
+                    }
+                    if (index < qualityOptions.lastIndex) {
+                        HorizontalDivider(
+                            color = GlassBorderSubtle,
+                            thickness = 1.dp,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 4. SMART PLAYBACK (Single Grouped Surface Card with Switches)
+            EditorialGroupHeader(title = AuraStrings.get("playback_section", appLanguage))
+
+            GroupedSurfaceCard {
+                SettingsToggleRow(
+                    title = AuraStrings.get("normalizer_title", appLanguage),
+                    subtitle = AuraStrings.get("normalizer_desc", appLanguage),
+                    checked = loudnessNormalizer,
+                    onCheckedChange = { onToggleLoudness() }
+                )
+                HorizontalDivider(
+                    color = GlassBorderSubtle,
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                SettingsToggleRow(
+                    title = AuraStrings.get("autoradio_title", appLanguage),
+                    subtitle = AuraStrings.get("autoradio_desc", appLanguage),
+                    checked = autoRadioEnabled,
+                    onCheckedChange = { onToggleAutoRadio() }
+                )
+                HorizontalDivider(
+                    color = GlassBorderSubtle,
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                SettingsToggleRow(
+                    title = AuraStrings.get("skipsilence_title", appLanguage),
+                    subtitle = AuraStrings.get("skipsilence_desc", appLanguage),
+                    checked = skipSilenceEnabled,
+                    onCheckedChange = { onToggleSkipSilence() }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 5. LYRICS LATENCY COMPENSATION (Clean Segmented Control in 1 Card)
+            EditorialGroupHeader(title = AuraStrings.get("lyrics_sync_title", appLanguage))
+
+            GroupedSurfaceCard {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = AuraStrings.get("lyrics_sync_desc", appLanguage),
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    val offsets = listOf(-400L, -200L, 0L, 200L)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CyberBackgroundDark)
+                            .border(1.dp, GlassBorderSubtle, RoundedCornerShape(12.dp))
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        offsets.forEach { offset ->
+                            val isSelected = lyricsOffsetMs == offset
+                            val label = if (offset > 0) "+${offset}ms" else "${offset}ms"
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(if (isSelected) CyberSurfaceActive else Color.Transparent)
+                                    .clickable { onSelectLyricsOffset(offset) }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) CyberCyan else TextSecondary,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 6. STORAGE & BACKUP (Single Grouped Surface Card)
+            EditorialGroupHeader(title = AuraStrings.get("storage_section", appLanguage))
+
+            GroupedSurfaceCard {
+                // Clear Cache Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = AuraStrings.get("clean_cache_title", appLanguage),
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = AuraStrings.get("clean_cache_desc", appLanguage),
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    ActionPillButton(
+                        text = AuraStrings.get("clean_cache_btn", appLanguage),
+                        onClick = onClearCache
+                    )
+                }
+
+                HorizontalDivider(
+                    color = GlassBorderSubtle,
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                // Backup Export & Restore Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = AuraStrings.get("backup_title", appLanguage),
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = AuraStrings.get("backup_desc", appLanguage),
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ActionPillButton(
+                            text = AuraStrings.get("export_btn", appLanguage),
+                            onClick = onExportBackup
+                        )
+                        ActionPillButton(
+                            text = AuraStrings.get("restore_btn", appLanguage),
+                            isPrimary = true,
+                            onClick = onImportBackup
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 7. ABOUT AURA (Refined Editorial Footer Card)
+            EditorialGroupHeader(title = AuraStrings.get("about_title", appLanguage))
+
+            GroupedSurfaceCard {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            AuraIcon(modifier = Modifier.size(28.dp))
-                            Spacer(modifier = Modifier.width(10.dp))
+                            AuraIcon(size = 34.dp)
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "AURA MUSIC",
+                                    text = "Aura Music",
                                     color = TextPrimary,
-                                    fontWeight = FontWeight.Black,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 15.sp,
-                                    letterSpacing = 1.sp
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    letterSpacing = (-0.3).sp
                                 )
                                 Text(
                                     text = AuraStrings.get("app_version", appLanguage),
-                                    color = CyberCyan,
-                                    fontSize = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
+                                    color = TextSecondary,
+                                    fontSize = 12.sp
                                 )
                             }
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(CyberCyan.copy(alpha = 0.15f))
-                                .border(1.dp, CyberCyan.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "v2.0.0",
-                                color = CyberCyan,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
+                        Text(
+                            text = "2.0.0",
+                            color = CyberCyan,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.Monospace
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
-
-                    // Creator Card Highlight
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(CyberSurfaceActive)
-                            .border(1.dp, CyberCyan.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                            .padding(12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(CyberCyan.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Verified,
-                                    contentDescription = null,
-                                    tint = CyberCyan,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = AuraStrings.get("creator_label", appLanguage),
-                                    color = TextMuted,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 0.8.sp
-                                )
-                                Text(
-                                    text = AuraStrings.get("creator_name", appLanguage),
-                                    color = TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 0.5.sp
-                                )
-                            }
-                        }
-                    }
-
+                    HorizontalDivider(color = GlassBorderSubtle, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = AuraStrings.get("creator_label", appLanguage),
+                        color = TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = AuraStrings.get("creator_name", appLanguage),
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
                         text = AuraStrings.get("about_desc", appLanguage),
@@ -726,80 +535,162 @@ fun SettingsSheet(
                         lineHeight = 18.sp
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
                         text = AuraStrings.get("open_source", appLanguage),
-                        color = CyberCyan,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
+                        color = TextMuted,
+                        fontSize = 11.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
 @Composable
-private fun LanguagePill(
+private fun EditorialGroupHeader(title: String) {
+    Text(
+        text = title,
+        color = TextSecondary,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.1).sp,
+        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+    )
+}
+
+@Composable
+private fun GroupedSurfaceCard(
+    content: @Composable () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CyberSurfaceCard)
+            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
     title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = TextPrimary,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                letterSpacing = (-0.1).sp
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                color = TextSecondary,
+                fontSize = 12.sp
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = CyberBackgroundDark,
+                checkedTrackColor = CyberCyan,
+                uncheckedThumbColor = TextSecondary,
+                uncheckedTrackColor = CyberSurfaceActive,
+                uncheckedBorderColor = Color.Transparent
+            )
+        )
+    }
+}
+
+@Composable
+private fun ActionPillButton(
+    text: String,
+    isPrimary: Boolean = false,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isPrimary) CyberCyan else CyberSurfaceActive)
+            .border(
+                1.dp,
+                if (isPrimary) CyberCyan else GlassBorder,
+                RoundedCornerShape(10.dp)
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = if (isPrimary) CyberBackgroundDark else TextPrimary,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+private fun LanguageOptionPill(
+    label: String,
+    code: String,
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Row(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) CyberCyan.copy(alpha = 0.18f) else CyberSurfaceCard)
-            .border(1.dp, if (isSelected) CyberCyan else GlassBorder, RoundedCornerShape(12.dp))
+            .background(if (isSelected) CyberSurfaceActive else CyberSurfaceCard)
+            .border(
+                1.dp,
+                if (isSelected) CyberCyan else GlassBorder,
+                RoundedCornerShape(12.dp)
+            )
             .clickable { onClick() }
-            .padding(vertical = 10.dp, horizontal = 8.dp),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
     ) {
         Text(
-            text = title,
-            color = if (isSelected) CyberCyan else TextPrimary,
-            fontSize = 11.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            fontFamily = FontFamily.Monospace,
+            text = code,
+            color = if (isSelected) CyberCyan else TextMuted,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = label,
+            color = if (isSelected) TextPrimary else TextSecondary,
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
             maxLines = 1
         )
     }
 }
 
 @Composable
-private fun SettingsSectionHeader(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(bottom = 10.dp)
-    ) {
-        if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = CyberCyan,
-                modifier = Modifier.size(14.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-        }
-        Text(
-            text = title,
-            color = TextSecondary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 1.sp
-        )
-    }
-}
-
-@Composable
-private fun ThemeCard(
+private fun ThemeSwatchCard(
     title: String,
     color1: Color,
     color2: Color,
@@ -807,38 +698,43 @@ private fun ThemeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Row(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(if (isSelected) CyberCyan.copy(alpha = 0.15f) else CyberSurfaceCard)
-            .border(1.2.dp, if (isSelected) CyberCyan else GlassBorder, RoundedCornerShape(14.dp))
+            .background(if (isSelected) CyberSurfaceActive else CyberSurfaceCard)
+            .border(
+                1.dp,
+                if (isSelected) CyberCyan else GlassBorder,
+                RoundedCornerShape(14.dp)
+            )
             .clickable { onClick() }
-            .padding(12.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    color = if (isSelected) CyberCyan else TextPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-                if (isSelected) {
-                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(CyberCyan))
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(12.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Brush.horizontalGradient(listOf(color1, color2)))
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(color1)
+                    .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = title,
+                color = if (isSelected) TextPrimary else TextSecondary,
+                fontSize = 13.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+            )
+        }
+
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = CyberCyan,
+                modifier = Modifier.size(16.dp)
             )
         }
     }

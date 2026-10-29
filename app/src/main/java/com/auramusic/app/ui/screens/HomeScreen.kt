@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.auramusic.app.data.locale.AuraStrings
 import com.auramusic.app.data.model.Album
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.ui.theme.CyberBackgroundDark
@@ -64,6 +65,7 @@ fun HomeScreen(
     trendingAlbums: List<Album> = emptyList(),
     userTopArtists: List<Song> = emptyList(),
     popularStations: List<String> = emptyList(),
+    appLanguage: String = "Español",
     onSelectSong: (Song) -> Unit,
     onSelectVibe: (String) -> Unit,
     onSelectAlbum: (Album) -> Unit = {},
@@ -112,7 +114,7 @@ fun HomeScreen(
                             letterSpacing = (-0.6).sp
                         )
                         Text(
-                            text = "Tu sesión musical",
+                            text = AuraStrings.get("home_subtitle", appLanguage),
                             color = TextSecondary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Normal
@@ -169,8 +171,8 @@ fun HomeScreen(
         item {
             Column {
                 EditorialSectionHeader(
-                    title = "Selección rápida",
-                    subtitle = "Para ti"
+                    title = AuraStrings.get("quick_picks", appLanguage),
+                    subtitle = AuraStrings.get("for_you", appLanguage)
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 LazyRow(
@@ -193,8 +195,8 @@ fun HomeScreen(
             item {
                 Column {
                     EditorialSectionHeader(
-                        title = "Tus más escuchados",
-                        subtitle = "Frecuentes"
+                        title = AuraStrings.get("favorite_artists", appLanguage),
+                        subtitle = AuraStrings.get("frequent", appLanguage)
                     )
                     Spacer(modifier = Modifier.height(14.dp))
                     LazyRow(
@@ -216,8 +218,8 @@ fun HomeScreen(
             item {
                 Column {
                     EditorialSectionHeader(
-                        title = "Artistas populares",
-                        subtitle = "En tendencia"
+                        title = AuraStrings.get("popular_artists", appLanguage),
+                        subtitle = AuraStrings.get("trending", appLanguage)
                     )
                     Spacer(modifier = Modifier.height(14.dp))
                     LazyRow(
@@ -239,8 +241,8 @@ fun HomeScreen(
             item {
                 Column {
                     EditorialSectionHeader(
-                        title = "Álbumes destacados",
-                        subtitle = "Colecciones"
+                        title = AuraStrings.get("trending_albums", appLanguage),
+                        subtitle = AuraStrings.get("collections", appLanguage)
                     )
                     Spacer(modifier = Modifier.height(14.dp))
                     LazyRow(
@@ -260,8 +262,8 @@ fun HomeScreen(
         // 7. Top Trending Charts Section
         item {
             EditorialSectionHeader(
-                title = "Tendencias globales",
-                subtitle = "Top pistas"
+                title = AuraStrings.get("global_charts", appLanguage),
+                subtitle = AuraStrings.get("top_tracks", appLanguage)
             )
         }
 

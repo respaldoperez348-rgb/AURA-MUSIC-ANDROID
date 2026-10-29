@@ -60,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.auramusic.app.data.locale.AuraStrings
 import com.auramusic.app.data.model.LyricLine
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.ui.theme.CyberBackgroundDark
@@ -89,6 +90,7 @@ fun StudioDeck(
     isRepeat: Boolean,
     lyrics: List<LyricLine> = emptyList(),
     lyricsOffsetMs: Long = -200L,
+    appLanguage: String = "Español",
     showTranslation: Boolean = false,
     onToggleTranslation: () -> Unit = {},
     onPlayPause: () -> Unit,
@@ -157,13 +159,13 @@ fun StudioDeck(
                 ) {
                     ModePillButton(
                         icon = Icons.Default.Album,
-                        label = "Disco",
+                        label = AuraStrings.get("deck_vinyl", appLanguage),
                         isSelected = displayMode == DeckDisplayMode.VINYL,
                         onClick = { displayMode = DeckDisplayMode.VINYL }
                     )
                     ModePillButton(
                         icon = Icons.Default.Lyrics,
-                        label = "Letras",
+                        label = AuraStrings.get("deck_lyrics", appLanguage),
                         isSelected = displayMode == DeckDisplayMode.LYRICS,
                         onClick = { displayMode = DeckDisplayMode.LYRICS }
                     )
@@ -430,7 +432,7 @@ fun StudioDeck(
                 // Equalizer Quick Button
                 StudioToolPill(
                     icon = Icons.Default.GraphicEq,
-                    label = "Ecualizador",
+                    label = AuraStrings.get("deck_eq", appLanguage),
                     activeHighlight = false,
                     onClick = onOpenEqualizer
                 )
@@ -438,7 +440,7 @@ fun StudioDeck(
                 // Sleep Timer Quick Button
                 StudioToolPill(
                     icon = Icons.Default.Bedtime,
-                    label = sleepTimerRemaining ?: "Dormir",
+                    label = sleepTimerRemaining ?: AuraStrings.get("deck_sleep", appLanguage),
                     activeHighlight = sleepTimerRemaining != null,
                     onClick = onOpenSleepTimer
                 )
@@ -446,7 +448,7 @@ fun StudioDeck(
                 // Up Next Queue Button
                 StudioToolPill(
                     icon = Icons.AutoMirrored.Filled.QueueMusic,
-                    label = "Cola",
+                    label = AuraStrings.get("deck_queue", appLanguage),
                     activeHighlight = false,
                     onClick = onOpenQueue
                 )
