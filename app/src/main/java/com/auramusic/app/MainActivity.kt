@@ -80,6 +80,13 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+        }
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
         insetsController.isAppearanceLightStatusBars = false
@@ -140,10 +147,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding()
-                        .navigationBarsPadding(),
+                    modifier = Modifier.fillMaxSize(),
                     contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     containerColor = CyberBackgroundDark
                 ) { innerPadding ->
@@ -176,7 +180,11 @@ class MainActivity : ComponentActivity() {
                         )
 
                         // Main Content View (Studio / Radar / Vault)
-                        Column(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .statusBarsPadding()
+                        ) {
                             AnimatedContent(
                                 targetState = uiState.currentTab,
                                 transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -249,6 +257,7 @@ class MainActivity : ComponentActivity() {
                             Column(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
+                                    .navigationBarsPadding()
                                     .padding(bottom = 6.dp)
                             ) {
                                 MiniPlayer(
@@ -457,6 +466,7 @@ class MainActivity : ComponentActivity() {
                             exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { -it }) + androidx.compose.animation.fadeOut(),
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
+                                .statusBarsPadding()
                                 .padding(top = 16.dp, start = 20.dp, end = 20.dp)
                         ) {
                             uiState.toastMessage?.let { msg ->

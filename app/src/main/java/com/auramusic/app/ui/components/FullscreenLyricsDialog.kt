@@ -143,8 +143,7 @@ fun FullscreenLyricsDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
+                .background(CyberBackgroundDark)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -184,6 +183,7 @@ fun FullscreenLyricsDialog(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
+                    .statusBarsPadding()
                     .padding(top = 16.dp)
                     .size(width = 44.dp, height = 5.dp)
                     .clip(RoundedCornerShape(3.dp))
@@ -218,8 +218,11 @@ fun FullscreenLyricsDialog(
                 } else {
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(top = 110.dp, bottom = 150.dp, start = 14.dp, end = 14.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .navigationBarsPadding(),
+                        contentPadding = PaddingValues(top = 80.dp, bottom = 120.dp, start = 14.dp, end = 14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         itemsIndexed(lyrics) { index, line ->
@@ -277,6 +280,7 @@ fun FullscreenLyricsDialog(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 26.dp)
             ) {
                 Row(
@@ -351,6 +355,7 @@ fun FullscreenLyricsDialog(
                 exit = fadeOut(tween(200)),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
                     .padding(bottom = 24.dp)
             ) {
                 Box(
@@ -396,6 +401,7 @@ fun FullscreenLyricsDialog(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .navigationBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 24.dp)
             ) {
                 Column(
