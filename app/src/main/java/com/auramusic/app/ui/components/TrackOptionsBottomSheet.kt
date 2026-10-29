@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -80,6 +81,7 @@ fun TrackOptionsBottomSheet(
     onDismiss: () -> Unit,
     onToggleFavorite: (Song) -> Unit,
     onDownload: (Song) -> Unit,
+    onDeleteDownload: ((Song) -> Unit)? = null,
     onAddToQueueNext: (Song) -> Unit,
     onAddToPlaylist: (playlistId: String, song: Song) -> Unit,
     onCreatePlaylist: (title: String) -> Unit
@@ -196,6 +198,18 @@ fun TrackOptionsBottomSheet(
                         }
                     }
                 )
+
+                if (isDownloaded && onDeleteDownload != null) {
+                    OptionRow(
+                        icon = Icons.Default.Delete,
+                        title = "Remove Offline Download",
+                        tint = CyberPink,
+                        onClick = {
+                            onDeleteDownload(song)
+                            onDismiss()
+                        }
+                    )
+                }
 
                 // Action: Favorite
                 OptionRow(

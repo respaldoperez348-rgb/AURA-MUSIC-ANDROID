@@ -63,15 +63,21 @@ import com.auramusic.app.ui.theme.TextSecondary
 fun SettingsSheet(
     audioQuality: String,
     loudnessNormalizer: Boolean,
+    autoRadioEnabled: Boolean = true,
+    skipSilenceEnabled: Boolean = false,
     currentTheme: String = "Cyber Neon",
     appLanguage: String = "Español",
     lyricsOffsetMs: Long = -200L,
     onQualitySelected: (String) -> Unit,
     onToggleLoudness: () -> Unit,
+    onToggleAutoRadio: () -> Unit = {},
+    onToggleSkipSilence: () -> Unit = {},
     onSelectTheme: (String) -> Unit = {},
     onSelectLanguage: (String) -> Unit = {},
     onSelectLyricsOffset: (Long) -> Unit = {},
     onClearCache: () -> Unit = {},
+    onExportBackup: () -> Unit = {},
+    onImportBackup: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -294,6 +300,90 @@ fun SettingsSheet(
                 }
             }
 
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Auto-Radio (Infinite Queue Automix) Card
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurfaceCard)
+                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Radio Infinita (Automix 2.0)",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "Encola canciones similares automáticamente al terminar la cola",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = autoRadioEnabled,
+                        onCheckedChange = { onToggleAutoRadio() },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = CyberBackgroundDark,
+                            checkedTrackColor = CyberCyan,
+                            uncheckedThumbColor = TextMuted,
+                            uncheckedTrackColor = CyberSurfaceActive
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Skip Silence Card
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurfaceCard)
+                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Eliminar Silencios (Skip Silence)",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "Recorta silencios muertos al inicio y final de cada pista",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = skipSilenceEnabled,
+                        onCheckedChange = { onToggleSkipSilence() },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = CyberBackgroundDark,
+                            checkedTrackColor = CyberCyan,
+                            uncheckedThumbColor = TextMuted,
+                            uncheckedTrackColor = CyberSurfaceActive
+                        )
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(18.dp))
 
             // Section: LYRICS LATENCY COMPENSATION
@@ -400,9 +490,74 @@ fun SettingsSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Section 4: THEME PALETTE
+            // Backup & Restore Card (v2.0)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurfaceCard)
+                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Copia de Seguridad (Bóveda)",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "Guarda o restaura tus favoritos y playlists en JSON",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CyberCyan.copy(alpha = 0.15f))
+                                .border(1.dp, CyberCyan.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                .clickable { onExportBackup() }
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "EXPORTAR",
+                                color = CyberCyan,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CyberPink.copy(alpha = 0.15f))
+                                .border(1.dp, CyberPink.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                .clickable { onImportBackup() }
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "RESTAURAR",
+                                color = CyberPink,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
             SettingsSectionHeader(
                 title = AuraStrings.get("theme_title", appLanguage),
                 icon = Icons.Default.Palette
@@ -506,7 +661,7 @@ fun SettingsSheet(
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "v1.5.5",
+                                text = "v2.0.0",
                                 color = CyberCyan,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,

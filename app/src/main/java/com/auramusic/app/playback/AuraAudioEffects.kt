@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
+import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.Virtualizer
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,7 @@ object AuraAudioEffects {
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
     private var virtualizer: Virtualizer? = null
+    private var loudnessEnhancer: LoudnessEnhancer? = null
     private var prefs: SharedPreferences? = null
 
     private val _isEnabled = MutableStateFlow(true)
@@ -79,6 +81,15 @@ object AuraAudioEffects {
                 _virtualizerStrength.value = strength
             }
 
+            runCatching {
+                val auraPrefs = context.getSharedPreferences("aura_prefs", Context.MODE_PRIVATE)
+                val loudnessOn = auraPrefs.getBoolean("loudness_normalizer", true)
+                loudnessEnhancer = LoudnessEnhancer(audioSessionId).apply {
+                    setTargetGain(if (loudnessOn) 400 else 0) // +4dB gentle loudness normalization
+                    enabled = loudnessOn
+                }
+            }
+
             _isEnabled.value = equalizer?.enabled == true
 
             // Read bands
@@ -118,10 +129,17 @@ object AuraAudioEffects {
 
     fun setEnabled(enabled: Boolean) {
         _isEnabled.value = enabled
-        equalizer?.enabled = enabled
-        bassBoost?.enabled = enabled
-        virtualizer?.enabled = enabled
+        runCatching { equalizer?.enabled = enabled }
+        runCatching { bassBoost?.enabled = enabled }
+        runCatching { virtualizer?.enabled = enabled }
         prefs?.edit()?.putBoolean("enabled", enabled)?.apply()
+    }
+
+    fun setLoudnessNormalizer(enabled: Boolean) {
+        runCatching {
+            loudnessEnhancer?.setTargetGain(if (enabled) 400 else 0)
+            loudnessEnhancer?.enabled = enabled
+        }
     }
 
     fun setBandLevel(bandIndex: Short, levelMb: Short) {
@@ -131,7 +149,7 @@ object AuraAudioEffects {
             val clamped = levelMb.coerceIn(-1500, 1500)
             currentList[idx] = currentList[idx].copy(levelMb = clamped)
             _bands.value = currentList
-            equalizer?.setBandLevel(bandIndex, clamped)
+            runCatching { equalizer?.setBandLevel(bandIndex, clamped) }
             _activePreset.value = PRESET_CUSTOM
             prefs?.edit()?.apply {
                 putInt("band_$bandIndex", clamped.toInt())
@@ -143,20 +161,19 @@ object AuraAudioEffects {
     fun setBassBoost(strength: Int) {
         val clamped = strength.coerceIn(0, 1000)
         _bassBoostStrength.value = clamped
-        bassBoost?.setStrength(clamped.toShort())
+        runCatching { bassBoost?.setStrength(clamped.toShort()) }
         prefs?.edit()?.putInt("bass_boost", clamped)?.apply()
     }
 
     fun setVirtualizer(strength: Int) {
         val clamped = strength.coerceIn(0, 1000)
         _virtualizerStrength.value = clamped
-        virtualizer?.setStrength(clamped.toShort())
+        runCatching { virtualizer?.setStrength(clamped.toShort()) }
         prefs?.edit()?.putInt("virtualizer", clamped)?.apply()
     }
 
     fun applyPreset(presetName: String) {
         _activePreset.value = presetName
-        val numBands = _bands.value.size
         val newGains: List<Short> = when (presetName) {
             PRESET_CYBERPUNK -> listOf(400, 250, 0, 300, 500)
             PRESET_SYNTHWAVE -> listOf(300, 400, 100, 50, 250)
@@ -168,7 +185,7 @@ object AuraAudioEffects {
 
         val updatedList = _bands.value.mapIndexed { i, band ->
             val gain = newGains.getOrElse(i) { 0.toShort() }
-            equalizer?.setBandLevel(band.index, gain)
+            runCatching { equalizer?.setBandLevel(band.index, gain) }
             prefs?.edit()?.putInt("band_${band.index}", gain.toInt())?.apply()
             band.copy(levelMb = gain)
         }
@@ -177,13 +194,13 @@ object AuraAudioEffects {
     }
 
     fun detach() {
-        try {
-            equalizer?.release()
-            bassBoost?.release()
-            virtualizer?.release()
-        } catch (_: Exception) {}
+        runCatching { equalizer?.release() }
+        runCatching { bassBoost?.release() }
+        runCatching { virtualizer?.release() }
+        runCatching { loudnessEnhancer?.release() }
         equalizer = null
         bassBoost = null
         virtualizer = null
+        loudnessEnhancer = null
     }
 }

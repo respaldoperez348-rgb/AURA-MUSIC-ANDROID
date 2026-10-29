@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.auramusic.app.data.database.DownloadedTrack
+import com.auramusic.app.data.database.ListeningStats
 import com.auramusic.app.data.database.Playlist
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.ui.components.CreatePlaylistDialog
@@ -62,6 +63,7 @@ import com.auramusic.app.ui.theme.CyberPink
 import com.auramusic.app.ui.theme.CyberSurfaceActive
 import com.auramusic.app.ui.theme.CyberSurfaceCard
 import com.auramusic.app.ui.theme.GlassBorder
+import com.auramusic.app.ui.theme.NeonPurple
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
@@ -77,6 +79,7 @@ fun VaultScreen(
     playlists: List<Playlist>,
     localTracks: List<Song> = emptyList(),
     isScanningLocal: Boolean = false,
+    listeningStats: ListeningStats = ListeningStats(),
     currentSong: Song,
     isPlaying: Boolean,
     onSelectSong: (Song, List<Song>) -> Unit,
@@ -85,6 +88,7 @@ fun VaultScreen(
     onPlayAllLocalTracks: () -> Unit = {},
     onScanLocalTracks: () -> Unit = {},
     onCreatePlaylist: (title: String) -> Unit,
+    onImportPlaylist: (urlOrQuery: String) -> Unit = {},
     onDeletePlaylist: (playlistId: String) -> Unit,
     onOpenPlaylist: (Playlist) -> Unit = {},
     onOpenSongOptions: (Song) -> Unit,
@@ -92,6 +96,7 @@ fun VaultScreen(
 ) {
     var selectedTab by remember { mutableStateOf(VaultTab.FAVORITES) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -128,7 +133,41 @@ fun VaultScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Aura Wrapped 2.0 Compact Telemetry Banner
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(CyberSurfaceCard)
+                .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                Text(text = "${listeningStats.totalPlays}", color = CyberCyan, fontWeight = FontWeight.Black, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                Text(text = "PLAYS", color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                Text(text = "${listeningStats.totalMinutes}m", color = CyberPink, fontWeight = FontWeight.Black, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                Text(text = "TIEMPO", color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1.4f)) {
+                Text(
+                    text = listeningStats.topArtist,
+                    color = NeonPurple,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(text = "TOP ARTISTA", color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Vault 4-Tab Navigation Selector
         Row(
@@ -285,14 +324,26 @@ fun VaultScreen(
                         fontFamily = FontFamily.Monospace
                     )
 
-                    Button(
-                        onClick = { showCreateDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = CyberCyan),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = CyberBackgroundDark, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "New Playlist", color = CyberBackgroundDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { showImportDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = CyberSurfaceActive),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Download, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Import YT", color = CyberCyan, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+
+                        Button(
+                            onClick = { showCreateDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = CyberCyan),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = CyberBackgroundDark, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "New", color = CyberBackgroundDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
                     }
                 }
 
@@ -414,6 +465,16 @@ fun VaultScreen(
             onConfirm = { title ->
                 onCreatePlaylist(title)
                 showCreateDialog = false
+            }
+        )
+    }
+
+    if (showImportDialog) {
+        CreatePlaylistDialog(
+            onDismiss = { showImportDialog = false },
+            onConfirm = { urlOrName ->
+                onImportPlaylist(urlOrName)
+                showImportDialog = false
             }
         )
     }

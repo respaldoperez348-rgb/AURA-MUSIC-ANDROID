@@ -16,6 +16,13 @@ object AuraStreamResolver {
     private val streamCache = ConcurrentHashMap<String, Pair<String, Long>>()
     private const val CACHE_EXPIRATION_MS = 4 * 60 * 60 * 1000L
 
+    @Volatile
+    var preferredQuality: String = "Hi-Res (320 kbps)"
+
+    fun clearCache() {
+        streamCache.clear()
+    }
+
     @Synchronized
     fun init() {
         if (!isInitialized) {
@@ -61,12 +68,26 @@ object AuraStreamResolver {
             val url = if (actualId.startsWith("http")) actualId else "https://www.youtube.com/watch?v=$actualId"
             val info = StreamInfo.getInfo(ServiceList.YouTube, url)
 
-            // 4. Pick best audio-only stream (M4A or Opus)
+            // 4. Pick audio-only stream matching user quality preference (M4A or Opus)
             val audioStreams = info.audioStreams
             if (!audioStreams.isNullOrEmpty()) {
-                val best = audioStreams.maxByOrNull { it.averageBitrate } ?: audioStreams[0]
-                if (!best.content.isNullOrBlank()) {
-                    val directUrl = best.content
+                val chosen = when {
+                    preferredQuality.contains("96") || preferredQuality.contains("Ahorro", ignoreCase = true) -> {
+                        audioStreams.filter { !it.content.isNullOrBlank() }
+                            .minByOrNull { it.averageBitrate.takeIf { b -> b > 0 } ?: Int.MAX_VALUE }
+                    }
+                    preferredQuality.contains("160") || preferredQuality.contains("Estándar", ignoreCase = true) -> {
+                        audioStreams.filter { !it.content.isNullOrBlank() }
+                            .minByOrNull { kotlin.math.abs(it.averageBitrate - 128) }
+                    }
+                    else -> {
+                        audioStreams.filter { !it.content.isNullOrBlank() }
+                            .maxByOrNull { it.averageBitrate }
+                    }
+                } ?: audioStreams.firstOrNull { !it.content.isNullOrBlank() }
+
+                if (chosen != null && !chosen.content.isNullOrBlank()) {
+                    val directUrl = chosen.content
                     streamCache[actualId] = Pair(directUrl, System.currentTimeMillis())
                     return@withContext directUrl
                 }

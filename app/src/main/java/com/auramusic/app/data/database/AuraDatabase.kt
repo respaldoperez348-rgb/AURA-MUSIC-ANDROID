@@ -25,6 +25,13 @@ data class DownloadedTrack(
     val downloadedAt: Long = System.currentTimeMillis()
 )
 
+data class ListeningStats(
+    val totalPlays: Int = 0,
+    val totalMinutes: Long = 0L,
+    val topArtist: String = "—",
+    val topSongTitle: String = "—"
+)
+
 class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
@@ -584,6 +591,152 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             db.delete(TABLE_SEARCH_HISTORY, null, null)
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    // ==========================================
+    // AURA WRAPPED STATS & BACKUP (v2.0)
+    // ==========================================
+
+    suspend fun getListeningStats(): ListeningStats = withContext(Dispatchers.IO) {
+        val db = readableDatabase
+        var totalPlays = 0
+        var totalDurationMs = 0L
+        var topArtist = "—"
+        var topSong = "—"
+
+        try {
+            db.rawQuery("SELECT COUNT(*), COALESCE(SUM(durationMs), 0) FROM $TABLE_HISTORY", null).use { c ->
+                if (c.moveToFirst()) {
+                    totalPlays = c.getInt(0)
+                    totalDurationMs = c.getLong(1)
+                }
+            }
+            db.rawQuery(
+                "SELECT artist, COUNT(*) as cnt FROM $TABLE_HISTORY WHERE artist != '' AND artist != 'Unknown Artist' GROUP BY LOWER(artist) ORDER BY cnt DESC LIMIT 1",
+                null
+            ).use { c ->
+                if (c.moveToFirst()) {
+                    topArtist = c.getString(0) ?: "—"
+                }
+            }
+            db.rawQuery(
+                "SELECT title, COUNT(*) as cnt FROM $TABLE_HISTORY WHERE title != '' GROUP BY LOWER(title) ORDER BY cnt DESC LIMIT 1",
+                null
+            ).use { c ->
+                if (c.moveToFirst()) {
+                    topSong = c.getString(0) ?: "—"
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        ListeningStats(
+            totalPlays = totalPlays,
+            totalMinutes = (totalDurationMs / 60000L).coerceAtLeast(if (totalPlays > 0) totalPlays * 3L else 0L),
+            topArtist = topArtist,
+            topSongTitle = topSong
+        )
+    }
+
+    suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
+        val root = org.json.JSONObject()
+        root.put("version", "2.0.0")
+        root.put("exportedAt", System.currentTimeMillis())
+
+        val favArray = org.json.JSONArray()
+        getFavorites().forEach { s ->
+            val obj = org.json.JSONObject().apply {
+                put("id", s.id)
+                put("title", s.title)
+                put("artist", s.artist)
+                put("album", s.album)
+                put("durationMs", s.durationMs)
+                put("coverUrl", s.coverUrl)
+                put("mediaUri", s.mediaUri)
+            }
+            favArray.put(obj)
+        }
+        root.put("favorites", favArray)
+
+        val playlistsArray = org.json.JSONArray()
+        getPlaylists().forEach { pl ->
+            val plObj = org.json.JSONObject().apply {
+                put("id", pl.id)
+                put("title", pl.title)
+                put("description", pl.description)
+            }
+            val songsArray = org.json.JSONArray()
+            getSongsInPlaylist(pl.id).forEach { s ->
+                val sObj = org.json.JSONObject().apply {
+                    put("id", s.id)
+                    put("title", s.title)
+                    put("artist", s.artist)
+                    put("album", s.album)
+                    put("durationMs", s.durationMs)
+                    put("coverUrl", s.coverUrl)
+                    put("mediaUri", s.mediaUri)
+                }
+                songsArray.put(sObj)
+            }
+            plObj.put("songs", songsArray)
+            playlistsArray.put(plObj)
+        }
+        root.put("playlists", playlistsArray)
+        root.toString(2)
+    }
+
+    suspend fun importBackupJson(jsonStr: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val root = org.json.JSONObject(jsonStr)
+            val favArray = root.optJSONArray("favorites")
+            if (favArray != null) {
+                for (i in 0 until favArray.length()) {
+                    val o = favArray.optJSONObject(i) ?: continue
+                    addFavorite(
+                        Song(
+                            id = o.optString("id"),
+                            title = o.optString("title"),
+                            artist = o.optString("artist"),
+                            album = o.optString("album"),
+                            durationMs = o.optLong("durationMs", 210000L),
+                            coverUrl = o.optString("coverUrl"),
+                            mediaUri = o.optString("mediaUri"),
+                            isFavorite = true
+                        )
+                    )
+                }
+            }
+            val playlistsArray = root.optJSONArray("playlists")
+            if (playlistsArray != null) {
+                for (i in 0 until playlistsArray.length()) {
+                    val plObj = playlistsArray.optJSONObject(i) ?: continue
+                    val title = plObj.optString("title")
+                    if (title.isBlank()) continue
+                    val created = createPlaylist(title, plObj.optString("description"))
+                    val songsArr = plObj.optJSONArray("songs") ?: continue
+                    for (j in 0 until songsArr.length()) {
+                        val sObj = songsArr.optJSONObject(j) ?: continue
+                        addSongToPlaylist(
+                            created.id,
+                            Song(
+                                id = sObj.optString("id"),
+                                title = sObj.optString("title"),
+                                artist = sObj.optString("artist"),
+                                album = sObj.optString("album"),
+                                durationMs = sObj.optLong("durationMs", 210000L),
+                                coverUrl = sObj.optString("coverUrl"),
+                                mediaUri = sObj.optString("mediaUri")
+                            )
+                        )
+                    }
+                }
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 }

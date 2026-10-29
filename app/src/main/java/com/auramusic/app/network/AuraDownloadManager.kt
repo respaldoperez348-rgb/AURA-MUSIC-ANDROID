@@ -141,9 +141,11 @@ class AuraDownloadManager(
                     AuraStreamResolver.resolveAudioStream(song.id, "${song.title} ${song.artist}") ?: ""
                 }
 
-                val downloadUrl = if (directStreamUrl.startsWith("http")) directStreamUrl else {
-                    "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3"
+                if (!directStreamUrl.startsWith("http")) {
+                    cleanFailedDownload(song.id)
+                    return@launch
                 }
+                val downloadUrl = directStreamUrl
 
                 val request = Request.Builder()
                     .url(downloadUrl)

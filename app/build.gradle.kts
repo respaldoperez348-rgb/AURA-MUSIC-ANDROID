@@ -13,8 +13,8 @@ android {
         applicationId = "com.auramusic.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.5.5"
+        versionCode = 20
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

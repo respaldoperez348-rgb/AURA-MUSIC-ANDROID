@@ -38,6 +38,56 @@ object LyricsEngine {
     // In-memory cache: "cacheKey" -> List<LyricLine>
     private val lyricsCache = ConcurrentHashMap<String, List<LyricLine>>()
 
+    fun clearCache() {
+        lyricsCache.clear()
+    }
+
+    suspend fun translateLyrics(lines: List<LyricLine>, targetLangCode: String = "es"): List<LyricLine> = withContext(Dispatchers.IO) {
+        if (lines.isEmpty()) return@withContext lines
+        if (lines.any { it.translatedText.isNotBlank() }) return@withContext lines
+        try {
+            val separator = " ||| "
+            val combinedText = lines.joinToString("\n") { it.text }
+            val urlBuilder = "https://translate.googleapis.com/translate_a/single".toHttpUrlOrNull()?.newBuilder()
+                ?: return@withContext lines
+            urlBuilder.addQueryParameter("client", "gtx")
+            urlBuilder.addQueryParameter("sl", "auto")
+            urlBuilder.addQueryParameter("tl", targetLangCode)
+            urlBuilder.addQueryParameter("dt", "t")
+            urlBuilder.addQueryParameter("q", combinedText)
+
+            val request = Request.Builder()
+                .url(urlBuilder.build())
+                .header("User-Agent", YOUTUBE_USER_AGENT)
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext lines
+                val body = response.body?.string() ?: return@withContext lines
+                val rootArray = JSONArray(body)
+                val sentences = rootArray.optJSONArray(0) ?: return@withContext lines
+                val sb = StringBuilder()
+                for (i in 0 until sentences.length()) {
+                    val part = sentences.optJSONArray(i)?.optString(0) ?: ""
+                    sb.append(part)
+                }
+                val translatedLines = sb.toString().split("\n")
+                return@withContext lines.mapIndexed { idx, line ->
+                    val trans = translatedLines.getOrNull(idx)?.trim() ?: ""
+                    if (trans.isNotBlank() && !trans.equals(line.text.trim(), ignoreCase = true)) {
+                        line.copy(translatedText = trans)
+                    } else {
+                        line
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Translation error: ${e.message}")
+            lines
+        }
+    }
+
     suspend fun fetchSyncedLyrics(
         trackName: String,
         artistName: String,

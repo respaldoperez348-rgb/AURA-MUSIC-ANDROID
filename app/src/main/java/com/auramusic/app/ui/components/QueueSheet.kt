@@ -22,6 +22,8 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +62,7 @@ fun QueueSheet(
     currentSong: Song,
     onPlayItem: (Int) -> Unit,
     onRemoveItem: (Int) -> Unit,
+    onMoveItem: (Int, Int) -> Unit = { _, _ -> },
     onClearQueue: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -259,6 +262,32 @@ fun QueueSheet(
                         }
 
                         if (!isCurrent) {
+                            if (idx > 0) {
+                                IconButton(
+                                    onClick = { onMoveItem(idx, idx - 1) },
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowUp,
+                                        contentDescription = "Subir",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            if (idx < queue.size - 1) {
+                                IconButton(
+                                    onClick = { onMoveItem(idx, idx + 1) },
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = "Bajar",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
                             IconButton(
                                 onClick = { onRemoveItem(idx) },
                                 modifier = Modifier.size(28.dp)

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.auramusic.app.data.model.LyricLine
 import com.auramusic.app.ui.theme.CyberCyan
+import com.auramusic.app.ui.theme.CyberPink
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextSecondary
 
@@ -36,6 +37,7 @@ fun LyricsView(
     lyrics: List<LyricLine>,
     currentPositionMs: Long,
     lyricsOffsetMs: Long = -200L,
+    showTranslation: Boolean = false,
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -110,6 +112,17 @@ fun LyricsView(
                             textAlign = TextAlign.Center,
                             lineHeight = 30.sp
                         )
+                        if (showTranslation && line.translatedText.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = line.translatedText,
+                                color = if (isActive) CyberPink else TextMuted.copy(alpha = 0.65f),
+                                fontSize = if (isActive) 15.sp else 13.sp,
+                                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 20.sp
+                            )
+                        }
                     }
                 }
             }

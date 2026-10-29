@@ -235,6 +235,7 @@ class MainActivity : ComponentActivity() {
                                             isScanningLocal = uiState.isScanningLocal,
                                             currentSong = uiState.currentSong,
                                             isPlaying = uiState.isPlaying,
+                                            listeningStats = uiState.listeningStats,
                                             onSelectSong = { song, queue ->
                                                 playerViewModel.playSongWithQueue(song, queue, resetShuffle = true)
                                             },
@@ -243,6 +244,7 @@ class MainActivity : ComponentActivity() {
                                             onPlayAllLocalTracks = { playerViewModel.playAllLocalTracks() },
                                             onScanLocalTracks = requestScanLocalAudio,
                                             onCreatePlaylist = { title -> playerViewModel.createPlaylist(title) },
+                                            onImportPlaylist = { queryOrUrl -> playerViewModel.importExternalPlaylist(queryOrUrl) },
                                             onDeletePlaylist = { id -> playerViewModel.deletePlaylist(id) },
                                             onOpenPlaylist = { pl -> playerViewModel.openPlaylist(pl) },
                                             onOpenSongOptions = { song -> playerViewModel.openSongOptions(song) }
@@ -269,6 +271,7 @@ class MainActivity : ComponentActivity() {
                                     onToggleFavorite = { playerViewModel.toggleFavorite(uiState.currentSong) },
                                     onPlayPause = { playerViewModel.playPause() },
                                     onNext = { playerViewModel.next() },
+                                    onPrevious = { playerViewModel.previous() },
                                     onExpand = { playerViewModel.setPlayerExpanded(true) }
                                 )
 
@@ -303,6 +306,8 @@ class MainActivity : ComponentActivity() {
                                     isRepeat = uiState.isRepeat,
                                     lyrics = uiState.lyrics,
                                     lyricsOffsetMs = uiState.lyricsOffsetMs,
+                                    showTranslation = uiState.showLyricsTranslation,
+                                    onToggleTranslation = { playerViewModel.toggleLyricsTranslation() },
                                     onPlayPause = { playerViewModel.playPause() },
                                     onNext = { playerViewModel.next() },
                                     onPrevious = { playerViewModel.previous() },
@@ -350,6 +355,7 @@ class MainActivity : ComponentActivity() {
                                 currentSong = uiState.currentSong,
                                 onPlayItem = { idx -> playerViewModel.playQueueItem(idx) },
                                 onRemoveItem = { idx -> playerViewModel.removeFromQueue(idx) },
+                                onMoveItem = { fromIdx, toIdx -> playerViewModel.moveQueueItem(fromIdx, toIdx) },
                                 onClearQueue = { playerViewModel.clearQueue() },
                                 onDismiss = { playerViewModel.setShowQueue(false) }
                             )
@@ -379,14 +385,20 @@ class MainActivity : ComponentActivity() {
                             SettingsSheet(
                                 audioQuality = uiState.audioQuality,
                                 loudnessNormalizer = uiState.loudnessNormalizer,
+                                autoRadioEnabled = uiState.autoRadioEnabled,
+                                skipSilenceEnabled = uiState.skipSilenceEnabled,
                                 currentTheme = uiState.currentTheme,
                                 appLanguage = uiState.appLanguage,
                                 lyricsOffsetMs = uiState.lyricsOffsetMs,
                                 onQualitySelected = { q -> playerViewModel.setAudioQuality(q) },
                                 onToggleLoudness = { playerViewModel.toggleLoudnessNormalizer() },
+                                onToggleAutoRadio = { playerViewModel.toggleAutoRadio() },
+                                onToggleSkipSilence = { playerViewModel.toggleSkipSilence() },
                                 onSelectTheme = { themeName -> playerViewModel.setThemePalette(themeName) },
                                 onSelectLanguage = { lang -> playerViewModel.setAppLanguage(lang) },
                                 onSelectLyricsOffset = { offset -> playerViewModel.setLyricsOffsetMs(offset) },
+                                onExportBackup = { playerViewModel.exportBackup() },
+                                onImportBackup = { playerViewModel.importBackup() },
                                 onClearCache = { playerViewModel.clearAppCache() },
                                 onDismiss = { playerViewModel.setShowSettings(false) }
                             )
@@ -405,6 +417,7 @@ class MainActivity : ComponentActivity() {
                                 onDismiss = { playerViewModel.openSongOptions(null) },
                                 onToggleFavorite = { playerViewModel.toggleFavorite(it) },
                                 onDownload = { playerViewModel.startDownload(it) },
+                                onDeleteDownload = { playerViewModel.deleteDownload(it) },
                                 onAddToQueueNext = { playerViewModel.addToQueueNext(it) },
                                 onAddToPlaylist = { plId, s -> playerViewModel.addSongToPlaylist(plId, s) },
                                 onCreatePlaylist = { name -> playerViewModel.createPlaylist(name) }
@@ -420,6 +433,8 @@ class MainActivity : ComponentActivity() {
                                 currentPositionMs = uiState.currentPositionMs,
                                 durationMs = uiState.durationMs,
                                 lyricsOffsetMs = uiState.lyricsOffsetMs,
+                                showTranslation = uiState.showLyricsTranslation,
+                                onToggleTranslation = { playerViewModel.toggleLyricsTranslation() },
                                 onSeekTo = { pos -> playerViewModel.seekTo(pos) },
                                 onPlayPause = { playerViewModel.playPause() },
                                 onNext = { playerViewModel.next() },

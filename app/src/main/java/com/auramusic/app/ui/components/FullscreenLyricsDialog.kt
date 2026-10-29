@@ -73,6 +73,7 @@ import com.auramusic.app.data.model.LyricLine
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
+import com.auramusic.app.ui.theme.CyberPink
 import com.auramusic.app.ui.theme.CyberSurfaceCard
 import com.auramusic.app.ui.theme.GlassBorder
 import com.auramusic.app.ui.theme.TextMuted
@@ -89,6 +90,8 @@ fun FullscreenLyricsDialog(
     currentPositionMs: Long,
     durationMs: Long,
     lyricsOffsetMs: Long = -200L,
+    showTranslation: Boolean = false,
+    onToggleTranslation: () -> Unit = {},
     onSeekTo: (Long) -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -266,6 +269,18 @@ fun FullscreenLyricsDialog(
                                     lineHeight = if (isActive) 36.sp else 28.sp,
                                     modifier = Modifier.fillMaxWidth(0.92f)
                                 )
+                                if (showTranslation && line.translatedText.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = line.translatedText,
+                                        color = if (isActive) CyberPink else TextMuted.copy(alpha = 0.65f),
+                                        fontSize = if (isActive) 18.sp else 15.sp,
+                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 24.sp,
+                                        modifier = Modifier.fillMaxWidth(0.90f)
+                                    )
+                                }
                             }
                         }
                     }
@@ -332,13 +347,14 @@ fun FullscreenLyricsDialog(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(CyberCyan.copy(alpha = 0.15f))
-                            .border(1.dp, CyberCyan.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .background(if (showTranslation) CyberPink.copy(alpha = 0.22f) else CyberCyan.copy(alpha = 0.15f))
+                            .border(1.dp, if (showTranslation) CyberPink else CyberCyan.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .clickable { onToggleTranslation() }
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = "LYRICS",
-                            color = CyberCyan,
+                            text = if (showTranslation) "ES • ON" else "TRADUCIR",
+                            color = if (showTranslation) CyberPink else CyberCyan,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,

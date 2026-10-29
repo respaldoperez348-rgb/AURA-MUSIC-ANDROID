@@ -7,6 +7,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -42,6 +44,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -85,6 +89,8 @@ fun StudioDeck(
     isRepeat: Boolean,
     lyrics: List<LyricLine> = emptyList(),
     lyricsOffsetMs: Long = -200L,
+    showTranslation: Boolean = false,
+    onToggleTranslation: () -> Unit = {},
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
@@ -181,9 +187,24 @@ fun StudioDeck(
             ) { mode ->
                 when (mode) {
                     DeckDisplayMode.VINYL -> {
+                        var vinylSwipeX by remember { mutableFloatStateOf(0f) }
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .pointerInput(Unit) {
+                                    detectHorizontalDragGestures(
+                                        onDragStart = { vinylSwipeX = 0f },
+                                        onDragEnd = {
+                                            if (vinylSwipeX < -95f) onNext()
+                                            else if (vinylSwipeX > 95f) onPrevious()
+                                        },
+                                        onHorizontalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            vinylSwipeX += dragAmount
+                                        }
+                                    )
+                                }
                         ) {
                             VinylRecord(
                                 isPlaying = isPlaying,
@@ -212,26 +233,48 @@ fun StudioDeck(
                                 lyrics = lyrics,
                                 currentPositionMs = currentPositionMs,
                                 lyricsOffsetMs = lyricsOffsetMs,
+                                showTranslation = showTranslation,
                                 onSeekTo = onSeekTo
                             )
 
-                            // Fullscreen lyrics expand icon
-                            Box(
+                            // Translate & Fullscreen lyrics action icons
+                            Row(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
-                                    .padding(8.dp)
-                                    .clip(CircleShape)
-                                    .background(CyberSurfaceCard)
-                                    .border(1.dp, GlassBorder, CircleShape)
-                                    .clickable { onOpenFullscreenLyrics() }
-                                    .padding(8.dp)
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.OpenInFull,
-                                    contentDescription = "Pantalla completa de letras",
-                                    tint = CyberCyan,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(if (showTranslation) CyberPink.copy(alpha = 0.25f) else CyberSurfaceCard)
+                                        .border(1.dp, if (showTranslation) CyberPink else GlassBorder, CircleShape)
+                                        .clickable { onToggleTranslation() }
+                                        .padding(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Translate,
+                                        contentDescription = "Traducir letra",
+                                        tint = if (showTranslation) CyberPink else CyberCyan,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(CyberSurfaceCard)
+                                        .border(1.dp, GlassBorder, CircleShape)
+                                        .clickable { onOpenFullscreenLyrics() }
+                                        .padding(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.OpenInFull,
+                                        contentDescription = "Pantalla completa de letras",
+                                        tint = CyberCyan,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
                         }
                     }

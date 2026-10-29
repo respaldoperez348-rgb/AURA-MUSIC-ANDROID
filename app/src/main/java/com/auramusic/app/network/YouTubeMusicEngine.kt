@@ -29,7 +29,12 @@ object YouTubeMusicEngine {
 
     private const val SEARCH_URL = "https://music.youtube.com/youtubei/v1/search?prettyPrint=false"
     private const val BROWSE_URL = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false"
+    private const val NEXT_URL = "https://music.youtube.com/youtubei/v1/next?prettyPrint=false"
     private val searchCache = java.util.concurrent.ConcurrentHashMap<String, List<Song>>()
+
+    fun clearCache() {
+        searchCache.clear()
+    }
 
     suspend fun searchTracks(query: String): List<Song> = withContext(Dispatchers.IO) {
         val effectiveQuery = if (query.isBlank()) "Cyberpunk Synthwave Top Hits" else query.trim()
@@ -381,7 +386,7 @@ object YouTubeMusicEngine {
                 )
             }
 
-            // 4. If videoId is blank but playlist (PL...), resolve first playable track!
+            // 4. If videoId is blank but playlist (PL/VL...), assign browseId lazily (resolved on play by AuraStreamResolver)
             if (videoId.isBlank() && !isArtistItem) {
                 val targetBrowse = if (browseId.startsWith("VL")) {
                     browseId
@@ -392,7 +397,7 @@ object YouTubeMusicEngine {
                 }
 
                 if (targetBrowse.isNotBlank()) {
-                    videoId = resolveFirstTrackFromBrowse(targetBrowse) ?: ""
+                    videoId = targetBrowse
                 }
             }
 
@@ -474,7 +479,7 @@ object YouTubeMusicEngine {
                 artist = "Daft Punk ft. Pharrell Williams",
                 album = "Random Access Memories",
                 durationMs = 248000L,
-                coverUrl = "https://lh3.googleusercontent.com/fL9g3z400qW1y8sQ9tXG_lPvZ42zWcO64L0w1X9Y2Z3b4c5d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a=w544-h544-l90-rj",
+                coverUrl = "https://i.ytimg.com/vi/4D7u5KF7SP8/hqdefault.jpg",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3",
                 isFavorite = true
             ),
@@ -484,7 +489,7 @@ object YouTubeMusicEngine {
                 artist = "Daft Punk ft. Julian Casablancas",
                 album = "Random Access Memories",
                 durationMs = 337000L,
-                coverUrl = "https://lh3.googleusercontent.com/fL9g3z400qW1y8sQ9tXG_lPvZ42zWcO64L0w1X9Y2Z3b4c5d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a=w544-h544-l90-rj",
+                coverUrl = "https://i.ytimg.com/vi/a5uQMwRMHcs/hqdefault.jpg",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
                 isFavorite = true
             ),
@@ -494,7 +499,7 @@ object YouTubeMusicEngine {
                 artist = "The Weeknd",
                 album = "After Hours",
                 durationMs = 200000L,
-                coverUrl = "https://lh3.googleusercontent.com/mO4rT9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9h0j1k2l3z4x5c6v7b8n9m0=w544-h544-l90-rj",
+                coverUrl = "https://i.ytimg.com/vi/4NRXx6U8ABQ/hqdefault.jpg",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
                 isFavorite = true
             ),
@@ -504,7 +509,7 @@ object YouTubeMusicEngine {
                 artist = "The Weeknd ft. Daft Punk",
                 album = "Starboy",
                 durationMs = 230000L,
-                coverUrl = "https://lh3.googleusercontent.com/9nJ9P_9e8r7t6y5u4i3o2p1a0s9d8f7g6h5j4k3l2z1x0c9v8b7n6m5a4s3d2f1g=w544-h544-l90-rj",
+                coverUrl = "https://i.ytimg.com/vi/34Na4j8AVgA/hqdefault.jpg",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3",
                 isFavorite = false
             ),
@@ -514,7 +519,7 @@ object YouTubeMusicEngine {
                 artist = "Bad Bunny & Chencho Corleone",
                 album = "Un Verano Sin Ti",
                 durationMs = 178000L,
-                coverUrl = "https://lh3.googleusercontent.com/b7U9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9=w544-h544-l90-rj",
+                coverUrl = "https://i.ytimg.com/vi/saGYMhApaH8/hqdefault.jpg",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
                 isFavorite = true
             ),
@@ -524,7 +529,7 @@ object YouTubeMusicEngine {
                 artist = "Jaze",
                 album = "Toy Lokazo",
                 durationMs = 191000L,
-                coverUrl = "https://lh3.googleusercontent.com/kYqK6d2wX4f-3k8zM8z8=w544-h544-l90-rj",
+                coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
                 isFavorite = true
             ),
@@ -534,7 +539,7 @@ object YouTubeMusicEngine {
                 artist = "Jaze",
                 album = "Toy Lokazo",
                 durationMs = 212000L,
-                coverUrl = "https://lh3.googleusercontent.com/kYqK6d2wX4f-3k8zM8z8=w544-h544-l90-rj",
+                coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3",
                 isFavorite = false
             ),
@@ -544,7 +549,7 @@ object YouTubeMusicEngine {
                 artist = "ROSALÍA",
                 album = "MOTOMAMI +",
                 durationMs = 157000L,
-                coverUrl = "https://lh3.googleusercontent.com/c4Y9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9=w544-h544-l90-rj",
+                coverUrl = "https://i.ytimg.com/vi/81UZ9Q3x5jA/hqdefault.jpg",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
                 isFavorite = false
             ),
@@ -554,7 +559,7 @@ object YouTubeMusicEngine {
                 artist = "Gorillaz",
                 album = "Demon Days",
                 durationMs = 223000L,
-                coverUrl = "https://lh3.googleusercontent.com/d6X9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9=w544-h544-l90-rj",
+                coverUrl = "https://i.ytimg.com/vi/HyHNuVaZJ-k/hqdefault.jpg",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
                 isFavorite = true
             ),
@@ -584,7 +589,7 @@ object YouTubeMusicEngine {
                 artist = "Trueno",
                 album = "BIEN O MAL",
                 durationMs = 175000L,
-                coverUrl = "https://lh3.googleusercontent.com/e5Y9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9=w544-h544-l90-rj",
+                coverUrl = "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=500&auto=format&fit=crop&q=80",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3",
                 isFavorite = true
             ),
@@ -594,7 +599,7 @@ object YouTubeMusicEngine {
                 artist = "Travis Scott",
                 album = "ASTROWORLD",
                 durationMs = 312000L,
-                coverUrl = "https://lh3.googleusercontent.com/a8X9e91U9rQ4v0B7XoX5_8q8q0e4p9v0x2z5w6e7r8t9y0u1i2o3p4a5s6d7f8g9=w544-h544-l90-rj",
+                coverUrl = "https://i.ytimg.com/vi/60ItHLz5WEA/hqdefault.jpg",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
                 isFavorite = false
             ),
@@ -604,7 +609,7 @@ object YouTubeMusicEngine {
                 artist = "Dua Lipa",
                 album = "Future Nostalgia",
                 durationMs = 203000L,
-                coverUrl = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80",
+                coverUrl = "https://i.ytimg.com/vi/TUVcZfQe-Kw/hqdefault.jpg",
                 mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3",
                 isFavorite = false
             )
@@ -621,6 +626,99 @@ object YouTubeMusicEngine {
     suspend fun fetchArtistTopTracks(artistName: String): List<Song> = withContext(Dispatchers.IO) {
         val query = "$artistName Top Hits"
         searchTracks(query).filter { !it.isArtist }
+    }
+
+    suspend fun fetchRelatedTracks(videoId: String, currentTitle: String, currentArtist: String): List<Song> = withContext(Dispatchers.IO) {
+        val related = mutableListOf<Song>()
+        try {
+            if (videoId.length == 11) {
+                val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"videoId":"$videoId","enablePersistentPlaylistPanel":true,"isAudioOnly":true}"""
+                val req = Request.Builder()
+                    .url(NEXT_URL)
+                    .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                    .header("Content-Type", "application/json")
+                    .build()
+
+                client.newCall(req).execute().use { resp ->
+                    val body = resp.body?.string()
+                    if (body != null && resp.isSuccessful) {
+                        val root = JSONObject(body)
+                        val contents = root.optJSONObject("contents")
+                            ?.optJSONObject("singleColumnMusicWatchNextResultsRenderer")
+                            ?.optJSONObject("tabbedRenderer")
+                            ?.optJSONObject("watchNextTabbedResultsRenderer")
+                            ?.optJSONArray("tabs")?.optJSONObject(0)
+                            ?.optJSONObject("tabRenderer")?.optJSONObject("content")
+                            ?.optJSONObject("musicQueueRenderer")?.optJSONObject("content")
+                            ?.optJSONObject("playlistPanelRenderer")?.optJSONArray("contents")
+
+                        if (contents != null) {
+                            for (i in 0 until contents.length()) {
+                                val panelItem = contents.optJSONObject(i)?.optJSONObject("playlistPanelVideoRenderer") ?: continue
+                                val vid = panelItem.optString("videoId")
+                                if (vid.isBlank() || vid == videoId) continue
+                                val title = panelItem.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: continue
+                                val artist = panelItem.optJSONObject("longBylineText")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text")
+                                    ?: panelItem.optJSONObject("shortBylineText")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text")
+                                    ?: currentArtist
+                                val thumb = "https://i.ytimg.com/vi/$vid/hqdefault.jpg"
+                                related.add(
+                                    Song(
+                                        id = vid,
+                                        title = title,
+                                        artist = artist,
+                                        coverUrl = thumb,
+                                        durationMs = 210000L,
+                                        mediaUri = "https://www.youtube.com/watch?v=$vid"
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        if (related.isNotEmpty()) {
+            return@withContext related.distinctBy { it.id }.take(12)
+        }
+
+        val fallbackQuery = if (currentArtist.isNotBlank() && currentArtist != "Unknown Artist") {
+            "$currentArtist Mix"
+        } else {
+            "$currentTitle Mix"
+        }
+        searchTracks(fallbackQuery).filter { !it.isArtist && !it.isAlbum && it.id != videoId }.take(10)
+    }
+
+    suspend fun importExternalPlaylist(urlOrQuery: String): Pair<String, List<Song>> = withContext(Dispatchers.IO) {
+        val raw = urlOrQuery.trim()
+        val listParam = if (raw.contains("list=")) {
+            raw.substringAfter("list=").substringBefore("&").trim()
+        } else if (raw.startsWith("PL") || raw.startsWith("VL") || raw.startsWith("OLAK") || raw.startsWith("MPREb_")) {
+            raw
+        } else {
+            ""
+        }
+
+        if (listParam.isNotBlank()) {
+            val browseId = when {
+                listParam.startsWith("VL") || listParam.startsWith("MPREb_") -> listParam
+                else -> "VL$listParam"
+            }
+            val tracks = fetchAlbumTracks(browseId, "YouTube Playlist", "YouTube Music")
+            if (tracks.isNotEmpty()) {
+                val title = tracks.firstOrNull()?.album?.takeIf { it.isNotBlank() && it != "YouTube Playlist" } ?: "Playlist Importada"
+                return@withContext Pair(title, tracks)
+            }
+        }
+
+        val searched = searchTracks(raw).filter { !it.isArtist && !it.isAlbum }
+        val cleanTitle = raw.removePrefix("https://").removePrefix("http://").take(28).ifBlank { "Mi Mix Importado" }
+        Pair(cleanTitle, searched.take(15))
     }
 
     suspend fun fetchArtistProfile(artistNameOrId: String): ArtistProfile? = withContext(Dispatchers.IO) {

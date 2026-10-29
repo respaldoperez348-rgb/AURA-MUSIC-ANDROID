@@ -56,16 +56,16 @@ jobs:
             
             **Creador & Desarrollador Principal**: MANUEL DAVID TINEO
             
-            ### ✨ Novedades de la versión 1.5.5 (Beta Edition)
-            - 🎨 **Nuevo Icono Cyberpunk Neón**: Icono de aplicación rediseñado con nota musical de neón, ondas espectrales de audio y surcos de vinilo adaptativos.
-            - 🔁 **Reproducción Continua & Gapless Playback**: Avance automático de canciones sin pausas ni bloqueos mediante encolado predictivo en ExoPlayer (`addMediaItem`).
-            - 📋 **Cola Estricta en Bóveda y Favoritos**: Modo secuencial estricto en favoritos y listas locales, desactivando el shuffle no deseado y eliminando la inyección de pistas externas.
-            - 🎤 **Sincronización de Letras sin Adelantos**: Ajuste de latencia de audio con offset configurable (-200 ms por defecto) y renderizado preciso en tiempo real.
-            - 📱 **Barra de Estado del Sistema Visible**: Integración de Edge-to-Edge con iconos claros de reloj, batería y Wi-Fi protegidos con Window Insets.
-            - 🔔 **Notificaciones Nativas de Descarga**: Progreso en vivo y aviso de finalización directamente en la bandeja de notificaciones del sistema Android.
-            - ⚡ **Buscador Ultrarrápido con Debounce**: Reducción de cuellos de botella con debounce de 300 ms, cancelación inmediata de sockets y búsqueda local indexada.
-            - 👤 **Créditos Oficiales**: Creador & Desarrollador Principal **MANUEL DAVID TINEO**.
-            - 🔔 **Notificaciones de Descarga**: Feedback instantáneo al completar descargas a la bóveda offline.
-            - 💿 **Studio Deck**: Vinilo giratorio interactivo, letras oficiales sincronizadas y ecualizador DSP.
+            ### ✨ Novedades de Aura Music v2.0.0
+            - 📻 **Auto-Radio Infinito (Automix)**: Al terminar tu cola actual, encola automáticamente canciones relacionadas desde el motor InnerTube `/next` sin interrumpir la reproducción.
+            - 💾 **Caché de Disco Inteligente (512 MB LRU)**: Almacenamiento automático en caché de pistas reproducidas (`SimpleCache` + `CacheDataSource`) para reproducción instantánea sin consumir datos al repetir canciones.
+            - 🔇 **Saltar Silencios (`Skip Silence`)**: Recorte automático en tiempo real de silencios en introducciones y cierres de pistas.
+            - 👆 **Gestos Táctiles en MiniPlayer y Vinilo**: Desliza horizontalmente en el MiniPlayer o sobre el vinilo de Studio Deck para cambiar de canción (Siguiente/Anterior), y desliza hacia arriba en el MiniPlayer para expandir el reproductor.
+            - 🌐 **Traducción de Letras Sincronizadas (Karaoke Bilingüe)**: Traducción en lote de letras sincronizadas con visualización bilingüe tanto en Studio Deck como en pantalla completa.
+            - 📊 **Visualizador de Espectro Acoplado al DSP**: Las barras de frecuencia responden en tiempo real a las 5 bandas del ecualizador y al nivel de `BassBoost`.
+            - ↕️ **Reordenamiento de Cola en Vivo**: Controles directos para subir o bajar canciones en la cola de reproducción con re-sincronización automática de ExoPlayer.
+            - 📥 **Importador de Playlists de YouTube**: Importa listas externas mediante URL, ID (`PL...` / `VL...`) o búsqueda directa desde la pestaña `LISTS` en la Bóveda.
+            - 📈 **Telemetría "Aura Wrapped" & Backup JSON**: Panel de estadísticas en vivo (`PLAYS`, `TIEMPO`, `TOP ARTISTA`) en la Bóveda y exportación/restauración completa en JSON desde Ajustes.
+            - 🛠️ **Correcciones Críticas de Estabilidad y Velocidad**: Solución definitiva al límite de 2 canciones y cierre por `TransactionTooLargeException` (Binder IPC), búsqueda paralela hasta 5x más rápida y optimización de recomposiciones en UI.
           draft: false
           prerelease: true
