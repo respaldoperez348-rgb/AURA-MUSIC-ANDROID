@@ -188,7 +188,7 @@ class MainActivity : ComponentActivity() {
                                             userTopArtists = uiState.userTopArtists,
                                             popularStations = uiState.popularStations,
                                             appLanguage = uiState.appLanguage,
-                                            onSelectSong = { song -> playerViewModel.playSong(song, uiState.searchResults) },
+                                            onSelectSong = { song -> playerViewModel.playSong(song, uiState.searchResults, buildSmartRadio = true) },
                                             onSelectVibe = { vibe ->
                                                 playerViewModel.search(vibe)
                                                 playerViewModel.selectTab(MainTab.RADAR)
@@ -210,7 +210,7 @@ class MainActivity : ComponentActivity() {
                                             onFetchSuggestions = { q -> playerViewModel.fetchSearchSuggestions(q) },
                                             onDeleteHistoryItem = { q -> playerViewModel.deleteSearchHistoryItem(q) },
                                             onClearHistory = { playerViewModel.clearSearchHistory() },
-                                            onSelectSong = { song -> playerViewModel.playSong(song, uiState.searchResults) },
+                                            onSelectSong = { song -> playerViewModel.playSong(song, uiState.searchResults, buildSmartRadio = true) },
                                             onOpenSongOptions = { song -> playerViewModel.openSongOptions(song) }
                                         )
                                     }

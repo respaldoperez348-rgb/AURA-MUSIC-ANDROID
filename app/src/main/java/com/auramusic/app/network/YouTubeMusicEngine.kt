@@ -245,6 +245,19 @@ object YouTubeMusicEngine {
                 // Check musicShelfRenderer directly
                 val shelf = sec.optJSONObject("musicShelfRenderer")
                 if (shelf != null) {
+                    val shelfTitle = shelf.optJSONObject("title")?.optJSONArray("runs")
+                        ?.optJSONObject(0)?.optString("text")?.lowercase() ?: ""
+                    // Skip non-music shelves (Podcasts, Episodes, Community playlists)
+                    if (shelfTitle.contains("podcast") ||
+                        shelfTitle.contains("episode") ||
+                        shelfTitle.contains("episodio") ||
+                        shelfTitle.contains("playlist") ||
+                        shelfTitle.contains("lista") ||
+                        shelfTitle.contains("community") ||
+                        shelfTitle.contains("comunidad")
+                    ) {
+                        continue
+                    }
                     val contents = shelf.optJSONArray("contents") ?: continue
                     for (k in 0 until contents.length()) {
                         val it = contents.optJSONObject(k) ?: continue
@@ -259,6 +272,56 @@ object YouTubeMusicEngine {
         }
 
         return if (results.isNotEmpty()) results else getCuratedFallbackTracks("")
+    }
+
+    private fun parseDurationSeconds(text: String): Long? {
+        val cleaned = text.trim()
+        val parts = cleaned.split(":")
+        if (parts.size !in 2..3 || !parts.all { it.isNotEmpty() && it.all(Char::isDigit) }) return null
+        return try {
+            if (parts.size == 2) {
+                parts[0].toLong() * 60L + parts[1].toLong()
+            } else {
+                parts[0].toLong() * 3600L + parts[1].toLong() * 60L + parts[2].toLong()
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun isValidMusicTrack(
+        title: String,
+        artist: String,
+        subtitleText: String = "",
+        durationSec: Long? = null
+    ): Boolean {
+        val t = title.lowercase()
+        val a = artist.lowercase()
+        val sub = subtitleText.lowercase()
+
+        // 1. Reject podcasts, episodes, shows, or playlists in metadata subtitle
+        val forbiddenSubtitleTokens = listOf(
+            "podcast", "episode", "episodio", "programa", "playlist", "lista de reproducción", "serie"
+        )
+        if (forbiddenSubtitleTokens.any { sub.contains(it) }) return false
+
+        // 2. Reject podcast/interview/reaction/non-music video keywords in title or channel
+        val forbiddenTitleTokens = listOf(
+            "podcast", "episodio", "episode", "entrevista", "interview",
+            "charla", "conferencia", "reacción", "reaction", "resumen",
+            "documental", "audiolibro", "audiobook", "capítulo", "capitulo",
+            "fms ", "red bull batalla", "detrás de cámaras", "making of",
+            "full show", "full concert", "en vivo completo", "stream completo",
+            "t1:", "t2:", "t3:", "ep.", "ep #"
+        )
+        if (forbiddenTitleTokens.any { t.contains(it) || a.contains(it) }) return false
+
+        // 3. Reject long podcasts/mixes/interviews (> 9 min) or tiny clips (< 45 sec)
+        if (durationSec != null && (durationSec > 540L || durationSec in 1L..44L)) {
+            return false
+        }
+
+        return true
     }
 
     private fun extractSongFromListItem(col: JSONObject): Song? {
@@ -279,28 +342,63 @@ object YouTubeMusicEngine {
 
             if (title.isBlank()) return null
 
-            // Artist is in flex1 runs (skip non-artist words like 'Song', '•', etc.)
+            // Artist & subtitle metadata are in flex1 runs
             val artistRuns = flex1?.optJSONObject("text")?.optJSONArray("runs")
                 ?: flex1?.optJSONObject("title")?.optJSONArray("runs")
 
             var artist = "Unknown Artist"
+            var parsedDurationSec: Long? = null
+            val subtitleBuilder = StringBuilder()
+
             if (artistRuns != null) {
                 for (i in 0 until artistRuns.length()) {
                     val candidate = artistRuns.getJSONObject(i).optString("text").trim()
-                    if (candidate.isNotEmpty() &&
+                    if (candidate.isEmpty()) continue
+                    subtitleBuilder.append(candidate).append(" ")
+
+                    val maybeDur = parseDurationSeconds(candidate)
+                    if (maybeDur != null) {
+                        parsedDurationSec = maybeDur
+                        continue
+                    }
+
+                    if (artist == "Unknown Artist" &&
                         candidate != "•" &&
-                        candidate != "Song" &&
-                        candidate != "Video" &&
-                        candidate != "Single" &&
-                        candidate != "Album" &&
-                        candidate != "Playlist" &&
-                        candidate != "Episode" &&
-                        candidate != "Podcast" &&
-                        !candidate.endsWith("plays") &&
-                        !candidate.endsWith("views")
+                        candidate != "&" &&
+                        candidate != "," &&
+                        !candidate.equals("Song", ignoreCase = true) &&
+                        !candidate.equals("Canción", ignoreCase = true) &&
+                        !candidate.equals("Video", ignoreCase = true) &&
+                        !candidate.equals("Vídeo", ignoreCase = true) &&
+                        !candidate.equals("Single", ignoreCase = true) &&
+                        !candidate.equals("Sencillo", ignoreCase = true) &&
+                        !candidate.equals("Album", ignoreCase = true) &&
+                        !candidate.equals("Álbum", ignoreCase = true) &&
+                        !candidate.equals("Playlist", ignoreCase = true) &&
+                        !candidate.equals("Episode", ignoreCase = true) &&
+                        !candidate.equals("Episodio", ignoreCase = true) &&
+                        !candidate.equals("Podcast", ignoreCase = true) &&
+                        !candidate.endsWith("plays", ignoreCase = true) &&
+                        !candidate.endsWith("views", ignoreCase = true) &&
+                        !candidate.contains("reproducciones", ignoreCase = true) &&
+                        !candidate.contains("vistas", ignoreCase = true)
                     ) {
                         artist = candidate
-                        break
+                    }
+                }
+            }
+
+            // Also check fixedColumns for track duration if not in flex1
+            if (parsedDurationSec == null) {
+                val fixedCols = col.optJSONArray("fixedColumns")
+                if (fixedCols != null && fixedCols.length() > 0) {
+                    val fixed0 = fixedCols.optJSONObject(0)
+                        ?.optJSONObject("musicResponsiveListItemFixedColumnRenderer")
+                    val fixedText = fixed0?.optJSONObject("text")?.optJSONArray("runs")
+                        ?.optJSONObject(0)?.optString("text")
+                        ?: fixed0?.optJSONObject("text")?.optString("simpleText")
+                    if (!fixedText.isNullOrBlank()) {
+                        parsedDurationSec = parseDurationSeconds(fixedText)
                     }
                 }
             }
@@ -334,7 +432,7 @@ object YouTubeMusicEngine {
                 if (plItem != null) videoId = plItem.optString("videoId")
             }
 
-            // 2. Detect Artist / Album / Playlist identifiers
+            // 2. Detect Artist / Album identifiers
             var isArtistItem = false
             val navEndpoint = col.optJSONObject("navigationEndpoint")
             var browseId = navEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId") ?: ""
@@ -342,8 +440,6 @@ object YouTubeMusicEngine {
                 browseId = titleRuns.getJSONObject(0).optJSONObject("navigationEndpoint")
                     ?.optJSONObject("browseEndpoint")?.optString("browseId") ?: ""
             }
-
-            val playlistId = overlayPlay?.optJSONObject("watchPlaylistEndpoint")?.optString("playlistId") ?: ""
 
             if (browseId.startsWith("UC") || browseId.contains("artist", ignoreCase = true) ||
                 artist.equals("Artist", ignoreCase = true) || artist.equals("Artista", ignoreCase = true)) {
@@ -386,18 +482,13 @@ object YouTubeMusicEngine {
                 )
             }
 
-            // 4. If videoId is blank but playlist (PL/VL...), assign browseId lazily (resolved on play by AuraStreamResolver)
-            if (videoId.isBlank() && !isArtistItem) {
-                val targetBrowse = if (browseId.startsWith("VL")) {
-                    browseId
-                } else if (playlistId.isNotBlank()) {
-                    if (playlistId.startsWith("VL")) playlistId else "VL$playlistId"
-                } else {
-                    ""
+            // 4. Strict music filtering for Songs: never turn VL/PL playlists or podcasts into fake Song items
+            if (!isArtistItem) {
+                if (videoId.length != 11) {
+                    return null
                 }
-
-                if (targetBrowse.isNotBlank()) {
-                    videoId = targetBrowse
+                if (!isValidMusicTrack(title, artist, subtitleBuilder.toString(), parsedDurationSec)) {
+                    return null
                 }
             }
 
@@ -405,20 +496,16 @@ object YouTubeMusicEngine {
                 thumb = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
             }
 
-            // If it's not an artist and still has no videoId, we drop the unplayable item instead of creating bogus hash URLs
-            if (videoId.isBlank() && !isArtistItem) {
-                return null
-            }
-
             val finalId = if (isArtistItem) (if (browseId.isNotBlank()) browseId else title) else videoId
             val mediaUrl = if (isArtistItem) "" else "https://www.youtube.com/watch?v=$finalId"
+            val finalDurationMs = if (isArtistItem) 0L else ((parsedDurationSec ?: 210L) * 1000L)
 
             return Song(
                 id = finalId,
                 title = title,
                 artist = if (isArtistItem) "Artist" else artist,
                 coverUrl = thumb,
-                durationMs = if (isArtistItem) 0L else 210000L,
+                durationMs = finalDurationMs,
                 mediaUri = mediaUrl,
                 isArtist = isArtistItem
             )
@@ -632,7 +719,8 @@ object YouTubeMusicEngine {
         val related = mutableListOf<Song>()
         try {
             if (videoId.length == 11) {
-                val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"videoId":"$videoId","enablePersistentPlaylistPanel":true,"isAudioOnly":true}"""
+                // RDAMVM<videoId> is YouTube Music's official Spotify-style Song Radio / Automix generator
+                val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"videoId":"$videoId","playlistId":"RDAMVM$videoId","enablePersistentPlaylistPanel":true,"isAudioOnly":true}"""
                 val req = Request.Builder()
                     .url(NEXT_URL)
                     .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
@@ -657,19 +745,42 @@ object YouTubeMusicEngine {
                             for (i in 0 until contents.length()) {
                                 val panelItem = contents.optJSONObject(i)?.optJSONObject("playlistPanelVideoRenderer") ?: continue
                                 val vid = panelItem.optString("videoId")
-                                if (vid.isBlank() || vid == videoId) continue
+                                if (vid.length != 11 || vid == videoId) continue
                                 val title = panelItem.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: continue
-                                val artist = panelItem.optJSONObject("longBylineText")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text")
-                                    ?: panelItem.optJSONObject("shortBylineText")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text")
-                                    ?: currentArtist
-                                val thumb = "https://i.ytimg.com/vi/$vid/hqdefault.jpg"
+                                val bylineRuns = panelItem.optJSONObject("longBylineText")?.optJSONArray("runs")
+                                    ?: panelItem.optJSONObject("shortBylineText")?.optJSONArray("runs")
+                                val artist = bylineRuns?.optJSONObject(0)?.optString("text") ?: currentArtist
+                                val subtitleFull = buildString {
+                                    if (bylineRuns != null) {
+                                        for (b in 0 until bylineRuns.length()) {
+                                            append(bylineRuns.optJSONObject(b)?.optString("text") ?: "").append(" ")
+                                        }
+                                    }
+                                }
+                                val lengthStr = panelItem.optJSONObject("lengthText")?.optJSONArray("runs")
+                                    ?.optJSONObject(0)?.optString("text")
+                                    ?: panelItem.optJSONObject("lengthText")?.optString("simpleText")
+                                    ?: ""
+                                val durationSec = parseDurationSeconds(lengthStr)
+
+                                if (!isValidMusicTrack(title, artist, subtitleFull, durationSec)) continue
+
+                                var thumb = "https://i.ytimg.com/vi/$vid/hqdefault.jpg"
+                                val thumbs = panelItem.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+                                if (thumbs != null && thumbs.length() > 0) {
+                                    val candidateUrl = thumbs.getJSONObject(thumbs.length() - 1).optString("url")
+                                    if (candidateUrl.isNotBlank()) {
+                                        thumb = if (candidateUrl.startsWith("//")) "https:$candidateUrl" else candidateUrl
+                                    }
+                                }
+
                                 related.add(
                                     Song(
                                         id = vid,
                                         title = title,
                                         artist = artist,
                                         coverUrl = thumb,
-                                        durationMs = 210000L,
+                                        durationMs = (durationSec ?: 210L) * 1000L,
                                         mediaUri = "https://www.youtube.com/watch?v=$vid"
                                     )
                                 )
@@ -683,15 +794,15 @@ object YouTubeMusicEngine {
         }
 
         if (related.isNotEmpty()) {
-            return@withContext related.distinctBy { it.id }.take(12)
+            return@withContext related.distinctBy { it.id }.take(20)
         }
 
         val fallbackQuery = if (currentArtist.isNotBlank() && currentArtist != "Unknown Artist") {
-            "$currentArtist Mix"
+            "$currentArtist canciones"
         } else {
-            "$currentTitle Mix"
+            "$currentTitle canción"
         }
-        searchTracks(fallbackQuery).filter { !it.isArtist && !it.isAlbum && it.id != videoId }.take(10)
+        searchTracks(fallbackQuery).filter { !it.isArtist && !it.isAlbum && it.id != videoId }.take(15)
     }
 
     suspend fun importExternalPlaylist(urlOrQuery: String): Pair<String, List<Song>> = withContext(Dispatchers.IO) {

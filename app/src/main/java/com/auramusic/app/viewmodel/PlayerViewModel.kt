@@ -133,6 +133,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var lyricsJob: Job? = null
     private var playJob: Job? = null
     private var prefetchJob: Job? = null
+    private var radioQueueJob: Job? = null
+    private var unshuffledQueue: List<Song> = emptyList()
     private var isTransitioning = false
 
     init {
@@ -620,7 +622,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun playSong(song: Song, contextQueue: List<Song>? = null) {
+    fun playSong(song: Song, contextQueue: List<Song>? = null, buildSmartRadio: Boolean = false) {
         // If the item clicked is an Artist profile, open Artist Detail View!
         if (song.isArtist) {
             openArtistDetail(song)
@@ -641,7 +643,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         // 1. Immediately reflect the selected track in the UI for instant response
-        val playQueue = if (!contextQueue.isNullOrEmpty()) {
+        val playQueue = if (buildSmartRadio) {
+            // Start with the selected song and clean fallback tracks while Smart Song Radio loads in the background
+            val initialExtras = (contextQueue ?: _uiState.value.queue)
+                .filter { !it.isArtist && !it.isAlbum && it.id != song.id }
+            listOf(song) + (if (_uiState.value.isShuffle) initialExtras.shuffled() else initialExtras)
+        } else if (!contextQueue.isNullOrEmpty()) {
             contextQueue.filter { !it.isArtist && !it.isAlbum }
         } else if (_uiState.value.queue.none { it.id == song.id }) {
             listOf(song) + _uiState.value.queue.filter { !it.isArtist && !it.isAlbum }
@@ -668,6 +675,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         // 2. Fetch lyrics concurrently
         loadLyricsForSong(song)
+
+        // 2b. If started from Search or Home track tap, build a Spotify-style Song Radio (RDAMVM) queue around this track
+        if (buildSmartRadio && !song.id.startsWith("local_")) {
+            radioQueueJob?.cancel()
+            radioQueueJob = viewModelScope.launch(Dispatchers.IO) {
+                val related = YouTubeMusicEngine.fetchRelatedTracks(song.id, song.title, song.artist)
+                    .filter { it.id != song.id && !it.isArtist && !it.isAlbum }
+                if (related.isNotEmpty() && _uiState.value.currentSong.id == song.id) {
+                    unshuffledQueue = listOf(song) + related
+                    val orderedRelated = if (_uiState.value.isShuffle) related.shuffled() else related
+                    val smartQueue = listOf(song) + orderedRelated
+                    AuraPlaybackBridge.queue.value = smartQueue
+                    AuraPlaybackBridge.currentIndex = 0
+                    _uiState.update { it.copy(queue = smartQueue, currentIndex = 0) }
+                    prefetchNextTrackIntoPlayer()
+                }
+            }
+        }
 
         playJob?.cancel()
         prefetchJob?.cancel()
@@ -792,12 +817,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         prefetchJob?.cancel()
         prefetchJob = viewModelScope.launch(Dispatchers.IO) {
             var q = initialQ
-            // Auto-Radio / Automix: if at the end of the queue and Auto-Radio is enabled, fetch related songs!
-            if (_uiState.value.autoRadioEnabled && !_uiState.value.isShuffle && (currentIdx >= q.size - 1 || q.size <= 1)) {
+            // Auto-Radio / Automix: if near the end of the queue and Auto-Radio is enabled, fetch Song Radio tracks
+            if (_uiState.value.autoRadioEnabled && (currentIdx >= q.size - 1 || q.size <= 1)) {
                 val related = YouTubeMusicEngine.fetchRelatedTracks(curSong.id, curSong.title, curSong.artist)
-                    .filter { rel -> q.none { it.id == rel.id } }
+                    .filter { rel -> q.none { it.id == rel.id } && !rel.isArtist && !rel.isAlbum }
                 if (related.isNotEmpty()) {
-                    val expandedQueue = q + related
+                    val orderedRelated = if (_uiState.value.isShuffle) related.shuffled() else related
+                    val expandedQueue = q + orderedRelated
                     q = expandedQueue
                     AuraPlaybackBridge.queue.value = expandedQueue
                     _uiState.update { it.copy(queue = expandedQueue) }
@@ -806,12 +832,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             if (q.size <= 1) return@launch
 
-            val nextIdx = if (_uiState.value.isShuffle && q.size > 1) {
-                val choices = q.indices.filter { it != currentIdx }
-                choices.randomOrNull() ?: ((currentIdx + 1) % q.size)
-            } else {
-                (currentIdx + 1) % q.size
-            }
+            // Queue is already ordered (either sequential or Fisher-Yates shuffled when Shuffle is toggled)
+            val nextIdx = (currentIdx + 1) % q.size
             val nextSong = q[nextIdx]
             val downloadedList = database.getDownloadedTracks()
             val localTrack = downloadedList.find {
@@ -896,17 +918,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (playQueue.isEmpty()) return
         val currentPos = playQueue.indexOfFirst { it.id == state.currentSong.id }
 
-        if (!state.isShuffle && state.autoRadioEnabled && (currentPos == playQueue.size - 1 || playQueue.size <= 1)) {
+        if (state.autoRadioEnabled && (currentPos == playQueue.size - 1 || playQueue.size <= 1)) {
             viewModelScope.launch {
                 val related = withContext(Dispatchers.IO) {
                     YouTubeMusicEngine.fetchRelatedTracks(
                         state.currentSong.id,
                         state.currentSong.title,
                         state.currentSong.artist
-                    ).filter { rel -> playQueue.none { it.id == rel.id } }
+                    ).filter { rel -> playQueue.none { it.id == rel.id } && !rel.isArtist && !rel.isAlbum }
                 }
                 if (related.isNotEmpty()) {
-                    val expandedQueue = playQueue + related
+                    val orderedRelated = if (state.isShuffle) related.shuffled() else related
+                    val expandedQueue = playQueue + orderedRelated
                     val nextIdx = (currentPos + 1).coerceAtMost(expandedQueue.size - 1)
                     val nextSong = expandedQueue[nextIdx]
                     AuraPlaybackBridge.queue.value = expandedQueue
@@ -921,15 +944,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             return
         }
 
-        val nextIdx = if (state.isShuffle && playQueue.size > 1) {
-            var r = (0 until playQueue.size).random()
-            while (r == currentPos) {
-                r = (0 until playQueue.size).random()
-            }
-            r
-        } else if (currentPos >= 0) {
-            (currentPos + 1) % playQueue.size
-        } else 0
+        val nextIdx = if (currentPos >= 0) (currentPos + 1) % playQueue.size else 0
         val nextSong = playQueue[nextIdx]
         AuraPlaybackBridge.currentIndex = nextIdx
         playSong(nextSong, playQueue)
@@ -940,13 +955,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val playQueue = state.queue.filter { !it.isArtist && !it.isAlbum }
         if (playQueue.isEmpty()) return
         val currentPos = playQueue.indexOfFirst { it.id == state.currentSong.id }
-        val prevIdx = if (state.isShuffle && playQueue.size > 1) {
-            var r = (0 until playQueue.size).random()
-            while (r == currentPos) {
-                r = (0 until playQueue.size).random()
-            }
-            r
-        } else if (currentPos > 0) {
+        val prevIdx = if (currentPos > 0) {
             currentPos - 1
         } else {
             playQueue.size - 1
@@ -1297,9 +1306,55 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setShuffleMode(enabled: Boolean) {
-        _uiState.update { it.copy(isShuffle = enabled) }
+        val state = _uiState.value
+        val curSong = state.currentSong
+        val currentQueue = state.queue.filter { !it.isArtist && !it.isAlbum }
+
+        if (enabled && currentQueue.size > 1) {
+            if (!state.isShuffle || unshuffledQueue.isEmpty()) {
+                unshuffledQueue = currentQueue
+            }
+            val rest = currentQueue.filter { it.id != curSong.id }.shuffled()
+            val shuffledQueue = listOf(curSong) + rest
+            AuraPlaybackBridge.queue.value = shuffledQueue
+            AuraPlaybackBridge.currentIndex = 0
+            _uiState.update {
+                it.copy(
+                    isShuffle = true,
+                    queue = shuffledQueue,
+                    currentIndex = 0
+                )
+            }
+            if (shuffledQueue.size <= 3 && state.autoRadioEnabled && !curSong.id.startsWith("local_")) {
+                radioQueueJob?.cancel()
+                radioQueueJob = viewModelScope.launch(Dispatchers.IO) {
+                    val related = YouTubeMusicEngine.fetchRelatedTracks(curSong.id, curSong.title, curSong.artist)
+                        .filter { rel -> shuffledQueue.none { it.id == rel.id } && !rel.isArtist && !rel.isAlbum }
+                    if (related.isNotEmpty() && _uiState.value.currentSong.id == curSong.id) {
+                        val expanded = _uiState.value.queue + related.shuffled()
+                        AuraPlaybackBridge.queue.value = expanded
+                        _uiState.update { it.copy(queue = expanded) }
+                        prefetchNextTrackIntoPlayer()
+                    }
+                }
+            }
+        } else if (!enabled && unshuffledQueue.isNotEmpty() && unshuffledQueue.any { it.id == curSong.id }) {
+            val restoredIdx = unshuffledQueue.indexOfFirst { it.id == curSong.id }.coerceAtLeast(0)
+            AuraPlaybackBridge.queue.value = unshuffledQueue
+            AuraPlaybackBridge.currentIndex = restoredIdx
+            _uiState.update {
+                it.copy(
+                    isShuffle = false,
+                    queue = unshuffledQueue,
+                    currentIndex = restoredIdx
+                )
+            }
+        } else {
+            _uiState.update { it.copy(isShuffle = enabled) }
+        }
+
         AuraPlaybackBridge.isShuffle = enabled
-        mediaController?.shuffleModeEnabled = enabled
+        mediaController?.shuffleModeEnabled = false
         prefetchNextTrackIntoPlayer()
     }
 
