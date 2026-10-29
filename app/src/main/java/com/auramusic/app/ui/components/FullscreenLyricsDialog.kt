@@ -118,14 +118,6 @@ fun FullscreenLyricsDialog(
         // When paused, controls MUST always be visible so the user can play or navigate immediately
         val shouldShowControls = controlsVisible || !isPlaying
 
-        // Wake controls whenever user scrolls or interacts with the lyrics list
-        LaunchedEffect(listState.isScrollInProgress) {
-            if (listState.isScrollInProgress) {
-                controlsVisible = true
-                lastInteraction = System.currentTimeMillis()
-            }
-        }
-
         // Only auto-hide controls when playback is ACTIVE (never auto-hide when paused)
         LaunchedEffect(controlsVisible, lastInteraction, isPlaying) {
             if (controlsVisible && isPlaying) {
@@ -134,9 +126,9 @@ fun FullscreenLyricsDialog(
             }
         }
 
-        // Keep active lyric smoothly centered
+        // Keep active lyric smoothly centered without waking up the hidden controls box
         LaunchedEffect(activeIndex) {
-            if (lyrics.isNotEmpty() && activeIndex >= 0 && activeIndex in lyrics.indices) {
+            if (lyrics.isNotEmpty() && activeIndex >= 0 && activeIndex in lyrics.indices && !listState.isScrollInProgress) {
                 listState.animateScrollToItem(
                     index = (activeIndex - 2).coerceAtLeast(0)
                 )
@@ -251,10 +243,17 @@ fun FullscreenLyricsDialog(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        onSeekTo(line.timestampMs)
-                                        controlsVisible = true
-                                        lastInteraction = System.currentTimeMillis()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        if (!controlsVisible) {
+                                            controlsVisible = true
+                                            lastInteraction = System.currentTimeMillis()
+                                        } else {
+                                            onSeekTo(line.timestampMs)
+                                            lastInteraction = System.currentTimeMillis()
+                                        }
                                     }
                                     .padding(vertical = 18.dp)
                                     .scale(textScale),
@@ -364,52 +363,7 @@ fun FullscreenLyricsDialog(
                 }
             }
 
-            // 4. Subtle Floating Mini-Pill (Always accessible when full controls auto-hide during playback)
-            AnimatedVisibility(
-                visible = !shouldShowControls,
-                enter = fadeIn(tween(200)),
-                exit = fadeOut(tween(200)),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 24.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(CyberSurfaceCard.copy(alpha = 0.90f))
-                        .border(1.2.dp, CyberCyan.copy(alpha = 0.6f), RoundedCornerShape(22.dp))
-                        .clickable {
-                            onPlayPause()
-                            controlsVisible = true
-                            lastInteraction = System.currentTimeMillis()
-                        }
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                            tint = CyberCyan,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (isPlaying) "PAUSAR" else "REPRODUCIR",
-                            color = TextPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 1.sp
-                        )
-                    }
-                }
-            }
-
-            // 5. Floating Mini-Player Bottom Bar (Full Controls)
+            // 4. Floating Mini-Player Bottom Bar (Full Controls - stays hidden until user taps screen)
             AnimatedVisibility(
                 visible = shouldShowControls,
                 enter = fadeIn(tween(300)) + slideInVertically(initialOffsetY = { it }),
