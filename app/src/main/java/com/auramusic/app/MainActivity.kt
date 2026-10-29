@@ -220,6 +220,8 @@ class MainActivity : ComponentActivity() {
                                             downloads = uiState.downloads,
                                             playlists = uiState.playlists,
                                             localTracks = uiState.localTracks,
+                                            followedArtists = uiState.followedArtists,
+                                            savedAlbums = uiState.savedAlbums,
                                             isScanningLocal = uiState.isScanningLocal,
                                             currentSong = uiState.currentSong,
                                             isPlaying = uiState.isPlaying,
@@ -228,6 +230,8 @@ class MainActivity : ComponentActivity() {
                                             onSelectSong = { song, queue ->
                                                 playerViewModel.playSongWithQueue(song, queue, resetShuffle = true)
                                             },
+                                            onSelectArtist = { artist -> playerViewModel.openArtistDetail(artist) },
+                                            onSelectAlbum = { album -> playerViewModel.openAlbumDetail(album) },
                                             onPlayAllFavorites = { playerViewModel.playAllFavorites() },
                                             onPlayAllDownloads = { playerViewModel.playAllDownloads() },
                                             onPlayAllLocalTracks = { playerViewModel.playAllLocalTracks() },
@@ -243,13 +247,12 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Floating Mini-Player & Glass Bottom Dock
+                        // Unified Bottom Console: Mini-Player + Full-Width Dock
                         if (!uiState.isPlayerExpanded) {
                             Column(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .navigationBarsPadding()
-                                    .padding(bottom = 6.dp)
                             ) {
                                 MiniPlayer(
                                     song = uiState.currentSong,
@@ -264,6 +267,8 @@ class MainActivity : ComponentActivity() {
                                     onExpand = { playerViewModel.setPlayerExpanded(true) }
                                 )
 
+                                Spacer(modifier = Modifier.height(6.dp))
+
                                 GlassBottomDock(
                                     currentTab = uiState.currentTab,
                                     appLanguage = uiState.appLanguage,
@@ -272,51 +277,44 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Full-screen Studio Deck Overlay (Vinyl + Synced Lyrics)
+                        // Full-Bleed Studio Deck Overlay (Edge-to-Edge Now Playing)
                         AnimatedVisibility(
                             visible = uiState.isPlayerExpanded,
                             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(CyberBackgroundDark.copy(alpha = 0.98f))
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                StudioDeck(
-                                    song = uiState.currentSong,
-                                    isPlaying = uiState.isPlaying,
-                                    currentPositionMs = uiState.currentPositionMs,
-                                    durationMs = uiState.durationMs,
-                                    isShuffle = uiState.isShuffle,
-                                    isRepeat = uiState.isRepeat,
-                                    lyrics = uiState.lyrics,
-                                    lyricsOffsetMs = uiState.lyricsOffsetMs,
-                                    appLanguage = uiState.appLanguage,
-                                    showTranslation = uiState.showLyricsTranslation,
-                                    onToggleTranslation = { playerViewModel.toggleLyricsTranslation() },
-                                    onPlayPause = { playerViewModel.playPause() },
-                                    onNext = { playerViewModel.next() },
-                                    onPrevious = { playerViewModel.previous() },
-                                    onSeekTo = { pos -> playerViewModel.seekTo(pos) },
-                                    onToggleFavorite = { playerViewModel.toggleFavorite() },
-                                    onToggleShuffle = { playerViewModel.toggleShuffle() },
-                                    onToggleRepeat = { playerViewModel.toggleRepeat() },
-                                    onOpenEqualizer = { playerViewModel.setShowEqualizer(true) },
-                                    onOpenSleepTimer = { playerViewModel.setShowSleepTimer(true) },
-                                    onOpenQueue = { playerViewModel.setShowQueue(true) },
-                                    sleepTimerRemaining = if (uiState.sleepTimer.remainingSeconds != null) {
-                                        val mins = uiState.sleepTimer.remainingSeconds!! / 60
-                                        val secs = uiState.sleepTimer.remainingSeconds!! % 60
-                                        String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
-                                    } else if (uiState.sleepTimer.isEndOfTrack) "END" else null,
-                                    onOpenFullscreenLyrics = { playerViewModel.setShowFullscreenLyrics(true) },
-                                    onCollapse = { playerViewModel.setPlayerExpanded(false) }
-                                )
-                            }
+                            StudioDeck(
+                                song = uiState.currentSong,
+                                isPlaying = uiState.isPlaying,
+                                currentPositionMs = uiState.currentPositionMs,
+                                durationMs = uiState.durationMs,
+                                isShuffle = uiState.isShuffle,
+                                isRepeat = uiState.isRepeat,
+                                lyrics = uiState.lyrics,
+                                lyricsOffsetMs = uiState.lyricsOffsetMs,
+                                appLanguage = uiState.appLanguage,
+                                showTranslation = uiState.showLyricsTranslation,
+                                onToggleTranslation = { playerViewModel.toggleLyricsTranslation() },
+                                onPlayPause = { playerViewModel.playPause() },
+                                onNext = { playerViewModel.next() },
+                                onPrevious = { playerViewModel.previous() },
+                                onSeekTo = { pos -> playerViewModel.seekTo(pos) },
+                                onToggleFavorite = { playerViewModel.toggleFavorite() },
+                                onToggleShuffle = { playerViewModel.toggleShuffle() },
+                                onToggleRepeat = { playerViewModel.toggleRepeat() },
+                                onOpenEqualizer = { playerViewModel.setShowEqualizer(true) },
+                                onOpenSleepTimer = { playerViewModel.setShowSleepTimer(true) },
+                                onOpenQueue = { playerViewModel.setShowQueue(true) },
+                                onOpenArtist = { playerViewModel.openCurrentSongArtist() },
+                                sleepTimerRemaining = if (uiState.sleepTimer.remainingSeconds != null) {
+                                    val mins = uiState.sleepTimer.remainingSeconds!! / 60
+                                    val secs = uiState.sleepTimer.remainingSeconds!! % 60
+                                    String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
+                                } else if (uiState.sleepTimer.isEndOfTrack) "END" else null,
+                                onOpenFullscreenLyrics = { playerViewModel.setShowFullscreenLyrics(true) },
+                                onCollapse = { playerViewModel.setPlayerExpanded(false) }
+                            )
                         }
 
                         // Equalizer DSP BottomSheet
@@ -380,6 +378,13 @@ class MainActivity : ComponentActivity() {
                                 currentTheme = uiState.currentTheme,
                                 appLanguage = uiState.appLanguage,
                                 lyricsOffsetMs = uiState.lyricsOffsetMs,
+                                ytAccount = uiState.ytAccount,
+                                onConnectYouTube = { playerViewModel.setShowYouTubeLogin(true) },
+                                onDisconnectYouTube = { playerViewModel.logoutYouTubeAccount() },
+                                onOpenEqualizer = {
+                                    playerViewModel.setShowSettings(false)
+                                    playerViewModel.setShowEqualizer(true)
+                                },
                                 onQualitySelected = { q -> playerViewModel.setAudioQuality(q) },
                                 onToggleLoudness = { playerViewModel.toggleLoudnessNormalizer() },
                                 onToggleAutoRadio = { playerViewModel.toggleAutoRadio() },
@@ -391,6 +396,15 @@ class MainActivity : ComponentActivity() {
                                 onImportBackup = { playerViewModel.importBackup() },
                                 onClearCache = { playerViewModel.clearAppCache() },
                                 onDismiss = { playerViewModel.setShowSettings(false) }
+                            )
+                        }
+
+                        // YouTube / Google Account WebView Sign-In Dialog
+                        if (uiState.showYouTubeLogin) {
+                            com.auramusic.app.ui.components.YouTubeLoginDialog(
+                                appLanguage = uiState.appLanguage,
+                                onLoginCaptured = { cookie -> playerViewModel.onYouTubeLoginCaptured(cookie) },
+                                onDismiss = { playerViewModel.setShowYouTubeLogin(false) }
                             )
                         }
 
@@ -435,12 +449,29 @@ class MainActivity : ComponentActivity() {
 
                         // Artist Profile Detail BottomSheet
                         uiState.selectedArtist?.let { artist ->
+                            val effectiveArtistName = uiState.artistProfile?.name?.ifBlank { artist.title } ?: artist.title
+                            val effectiveArtistCover = uiState.artistProfile?.heroCoverUrl?.ifBlank { artist.coverUrl } ?: artist.coverUrl
+                            val effectiveSubs = uiState.artistProfile?.subscribers ?: ""
+                            val isFollowed = uiState.followedArtists.any {
+                                it.id.equals(artist.id, ignoreCase = true) ||
+                                    it.title.equals(effectiveArtistName, ignoreCase = true)
+                            }
                             ArtistDetailSheet(
                                 artist = artist,
                                 profile = uiState.artistProfile,
                                 artistSongs = uiState.artistTopSongs,
                                 isLoading = uiState.isLoadingArtist,
                                 currentPlayingId = uiState.currentSong.id,
+                                isFollowed = isFollowed,
+                                appLanguage = uiState.appLanguage,
+                                onToggleFollow = {
+                                    playerViewModel.toggleFollowArtist(
+                                        artistId = artist.id.ifBlank { effectiveArtistName },
+                                        artistName = effectiveArtistName,
+                                        coverUrl = effectiveArtistCover,
+                                        subscribers = effectiveSubs
+                                    )
+                                },
                                 onPlaySong = { s, list -> playerViewModel.playSong(s, list) },
                                 onPlayAll = { list -> playerViewModel.playPlaylist(list) },
                                 onSelectAlbum = { album -> playerViewModel.openAlbumDetail(album) },
@@ -452,11 +483,19 @@ class MainActivity : ComponentActivity() {
                         // Album Detail BottomSheet
                         if (uiState.showAlbumDetail) {
                             uiState.selectedAlbum?.let { album ->
+                                val albumKey = album.browseId.ifBlank { album.title }
+                                val isAlbumSaved = uiState.savedAlbums.any {
+                                    it.browseId.equals(albumKey, ignoreCase = true) ||
+                                        it.title.equals(album.title, ignoreCase = true)
+                                }
                                 AlbumDetailSheet(
                                     album = album,
                                     tracks = uiState.albumTracks,
                                     isLoading = uiState.isLoadingAlbum,
                                     currentPlayingId = uiState.currentSong.id,
+                                    isSaved = isAlbumSaved,
+                                    appLanguage = uiState.appLanguage,
+                                    onToggleSave = { playerViewModel.toggleSaveAlbum(album) },
                                     onPlaySong = { s, list -> playerViewModel.playSong(s, list) },
                                     onPlayAll = { list -> playerViewModel.playPlaylist(list) },
                                     onDismiss = { playerViewModel.dismissAlbumDetail() }
@@ -464,7 +503,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Cyber HUD Toast / In-app Notification Banner
+                        // Editorial In-App Notification Pill
                         androidx.compose.animation.AnimatedVisibility(
                             visible = uiState.toastMessage != null,
                             enter = androidx.compose.animation.slideInVertically(initialOffsetY = { -it }) + androidx.compose.animation.fadeIn(),
@@ -472,23 +511,20 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .statusBarsPadding()
-                                .padding(top = 16.dp, start = 20.dp, end = 20.dp)
+                                .padding(top = 14.dp, start = 20.dp, end = 20.dp)
                         ) {
                             uiState.toastMessage?.let { msg ->
                                 Box(
                                     modifier = Modifier
-                                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-                                        .background(com.auramusic.app.ui.theme.CyberBackgroundDark.copy(alpha = 0.95f))
-                                        .border(1.5.dp, com.auramusic.app.ui.theme.CyberCyan, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-                                        .padding(horizontal = 18.dp, vertical = 12.dp)
+                                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                        .background(com.auramusic.app.ui.theme.CyberSurfaceActive)
+                                        .padding(horizontal = 18.dp, vertical = 11.dp)
                                 ) {
                                     Text(
                                         text = msg,
-                                        color = com.auramusic.app.ui.theme.CyberCyan,
+                                        color = com.auramusic.app.ui.theme.TextPrimary,
                                         fontSize = 13.sp,
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        letterSpacing = 1.sp
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                                     )
                                 }
                             }

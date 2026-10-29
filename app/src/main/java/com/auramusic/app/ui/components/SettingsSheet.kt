@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,10 +21,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -34,17 +36,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.auramusic.app.data.locale.AuraStrings
+import com.auramusic.app.network.YouTubeAccountState
 import com.auramusic.app.ui.theme.CyberBackground
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
+import com.auramusic.app.ui.theme.CyberGreen
+import com.auramusic.app.ui.theme.CyberSurface
 import com.auramusic.app.ui.theme.CyberSurfaceActive
 import com.auramusic.app.ui.theme.CyberSurfaceCard
-import com.auramusic.app.ui.theme.GlassBorder
 import com.auramusic.app.ui.theme.GlassBorderSubtle
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
@@ -57,9 +64,13 @@ fun SettingsSheet(
     loudnessNormalizer: Boolean,
     autoRadioEnabled: Boolean = true,
     skipSilenceEnabled: Boolean = false,
-    currentTheme: String = "Cyber Neon",
+    currentTheme: String = "Studio Carbon",
     appLanguage: String = "Español",
     lyricsOffsetMs: Long = -200L,
+    ytAccount: YouTubeAccountState = YouTubeAccountState(),
+    onConnectYouTube: () -> Unit = {},
+    onDisconnectYouTube: () -> Unit = {},
+    onOpenEqualizer: () -> Unit = {},
     onQualitySelected: (String) -> Unit,
     onToggleLoudness: () -> Unit,
     onToggleAutoRadio: () -> Unit = {},
@@ -87,7 +98,7 @@ fun SettingsSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 14.dp)
         ) {
-            // Subtle Top Drag Pill
+            // Subtle Top Drag Handle
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -98,7 +109,7 @@ fun SettingsSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Clean Editorial Header
+            // Clean Senior Editorial Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -109,24 +120,22 @@ fun SettingsSheet(
                         text = AuraStrings.get("settings_title", appLanguage),
                         color = TextPrimary,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 24.sp,
+                        fontSize = 25.sp,
                         letterSpacing = (-0.6).sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = AuraStrings.get("settings_subtitle", appLanguage),
                         color = TextSecondary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Normal
+                        fontSize = 13.sp
                     )
                 }
 
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(34.dp)
                         .clip(CircleShape)
                         .background(CyberSurfaceCard)
-                        .border(1.dp, GlassBorder, CircleShape)
                         .clickable { onDismiss() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -141,8 +150,259 @@ fun SettingsSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 1. LANGUAGE SELECTOR (Clean 2x3 Editorial Grid)
-            EditorialGroupHeader(title = AuraStrings.get("language_title", appLanguage))
+            // ==========================================
+            // 1. CUENTA DE YOUTUBE MUSIC / GOOGLE
+            // ==========================================
+            SettingsSectionLabel(text = AuraStrings.get("yt_account_section", appLanguage))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurface)
+                    .padding(16.dp)
+            ) {
+                if (ytAccount.isLoggedIn) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .background(CyberSurfaceCard),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (ytAccount.avatarUrl.isNotBlank()) {
+                                    AsyncImage(
+                                        model = ytAccount.avatarUrl,
+                                        contentDescription = ytAccount.accountName,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = CyberCyan,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = ytAccount.accountName,
+                                        color = TextPrimary,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(CyberGreen)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = ytAccount.accountHandle.ifBlank {
+                                        AuraStrings.get("yt_connected_badge", appLanguage)
+                                    },
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(CyberSurfaceCard)
+                                .clickable { onDisconnectYouTube() }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = AuraStrings.get("yt_disconnect_btn", appLanguage),
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = AuraStrings.get("yt_connect_title", appLanguage),
+                                color = TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = AuraStrings.get("yt_connect_desc", appLanguage),
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(TextPrimary)
+                                .clickable { onConnectYouTube() }
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = AuraStrings.get("yt_connect_btn", appLanguage),
+                                color = CyberBackgroundDark,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(26.dp))
+
+            // ==========================================
+            // 2. ACABADO VISUAL (4 Hardware Material Palettes)
+            // ==========================================
+            SettingsSectionLabel(text = AuraStrings.get("theme_title", appLanguage))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            data class HardwareFinish(
+                val id: String,
+                val legacyId: String,
+                val label: String,
+                val subtitle: String,
+                val chassisColor: Color,
+                val accentColor: Color
+            )
+
+            val finishes = listOf(
+                HardwareFinish(
+                    id = "Studio Carbon",
+                    legacyId = "Cyber Neon",
+                    label = "Studio Carbon",
+                    subtitle = "Bermellón Analógico",
+                    chassisColor = Color(0xFF141417),
+                    accentColor = Color(0xFFE85D2A)
+                ),
+                HardwareFinish(
+                    id = "Champagne Hi-Fi",
+                    legacyId = "Synthwave",
+                    label = "Champagne Hi-Fi",
+                    subtitle = "Titanio & Latón",
+                    chassisColor = Color(0xFF16181D),
+                    accentColor = Color(0xFFD4AF6A)
+                ),
+                HardwareFinish(
+                    id = "Olive Vinyl",
+                    legacyId = "Matrix 99",
+                    label = "Olive Vinyl",
+                    subtitle = "Pizarra & Salvia",
+                    chassisColor = Color(0xFF121714),
+                    accentColor = Color(0xFF7FA982)
+                ),
+                HardwareFinish(
+                    id = "Leica Monochrome",
+                    legacyId = "OLED Black",
+                    label = "Leica Monochrome",
+                    subtitle = "OLED Negro Puro",
+                    chassisColor = Color(0xFF050505),
+                    accentColor = Color(0xFFFFFFFF)
+                )
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                finishes.chunked(2).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowItems.forEach { item ->
+                            val isSelected = currentTheme == item.id || currentTheme == item.legacyId
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) CyberSurfaceActive else CyberSurface)
+                                    .clickable { onSelectTheme(item.id) }
+                                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Dual-tone physical swatch (Chassis + Accent dot)
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(item.chassisColor)
+                                        .border(1.dp, item.accentColor.copy(alpha = 0.6f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(10.dp)
+                                            .clip(CircleShape)
+                                            .background(item.accentColor)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.label,
+                                        color = TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = item.subtitle,
+                                        color = if (isSelected) CyberCyan else TextMuted,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(26.dp))
+
+            // ==========================================
+            // 3. IDIOMA DE LA INTERFAZ
+            // ==========================================
+            SettingsSectionLabel(text = AuraStrings.get("language_title", appLanguage))
+            Spacer(modifier = Modifier.height(10.dp))
 
             val languages = listOf(
                 "Español" to "ES",
@@ -154,262 +414,260 @@ fun SettingsSheet(
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                languages.chunked(3).forEach { rowItems ->
+                languages.chunked(3).forEach { rowLangs ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        rowItems.forEach { (lang, code) ->
-                            val isSelected = appLanguage.startsWith(lang, ignoreCase = true)
-                            LanguageOptionPill(
-                                label = lang,
-                                code = code,
-                                isSelected = isSelected,
-                                onClick = { onSelectLanguage(lang) },
-                                modifier = Modifier.weight(1f)
-                            )
+                        rowLangs.forEach { (langName, code) ->
+                            val isSelected = appLanguage == langName
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isSelected) TextPrimary else CyberSurface)
+                                    .clickable { onSelectLanguage(langName) }
+                                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = code,
+                                    color = if (isSelected) CyberBackgroundDark.copy(alpha = 0.65f) else TextMuted,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = langName,
+                                    color = if (isSelected) CyberBackgroundDark else TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(26.dp))
 
-            // 2. APPEARANCE / STUDIO THEMES
-            EditorialGroupHeader(title = AuraStrings.get("theme_title", appLanguage))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                ThemeSwatchCard(
-                    title = "Obsidian",
-                    color1 = Color(0xFF2DD4BF),
-                    color2 = Color(0xFF161922),
-                    isSelected = currentTheme == "Cyber Neon",
-                    onClick = { onSelectTheme("Cyber Neon") },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeSwatchCard(
-                    title = "Synthwave",
-                    color1 = Color(0xFFF59E0B),
-                    color2 = Color(0xFF2A203B),
-                    isSelected = currentTheme == "Synthwave",
-                    onClick = { onSelectTheme("Synthwave") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
+            // ==========================================
+            // 4. CADENA DE AUDIO, FIDELIDAD Y DSP
+            // ==========================================
+            SettingsSectionLabel(text = AuraStrings.get("audio_quality", appLanguage))
             Spacer(modifier = Modifier.height(10.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurface)
             ) {
-                ThemeSwatchCard(
-                    title = "Emerald",
-                    color1 = Color(0xFF10B981),
-                    color2 = Color(0xFF131D17),
-                    isSelected = currentTheme == "Matrix 99",
-                    onClick = { onSelectTheme("Matrix 99") },
-                    modifier = Modifier.weight(1f)
+                QualityOptionItem(
+                    title = AuraStrings.get("quality_high_title", appLanguage),
+                    subtitle = AuraStrings.get("quality_high_desc", appLanguage),
+                    isSelected = audioQuality.contains("320"),
+                    onClick = { onQualitySelected("Hi-Res (320 kbps)") }
                 )
-                ThemeSwatchCard(
-                    title = "OLED Black",
-                    color1 = Color(0xFFFFFFFF),
-                    color2 = Color(0xFF000000),
-                    isSelected = currentTheme == "OLED Black",
-                    onClick = { onSelectTheme("OLED Black") },
-                    modifier = Modifier.weight(1f)
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+                QualityOptionItem(
+                    title = AuraStrings.get("quality_std_title", appLanguage),
+                    subtitle = AuraStrings.get("quality_std_desc", appLanguage),
+                    isSelected = audioQuality.contains("160"),
+                    onClick = { onQualitySelected("Estándar (160 kbps)") }
                 )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 3. STREAMING QUALITY (Single Grouped Surface Card)
-            EditorialGroupHeader(title = AuraStrings.get("audio_quality", appLanguage))
-
-            val qualityOptions = listOf(
-                Triple(
-                    "Hi-Res (320 kbps)",
-                    AuraStrings.get("quality_high_title", appLanguage),
-                    AuraStrings.get("quality_high_desc", appLanguage)
-                ),
-                Triple(
-                    "Estándar (160 kbps)",
-                    AuraStrings.get("quality_std_title", appLanguage),
-                    AuraStrings.get("quality_std_desc", appLanguage)
-                ),
-                Triple(
-                    "Ahorro de datos (96 kbps)",
-                    AuraStrings.get("quality_low_title", appLanguage),
-                    AuraStrings.get("quality_low_desc", appLanguage)
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+                QualityOptionItem(
+                    title = AuraStrings.get("quality_low_title", appLanguage),
+                    subtitle = AuraStrings.get("quality_low_desc", appLanguage),
+                    isSelected = audioQuality.contains("96"),
+                    onClick = { onQualitySelected("Ahorro (96 kbps)") }
                 )
-            )
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
 
-            GroupedSurfaceCard {
-                qualityOptions.forEachIndexed { index, (internalKey, displayTitle, displayDesc) ->
-                    val isSelected = audioQuality == internalKey
+                // Direct Equalizer DSP Launcher inside Audio Chain
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenEqualizer() }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = AuraStrings.get("open_eq_title", appLanguage),
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = AuraStrings.get("open_eq_desc", appLanguage),
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onQualitySelected(internalKey) }
-                            .padding(horizontal = 16.dp, vertical = 13.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CyberSurfaceCard)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = displayTitle,
-                                color = if (isSelected) CyberCyan else TextPrimary,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                                fontSize = 14.sp,
-                                letterSpacing = (-0.1).sp
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = displayDesc,
-                                color = TextSecondary,
-                                fontSize = 12.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .background(if (isSelected) CyberCyan else Color.Transparent)
-                                .border(
-                                    1.5.dp,
-                                    if (isSelected) CyberCyan else TextMuted.copy(alpha = 0.5f),
-                                    CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = CyberBackgroundDark,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                            }
-                        }
-                    }
-                    if (index < qualityOptions.lastIndex) {
-                        HorizontalDivider(
-                            color = GlassBorderSubtle,
-                            thickness = 1.dp,
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                        Icon(
+                            imageVector = Icons.Default.GraphicEq,
+                            contentDescription = null,
+                            tint = CyberCyan,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = AuraStrings.get("open_eq_btn", appLanguage),
+                            color = TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(26.dp))
 
-            // 4. SMART PLAYBACK (Single Grouped Surface Card with Switches)
-            EditorialGroupHeader(title = AuraStrings.get("playback_section", appLanguage))
+            // ==========================================
+            // 5. REPRODUCCIÓN INTELIGENTE
+            // ==========================================
+            SettingsSectionLabel(text = AuraStrings.get("playback_section", appLanguage))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            GroupedSurfaceCard {
-                SettingsToggleRow(
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurface)
+            ) {
+                SettingsToggleItem(
                     title = AuraStrings.get("normalizer_title", appLanguage),
                     subtitle = AuraStrings.get("normalizer_desc", appLanguage),
                     checked = loudnessNormalizer,
-                    onCheckedChange = { onToggleLoudness() }
+                    onToggle = onToggleLoudness
                 )
-                HorizontalDivider(
-                    color = GlassBorderSubtle,
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                SettingsToggleRow(
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+                SettingsToggleItem(
                     title = AuraStrings.get("autoradio_title", appLanguage),
                     subtitle = AuraStrings.get("autoradio_desc", appLanguage),
                     checked = autoRadioEnabled,
-                    onCheckedChange = { onToggleAutoRadio() }
+                    onToggle = onToggleAutoRadio
                 )
-                HorizontalDivider(
-                    color = GlassBorderSubtle,
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                SettingsToggleRow(
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+                SettingsToggleItem(
                     title = AuraStrings.get("skipsilence_title", appLanguage),
                     subtitle = AuraStrings.get("skipsilence_desc", appLanguage),
                     checked = skipSilenceEnabled,
-                    onCheckedChange = { onToggleSkipSilence() }
+                    onToggle = onToggleSkipSilence
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(26.dp))
 
-            // 5. LYRICS LATENCY COMPENSATION (Clean Segmented Control in 1 Card)
-            EditorialGroupHeader(title = AuraStrings.get("lyrics_sync_title", appLanguage))
+            // ==========================================
+            // 6. CALIBRACIÓN DE LETRAS (LRC)
+            // ==========================================
+            SettingsSectionLabel(text = AuraStrings.get("lyrics_sync_title", appLanguage))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            GroupedSurfaceCard {
-                Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurface)
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = AuraStrings.get("lyrics_sync_desc", appLanguage),
                         color = TextSecondary,
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
+                        modifier = Modifier.weight(1f)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    val offsets = listOf(-400L, -200L, 0L, 200L)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(CyberBackgroundDark)
-                            .border(1.dp, GlassBorderSubtle, RoundedCornerShape(12.dp))
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        offsets.forEach { offset ->
-                            val isSelected = lyricsOffsetMs == offset
-                            val label = if (offset > 0) "+${offset}ms" else "${offset}ms"
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(9.dp))
-                                    .background(if (isSelected) CyberSurfaceActive else Color.Transparent)
-                                    .clickable { onSelectLyricsOffset(offset) }
-                                    .padding(vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (isSelected) CyberCyan else TextSecondary,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "${if (lyricsOffsetMs > 0) "+" else ""}${lyricsOffsetMs} ms",
+                        color = CyberCyan,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val steps = listOf(
+                        "-100 ms" to (lyricsOffsetMs - 100L).coerceIn(-1500L, 1500L),
+                        "0 ms" to 0L,
+                        "+100 ms" to (lyricsOffsetMs + 100L).coerceIn(-1500L, 1500L)
+                    )
+                    steps.forEach { (label, targetValue) ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(CyberSurfaceCard)
+                                .clickable { onSelectLyricsOffset(targetValue) }
+                                .padding(vertical = 9.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = FontFamily.Monospace
+                            )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(26.dp))
 
-            // 6. STORAGE & BACKUP (Single Grouped Surface Card)
-            EditorialGroupHeader(title = AuraStrings.get("storage_section", appLanguage))
+            // ==========================================
+            // 7. DATOS, CACHÉ Y COPIA DE SEGURIDAD
+            // ==========================================
+            SettingsSectionLabel(text = AuraStrings.get("storage_section", appLanguage))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            GroupedSurfaceCard {
-                // Clear Cache Row
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurface)
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = AuraStrings.get("clean_cache_title", appLanguage),
                             color = TextPrimary,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
@@ -419,186 +677,152 @@ fun SettingsSheet(
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    ActionPillButton(
-                        text = AuraStrings.get("clean_cache_btn", appLanguage),
-                        onClick = onClearCache
-                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CyberSurfaceCard)
+                            .clickable { onClearCache() }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = AuraStrings.get("clean_cache_btn", appLanguage),
+                            color = TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
 
-                HorizontalDivider(
-                    color = GlassBorderSubtle,
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
 
-                // Backup Export & Restore Row
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(16.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = AuraStrings.get("backup_title", appLanguage),
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = AuraStrings.get("backup_desc", appLanguage),
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ActionPillButton(
-                            text = AuraStrings.get("export_btn", appLanguage),
-                            onClick = onExportBackup
-                        )
-                        ActionPillButton(
-                            text = AuraStrings.get("restore_btn", appLanguage),
-                            isPrimary = true,
-                            onClick = onImportBackup
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 7. ABOUT AURA (Refined Editorial Footer Card)
-            EditorialGroupHeader(title = AuraStrings.get("about_title", appLanguage))
-
-            GroupedSurfaceCard {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            AuraIcon(size = 34.dp)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "Aura Music",
-                                    color = TextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    letterSpacing = (-0.3).sp
-                                )
-                                Text(
-                                    text = AuraStrings.get("app_version", appLanguage),
-                                    color = TextSecondary,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-
-                        Text(
-                            text = "2.0.0",
-                            color = CyberCyan,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    HorizontalDivider(color = GlassBorderSubtle, thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(12.dp))
-
                     Text(
-                        text = AuraStrings.get("creator_label", appLanguage),
-                        color = TextMuted,
-                        fontSize = 11.sp,
+                        text = AuraStrings.get("backup_title", appLanguage),
+                        color = TextPrimary,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = AuraStrings.get("creator_name", appLanguage),
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = AuraStrings.get("about_desc", appLanguage),
+                        text = AuraStrings.get("backup_desc", appLanguage),
                         color = TextSecondary,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
+                        fontSize = 12.sp
                     )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = AuraStrings.get("open_source", appLanguage),
-                        color = TextMuted,
-                        fontSize = 11.sp
-                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(CyberSurfaceCard)
+                                .clickable { onExportBackup() }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = AuraStrings.get("export_btn", appLanguage),
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(CyberSurfaceCard)
+                                .clickable { onImportBackup() }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = AuraStrings.get("restore_btn", appLanguage),
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(26.dp))
+
+            // ==========================================
+            // 8. ACERCA DE AURA
+            // ==========================================
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Aura Music · Studio Edition",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "${AuraStrings.get("creator_label", appLanguage)}: ${AuraStrings.get("creator_name", appLanguage)}",
+                        color = TextMuted,
+                        fontSize = 12.sp
+                    )
+                }
+                Text(
+                    text = "v2.1",
+                    color = TextMuted,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
         }
     }
 }
 
 @Composable
-private fun EditorialGroupHeader(title: String) {
+private fun SettingsSectionLabel(text: String) {
     Text(
-        text = title,
+        text = text,
         color = TextSecondary,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
-        letterSpacing = (-0.1).sp,
-        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+        letterSpacing = (-0.1).sp
     )
 }
 
 @Composable
-private fun GroupedSurfaceCard(
-    content: @Composable () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(CyberSurfaceCard)
-            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun SettingsToggleRow(
+private fun QualityOptionItem(
     title: String,
     subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    isSelected: Boolean,
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 color = TextPrimary,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                letterSpacing = (-0.1).sp
+                fontSize = 15.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -608,134 +832,66 @@ private fun SettingsToggleRow(
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(CyberCyan),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = CyberBackgroundDark,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsToggleItem(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                color = TextSecondary,
+                fontSize = 12.sp,
+                lineHeight = 16.sp
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = { onToggle() },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = CyberBackgroundDark,
                 checkedTrackColor = CyberCyan,
                 uncheckedThumbColor = TextSecondary,
-                uncheckedTrackColor = CyberSurfaceActive,
+                uncheckedTrackColor = CyberSurfaceCard,
                 uncheckedBorderColor = Color.Transparent
             )
         )
-    }
-}
-
-@Composable
-private fun ActionPillButton(
-    text: String,
-    isPrimary: Boolean = false,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (isPrimary) CyberCyan else CyberSurfaceActive)
-            .border(
-                1.dp,
-                if (isPrimary) CyberCyan else GlassBorder,
-                RoundedCornerShape(10.dp)
-            )
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = if (isPrimary) CyberBackgroundDark else TextPrimary,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 12.sp
-        )
-    }
-}
-
-@Composable
-private fun LanguageOptionPill(
-    label: String,
-    code: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) CyberSurfaceActive else CyberSurfaceCard)
-            .border(
-                1.dp,
-                if (isSelected) CyberCyan else GlassBorder,
-                RoundedCornerShape(12.dp)
-            )
-            .clickable { onClick() }
-            .padding(horizontal = 10.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = code,
-            color = if (isSelected) CyberCyan else TextMuted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = label,
-            color = if (isSelected) TextPrimary else TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun ThemeSwatchCard(
-    title: String,
-    color1: Color,
-    color2: Color,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (isSelected) CyberSurfaceActive else CyberSurfaceCard)
-            .border(
-                1.dp,
-                if (isSelected) CyberCyan else GlassBorder,
-                RoundedCornerShape(14.dp)
-            )
-            .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(color1)
-                    .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = title,
-                color = if (isSelected) TextPrimary else TextSecondary,
-                fontSize = 13.sp,
-                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
-            )
-        }
-
-        if (isSelected) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null,
-                tint = CyberCyan,
-                modifier = Modifier.size(16.dp)
-            )
-        }
     }
 }

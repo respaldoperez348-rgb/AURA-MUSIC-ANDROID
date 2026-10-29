@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer architectural open vinyl ring (270-degree precision arc) -->
+    <path
+        android:strokeColor="#F4F3EF"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:pathData="M 34.2,73.8 A 28,28 0 1 1 73.8,73.8" />
+
+    <!-- Geometric Tonearm / Monogram 'A' Apex -->
+    <path
+        android:strokeColor="#F4F3EF"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 41,72 L 54,39 L 67,72" />
+
+    <!-- Crossbar of 'A' / Cartridge Bridge -->
+    <path
+        android:strokeColor="#F4F3EF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M 46,61 L 62,61" />
+
+    <!-- Analog Vermilion Stylus / Pivot Indicator Dot (Braun / Teenage Engineering style) -->
+    <path
+        android:fillColor="#E85D2A"
+        android:pathData="M 54,48.5 m -3.8,0 a 3.8,3.8 0 1,0 7.6,0 a 3.8,3.8 0 1,0 -7.6,0" />
+</vector>
+

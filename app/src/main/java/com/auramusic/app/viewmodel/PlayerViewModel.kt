@@ -28,6 +28,8 @@ import com.auramusic.app.data.model.Song
 import com.auramusic.app.network.AuraDownloadManager
 import com.auramusic.app.network.AuraStreamResolver
 import com.auramusic.app.network.LyricsEngine
+import com.auramusic.app.network.YouTubeAccountState
+import com.auramusic.app.network.YouTubeAuthManager
 import com.auramusic.app.network.YouTubeMusicEngine
 import com.auramusic.app.playback.AuraAudioEffects
 import com.auramusic.app.playback.AuraPlaybackBridge
@@ -107,6 +109,10 @@ data class PlayerUiState(
     val popularArtists: List<Song> = YouTubeMusicEngine.getCuratedPopularArtists(),
     val trendingAlbums: List<Album> = YouTubeMusicEngine.getCuratedTrendingAlbums(),
     val userTopArtists: List<Song> = emptyList(),
+    val followedArtists: List<Song> = emptyList(),
+    val savedAlbums: List<Album> = emptyList(),
+    val ytAccount: YouTubeAccountState = YouTubeAccountState(),
+    val showYouTubeLogin: Boolean = false,
     val popularStations: List<String> = YouTubeMusicEngine.getCuratedStations(),
     val searchHistory: List<String> = emptyList(),
     val searchSuggestions: List<String> = emptyList(),
@@ -190,14 +196,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun loadInitialData() {
         viewModelScope.launch {
-            val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
-            val savedPalette = prefs.getString("palette", "Cyber Neon") ?: "Cyber Neon"
+            val context = getApplication<Application>()
+            val prefs = context.getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+            val savedPalette = prefs.getString("palette", "Studio Carbon") ?: "Studio Carbon"
             val savedLanguage = prefs.getString("app_language", "Español") ?: "Español"
             val savedLyricsOffset = prefs.getLong("lyrics_offset_ms", -200L)
             val savedAudioQuality = prefs.getString("audio_quality", "Hi-Res (320 kbps)") ?: "Hi-Res (320 kbps)"
             val savedLoudness = prefs.getBoolean("loudness_normalizer", true)
             val savedAutoRadio = prefs.getBoolean("auto_radio_enabled", true)
             val savedSkipSilence = prefs.getBoolean("skip_silence_enabled", false)
+            val ytState = YouTubeAuthManager.loadFromPrefs(context)
 
             AuraStreamResolver.preferredQuality = savedAudioQuality
             AuraAudioEffects.setLoudnessNormalizer(savedLoudness)
@@ -209,6 +217,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val savedFavs = database.getFavorites()
             val savedDownloads = database.getDownloadedTracks()
             val savedPlaylists = database.getPlaylists()
+            val savedFollowedArtists = database.getFollowedArtists()
+            val savedAlbumsList = database.getSavedAlbums()
             val userTop = database.getTopArtistsFromHistoryAndFavorites()
             val stats = database.getListeningStats()
             val popArtists = YouTubeMusicEngine.getCuratedPopularArtists()
@@ -223,6 +233,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     popularArtists = popArtists,
                     trendingAlbums = trendAlbums,
                     userTopArtists = userTop,
+                    followedArtists = savedFollowedArtists,
+                    savedAlbums = savedAlbumsList,
+                    ytAccount = ytState,
                     popularStations = stations,
                     searchHistory = sHistory,
                     queue = if (it.queue.isNotEmpty()) it.queue else fallbackTracks,
@@ -1226,11 +1239,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             if (ok) {
                 val favs = database.getFavorites()
                 val pls = database.getPlaylists()
+                val followed = database.getFollowedArtists()
+                val savedAlbs = database.getSavedAlbums()
                 val stats = database.getListeningStats()
                 _uiState.update {
                     it.copy(
                         favorites = favs,
                         playlists = pls,
+                        followedArtists = followed,
+                        savedAlbums = savedAlbs,
                         listeningStats = stats
                     )
                 }
@@ -1520,6 +1537,77 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 playSong(tracks[0], tracks)
             }
         }
+    }
+
+    fun toggleFollowArtist(
+        artistId: String,
+        artistName: String,
+        coverUrl: String,
+        subscribers: String = ""
+    ) {
+        viewModelScope.launch {
+            val isNowFollowed = database.toggleFollowArtist(artistId, artistName, coverUrl, subscribers)
+            val updated = database.getFollowedArtists()
+            _uiState.update { it.copy(followedArtists = updated) }
+            showToast(if (isNowFollowed) "✓ Siguiendo a $artistName" else "Dejaste de seguir a $artistName")
+        }
+    }
+
+    fun toggleSaveAlbum(album: Album) {
+        viewModelScope.launch {
+            val isNowSaved = database.toggleSaveAlbum(album)
+            val updated = database.getSavedAlbums()
+            _uiState.update { it.copy(savedAlbums = updated) }
+            showToast(if (isNowSaved) "✓ Álbum guardado en tu colección" else "Álbum eliminado de tu colección")
+        }
+    }
+
+    fun openCurrentSongArtist() {
+        val song = _uiState.value.currentSong
+        val cleanArtist = song.artist.split(",", "•", "&", "feat.", "ft.").firstOrNull()?.trim().orEmpty()
+        if (cleanArtist.isBlank() || cleanArtist == "Unknown Artist") return
+        openArtistDetail(
+            Song(
+                id = cleanArtist,
+                title = cleanArtist,
+                artist = "Artista",
+                coverUrl = song.coverUrl,
+                isArtist = true
+            )
+        )
+    }
+
+    fun setShowYouTubeLogin(show: Boolean) {
+        _uiState.update { it.copy(showYouTubeLogin = show) }
+    }
+
+    fun onYouTubeLoginCaptured(cookie: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(showYouTubeLogin = false) }
+            val context = getApplication<Application>()
+            val (name, handle, avatar) = YouTubeAuthManager.fetchAccountDetailsFromCookie(cookie)
+            val accountState = YouTubeAuthManager.saveSession(context, cookie, name, handle, avatar)
+            YouTubeMusicEngine.clearCache()
+            _uiState.update { it.copy(ytAccount = accountState) }
+            showToast("✓ Cuenta vinculada: ${accountState.accountName}")
+            // Refresh personalized feed with authenticated session
+            launch(Dispatchers.IO) {
+                runCatching {
+                    val fresh = YouTubeMusicEngine.searchTracks("")
+                    if (fresh.isNotEmpty()) {
+                        _uiState.update { it.copy(searchResults = fresh) }
+                    }
+                }
+            }
+        }
+    }
+
+    fun logoutYouTubeAccount() {
+        val context = getApplication<Application>()
+        val state = YouTubeAuthManager.logout(context)
+        YouTubeMusicEngine.clearCache()
+        _uiState.update { it.copy(ytAccount = state) }
+        showToast("Sesión de YouTube Music cerrada")
     }
 
     override fun onCleared() {

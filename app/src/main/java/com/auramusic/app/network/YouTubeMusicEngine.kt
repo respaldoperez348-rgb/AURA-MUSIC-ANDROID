@@ -37,13 +37,13 @@ object YouTubeMusicEngine {
     }
 
     suspend fun searchTracks(query: String): List<Song> = withContext(Dispatchers.IO) {
-        val effectiveQuery = if (query.isBlank()) "Cyberpunk Synthwave Top Hits" else query.trim()
+        val effectiveQuery = if (query.isBlank()) "Top Hits Éxitos Globales" else query.trim()
         val cacheKey = effectiveQuery.lowercase()
         searchCache[cacheKey]?.let { return@withContext it }
 
         try {
             val escapedQuery = effectiveQuery.replace("\\", "\\\\").replace("\"", "\\\"")
-            val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"en","gl":"US"}},"query":"$escapedQuery"}"""
+            val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"query":"$escapedQuery"}"""
 
             val requestBody = payload.toRequestBody("application/json; charset=utf-8".toMediaType())
             val request = Request.Builder()
@@ -51,6 +51,7 @@ object YouTubeMusicEngine {
                 .post(requestBody)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
                 .header("Content-Type", "application/json")
+                .apply { YouTubeAuthManager.applyAuthHeaders(this) }
                 .build()
 
             val rawBody = suspendCancellableCoroutine<String?> { continuation ->
@@ -726,6 +727,7 @@ object YouTubeMusicEngine {
                     .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                     .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
                     .header("Content-Type", "application/json")
+                    .apply { YouTubeAuthManager.applyAuthHeaders(this) }
                     .build()
 
                 client.newCall(req).execute().use { resp ->
@@ -1243,16 +1245,16 @@ object YouTubeMusicEngine {
 
     fun getCuratedStations(): List<String> {
         return listOf(
-            "Cyberpunk",
-            "Synthwave",
-            "Trap Latino",
-            "Lo-Fi Chill",
-            "Phonk",
-            "Reggaetón Hits",
-            "Rock Clásico",
+            "Indie & Alternativo",
             "Pop Global",
-            "Darkwave",
-            "Anime Lo-Fi"
+            "Urbano & Trap",
+            "R&B & Soul",
+            "Rock Clásico",
+            "Electrónica",
+            "Hip-Hop",
+            "Acústico",
+            "Lo-Fi & Estudio",
+            "Latino Hits"
         )
     }
 }

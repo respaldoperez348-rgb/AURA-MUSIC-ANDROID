@@ -5,7 +5,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -13,10 +12,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,8 +29,10 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -52,32 +56,32 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.auramusic.app.data.locale.AuraStrings
 import com.auramusic.app.data.model.LyricLine
 import com.auramusic.app.data.model.Song
+import com.auramusic.app.ui.theme.CyberBackground
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
-import com.auramusic.app.ui.theme.CyberCyanGlow
 import com.auramusic.app.ui.theme.CyberPink
+import com.auramusic.app.ui.theme.CyberSurface
 import com.auramusic.app.ui.theme.CyberSurfaceActive
 import com.auramusic.app.ui.theme.CyberSurfaceCard
-import com.auramusic.app.ui.theme.GlassBorder
-import com.auramusic.app.ui.theme.NeonPurple
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
 import java.util.Locale
 
 enum class DeckDisplayMode {
-    VINYL, LYRICS
+    COVER, VINYL, LYRICS
 }
 
 @Composable
@@ -103,225 +107,313 @@ fun StudioDeck(
     onOpenEqualizer: () -> Unit = {},
     onOpenSleepTimer: () -> Unit = {},
     onOpenQueue: () -> Unit = {},
+    onOpenArtist: () -> Unit = {},
     sleepTimerRemaining: String? = null,
     onCollapse: (() -> Unit)? = null,
     onOpenFullscreenLyrics: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var displayMode by remember { mutableStateOf(DeckDisplayMode.VINYL) }
+    var displayMode by remember { mutableStateOf(DeckDisplayMode.COVER) }
 
-    Box(
+    Column(
         modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        CyberSurfaceCard,
-                        CyberBackgroundDark.copy(alpha = 0.95f)
-                    )
-                )
-            )
-            .border(1.2.dp, GlassBorder, RoundedCornerShape(28.dp))
-            .padding(18.dp)
+            .fillMaxSize()
+            .background(CyberBackground)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+        // 1. Top Bar: Collapse + Clean Mode Switcher (Cover / Vinyl / Lyrics) + Queue
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Deck Header Pill & Collapse Button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (onCollapse != null) {
-                    IconButton(onClick = onCollapse) {
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Collapse",
-                            tint = CyberCyan,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                } else {
-                    Spacer(modifier = Modifier.size(28.dp))
-                }
-
-                // Mode Switcher Pill (VINYL vs LYRICS)
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(CyberSurfaceActive)
-                        .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
-                        .padding(3.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ModePillButton(
-                        icon = Icons.Default.Album,
-                        label = AuraStrings.get("deck_vinyl", appLanguage),
-                        isSelected = displayMode == DeckDisplayMode.VINYL,
-                        onClick = { displayMode = DeckDisplayMode.VINYL }
-                    )
-                    ModePillButton(
-                        icon = Icons.Default.Lyrics,
-                        label = AuraStrings.get("deck_lyrics", appLanguage),
-                        isSelected = displayMode == DeckDisplayMode.LYRICS,
-                        onClick = { displayMode = DeckDisplayMode.LYRICS }
-                    )
-                }
-
+            if (onCollapse != null) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
-                        .background(if (isPlaying) CyberCyan else TextMuted)
+                        .background(CyberSurfaceCard)
+                        .clickable { onCollapse() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Minimizar",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.size(38.dp))
+            }
+
+            // 3-Mode Switcher (Portada · Disco · Letras)
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CyberSurface)
+                    .padding(3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ModePillButton(
+                    icon = Icons.Default.Image,
+                    label = AuraStrings.get("deck_cover", appLanguage),
+                    isSelected = displayMode == DeckDisplayMode.COVER,
+                    onClick = { displayMode = DeckDisplayMode.COVER }
+                )
+                ModePillButton(
+                    icon = Icons.Default.Album,
+                    label = AuraStrings.get("deck_vinyl", appLanguage),
+                    isSelected = displayMode == DeckDisplayMode.VINYL,
+                    onClick = { displayMode = DeckDisplayMode.VINYL }
+                )
+                ModePillButton(
+                    icon = Icons.Default.Lyrics,
+                    label = AuraStrings.get("deck_lyrics", appLanguage),
+                    isSelected = displayMode == DeckDisplayMode.LYRICS,
+                    onClick = { displayMode = DeckDisplayMode.LYRICS }
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(CyberSurfaceCard)
+                    .clickable { onOpenQueue() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                    contentDescription = AuraStrings.get("deck_queue", appLanguage),
+                    tint = TextPrimary,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+        }
 
-            // Main Display (Vinyl or Synced Lyrics)
-            AnimatedContent(
-                targetState = displayMode,
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                label = "deck_display_mode"
-            ) { mode ->
-                when (mode) {
-                    DeckDisplayMode.VINYL -> {
-                        var vinylSwipeX by remember { mutableFloatStateOf(0f) }
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .pointerInput(Unit) {
-                                    detectHorizontalDragGestures(
-                                        onDragStart = { vinylSwipeX = 0f },
-                                        onDragEnd = {
-                                            if (vinylSwipeX < -95f) onNext()
-                                            else if (vinylSwipeX > 95f) onPrevious()
-                                        },
-                                        onHorizontalDrag = { change, dragAmount ->
-                                            change.consume()
-                                            vinylSwipeX += dragAmount
-                                        }
-                                    )
-                                }
-                        ) {
-                            VinylRecord(
-                                isPlaying = isPlaying,
-                                coverUrl = song.coverUrl,
-                                size = 210.dp
-                            )
-
-                            Spacer(modifier = Modifier.height(18.dp))
-
-                            // Audio Waveform Spectrum
-                            AudioVisualizer(
-                                isPlaying = isPlaying,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            )
-                        }
-                    }
-                    DeckDisplayMode.LYRICS -> {
+        // 2. Main Centerpiece (Cover Art / Analog Platter / Synced Lyrics)
+        AnimatedContent(
+            targetState = displayMode,
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            label = "deck_display_mode",
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) { mode ->
+            when (mode) {
+                DeckDisplayMode.COVER -> {
+                    var swipeX by remember { mutableFloatStateOf(0f) }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures(
+                                    onDragStart = { swipeX = 0f },
+                                    onDragEnd = {
+                                        if (swipeX < -95f) onNext()
+                                        else if (swipeX > 95f) onPrevious()
+                                    },
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        swipeX += dragAmount
+                                    }
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(264.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { onOpenFullscreenLyrics() }
+                                .size(292.dp)
+                                .shadow(
+                                    elevation = 28.dp,
+                                    shape = RoundedCornerShape(14.dp),
+                                    spotColor = Color.Black.copy(alpha = 0.7f)
+                                )
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(CyberSurfaceCard),
+                            contentAlignment = Alignment.Center
                         ) {
-                            LyricsView(
-                                lyrics = lyrics,
-                                currentPositionMs = currentPositionMs,
-                                lyricsOffsetMs = lyricsOffsetMs,
-                                showTranslation = showTranslation,
-                                onSeekTo = onSeekTo
-                            )
+                            if (song.coverUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = song.coverUrl,
+                                    contentDescription = song.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(64.dp)
+                                )
+                            }
+                        }
+                    }
+                }
 
-                            // Translate & Fullscreen lyrics action icons
-                            Row(
+                DeckDisplayMode.VINYL -> {
+                    var vinylSwipeX by remember { mutableFloatStateOf(0f) }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures(
+                                    onDragStart = { vinylSwipeX = 0f },
+                                    onDragEnd = {
+                                        if (vinylSwipeX < -95f) onNext()
+                                        else if (vinylSwipeX > 95f) onPrevious()
+                                    },
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        vinylSwipeX += dragAmount
+                                    }
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        VinylRecord(
+                            isPlaying = isPlaying,
+                            coverUrl = song.coverUrl,
+                            size = 268.dp
+                        )
+                    }
+                }
+
+                DeckDisplayMode.LYRICS -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(vertical = 12.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(CyberSurface)
+                            .clickable { onOpenFullscreenLyrics() }
+                    ) {
+                        LyricsView(
+                            lyrics = lyrics,
+                            currentPositionMs = currentPositionMs,
+                            lyricsOffsetMs = lyricsOffsetMs,
+                            showTranslation = showTranslation,
+                            onSeekTo = onSeekTo
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
                                 modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(if (showTranslation) CyberCyan else CyberSurfaceCard)
+                                    .clickable { onToggleTranslation() },
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(if (showTranslation) CyberPink.copy(alpha = 0.25f) else CyberSurfaceCard)
-                                        .border(1.dp, if (showTranslation) CyberPink else GlassBorder, CircleShape)
-                                        .clickable { onToggleTranslation() }
-                                        .padding(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Translate,
-                                        contentDescription = "Traducir letra",
-                                        tint = if (showTranslation) CyberPink else CyberCyan,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.Translate,
+                                    contentDescription = "Traducir letra",
+                                    tint = if (showTranslation) CyberBackgroundDark else TextPrimary,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
 
-                                Box(
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(CyberSurfaceCard)
-                                        .border(1.dp, GlassBorder, CircleShape)
-                                        .clickable { onOpenFullscreenLyrics() }
-                                        .padding(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.OpenInFull,
-                                        contentDescription = "Pantalla completa de letras",
-                                        tint = CyberCyan,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(CyberSurfaceCard)
+                                    .clickable { onOpenFullscreenLyrics() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.OpenInFull,
+                                    contentDescription = "Pantalla completa de letras",
+                                    tint = TextPrimary,
+                                    modifier = Modifier.size(17.dp)
+                                )
                             }
                         }
                     }
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Track Title & Artist
+        // 3. Lower Controls Stack
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Signal Badge + Track Title & Tappable Artist Profile Link
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(if (isPlaying) CyberCyan else TextMuted)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "HI-RES · 320 KBPS",
+                            color = TextMuted,
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.6.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = song.title.ifBlank { "No Track Selected" },
+                        text = song.title.ifBlank { "Sin pista seleccionada" },
                         color = TextPrimary,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.5).sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = song.artist.ifBlank { "Aura Audio Engine" },
+                        text = song.artist.ifBlank { "Aura Studio" },
                         color = TextSecondary,
-                        fontSize = 13.sp,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clickable { onOpenArtist() }
                     )
                 }
 
-                IconButton(onClick = onToggleFavorite) {
+                Spacer(modifier = Modifier.width(12.dp))
+
+                IconButton(
+                    onClick = onToggleFavorite,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(CyberSurfaceCard)
+                ) {
                     Icon(
                         imageVector = if (song.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = "Favorite",
-                        tint = if (song.isFavorite) CyberPink else TextSecondary
+                        contentDescription = "Favorito",
+                        tint = if (song.isFavorite) CyberPink else TextPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Scrubber Progress Slider
+            // Precision Scrubber Slider
             val progress = if (durationMs > 0) (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
 
             Slider(
@@ -330,14 +422,13 @@ fun StudioDeck(
                     onSeekTo((frac * durationMs).toLong())
                 },
                 colors = SliderDefaults.colors(
-                    thumbColor = CyberCyan,
+                    thumbColor = TextPrimary,
                     activeTrackColor = CyberCyan,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.12f)
+                    inactiveTrackColor = CyberSurfaceActive
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Timestamps
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -345,53 +436,63 @@ fun StudioDeck(
                 Text(
                     text = formatTimestamp(currentPositionMs),
                     color = TextMuted,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
                 Text(
                     text = formatTimestamp(durationMs),
                     color = TextMuted,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Transport Controls
+            // High-Contrast Hardware Transport Controls (Zero Neon Gradients)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onToggleShuffle) {
-                    Icon(
-                        imageVector = Icons.Default.Shuffle,
-                        contentDescription = "Shuffle",
-                        tint = if (isShuffle) CyberCyan else TextSecondary
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.Shuffle,
+                            contentDescription = "Aleatorio",
+                            tint = if (isShuffle) CyberCyan else TextSecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        if (isShuffle) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .clip(CircleShape)
+                                    .background(CyberCyan)
+                            )
+                        }
+                    }
                 }
 
-                IconButton(onClick = onPrevious) {
+                IconButton(
+                    onClick = onPrevious,
+                    modifier = Modifier.size(48.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.SkipPrevious,
-                        contentDescription = "Previous",
+                        contentDescription = "Anterior",
                         tint = TextPrimary,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(34.dp)
                     )
                 }
 
-                // Glowing Play/Pause Button
+                // Solid High-Contrast Play/Pause Button (Ivory/White on Matte Carbon)
                 Box(
                     modifier = Modifier
-                        .size(62.dp)
-                        .shadow(elevation = 14.dp, shape = CircleShape, spotColor = CyberCyanGlow)
+                        .size(66.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(CyberCyan, NeonPurple)
-                            )
-                        )
+                        .background(TextPrimary)
                         .clickable { onPlayPause() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -403,33 +504,47 @@ fun StudioDeck(
                     )
                 }
 
-                IconButton(onClick = onNext) {
+                IconButton(
+                    onClick = onNext,
+                    modifier = Modifier.size(48.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.SkipNext,
-                        contentDescription = "Next",
+                        contentDescription = "Siguiente",
                         tint = TextPrimary,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(34.dp)
                     )
                 }
 
                 IconButton(onClick = onToggleRepeat) {
-                    Icon(
-                        imageVector = Icons.Default.Repeat,
-                        contentDescription = "Repeat",
-                        tint = if (isRepeat) CyberCyan else TextSecondary
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.Repeat,
+                            contentDescription = "Repetir",
+                            tint = if (isRepeat) CyberCyan else TextSecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        if (isRepeat) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .clip(CircleShape)
+                                    .background(CyberCyan)
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // Studio Quick Tools (EQ, SLEEP TIMER, QUEUE)
+            // Studio Utility Strip (DSP Equalizer · Sleep Timer · Artist Profile)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Equalizer Quick Button
                 StudioToolPill(
                     icon = Icons.Default.GraphicEq,
                     label = AuraStrings.get("deck_eq", appLanguage),
@@ -437,7 +552,6 @@ fun StudioDeck(
                     onClick = onOpenEqualizer
                 )
 
-                // Sleep Timer Quick Button
                 StudioToolPill(
                     icon = Icons.Default.Bedtime,
                     label = sleepTimerRemaining ?: AuraStrings.get("deck_sleep", appLanguage),
@@ -445,7 +559,6 @@ fun StudioDeck(
                     onClick = onOpenSleepTimer
                 )
 
-                // Up Next Queue Button
                 StudioToolPill(
                     icon = Icons.AutoMirrored.Filled.QueueMusic,
                     label = AuraStrings.get("deck_queue", appLanguage),
@@ -466,26 +579,24 @@ private fun StudioToolPill(
 ) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (activeHighlight) CyberCyan.copy(alpha = 0.16f) else CyberSurfaceActive)
-            .border(1.dp, if (activeHighlight) CyberCyan else GlassBorder, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (activeHighlight) CyberSurfaceActive else CyberSurface)
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 7.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = if (activeHighlight) CyberCyan else TextSecondary,
-            modifier = Modifier.size(16.dp)
+            modifier = Modifier.size(15.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = label,
-            color = if (activeHighlight) CyberCyan else TextPrimary,
+            color = if (activeHighlight) CyberCyan else TextSecondary,
             fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = (-0.1).sp
+            fontWeight = FontWeight.Medium
         )
     }
 }
@@ -499,17 +610,17 @@ private fun ModePillButton(
 ) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(11.dp))
-            .background(if (isSelected) Color(0xFF282E3F) else Color.Transparent)
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (isSelected) CyberSurfaceActive else Color.Transparent)
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 5.dp),
+            .padding(horizontal = 11.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (isSelected) CyberCyan else TextSecondary,
-            modifier = Modifier.size(14.dp)
+            tint = if (isSelected) CyberCyan else TextMuted,
+            modifier = Modifier.size(13.dp)
         )
         Spacer(modifier = Modifier.width(5.dp))
         Text(

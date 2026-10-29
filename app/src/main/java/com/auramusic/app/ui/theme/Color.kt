@@ -27,105 +27,104 @@ data class AuraPalette(
     val vinylCenterRing: Color
 )
 
-// 1. Cyber Neon -> Studio Obsidian (Default Human-Crafted Dark Editorial Aesthetic)
+// 1. Studio Carbon (Default — Braun / Teenage Engineering Matte Carbon & Analog Vermilion)
 val CyberNeonPalette = AuraPalette(
-    background = Color(0xFF0A0B0F),
-    backgroundDark = Color(0xFF06070A),
-    surface = Color(0xFF12141C),
-    surfaceCard = Color(0xFF161922),
-    surfaceActive = Color(0xFF222634),
-    cyan = Color(0xFF2DD4BF),
-    cyanGlow = Color(0x282DD4BF),
-    neonPurple = Color(0xFF94A3B8),
-    cyberPink = Color(0xFFF43F5E),
-    cyberGreen = Color(0xFF34D399),
-    cyberAmber = Color(0xFFFBBF24),
-    cyberRed = Color(0xFFF87171),
-    glassBorder = Color(0x14FFFFFF),
-    glassBorderSubtle = Color(0x0AFFFFFF),
-    textPrimary = Color(0xFFF3F4F6),
-    textSecondary = Color(0xFF9CA3AF),
-    textMuted = Color(0xFF64748B),
-    vinylBody = Color(0xFF111318),
-    vinylGroove = Color(0xFF1B1F2A),
-    vinylCenterRing = Color(0xFF282E3D)
+    background = Color(0xFF0C0C0E),
+    backgroundDark = Color(0xFF070709),
+    surface = Color(0xFF141417),
+    surfaceCard = Color(0xFF1A1A1E),
+    surfaceActive = Color(0xFF25252B),
+    cyan = Color(0xFFE85D2A),
+    cyanGlow = Color(0x24E85D2A),
+    neonPurple = Color(0xFFD97757),
+    cyberPink = Color(0xFFE14D43),
+    cyberGreen = Color(0xFF5E9E72),
+    cyberAmber = Color(0xFFD99B26),
+    cyberRed = Color(0xFFD94A4A),
+    glassBorder = Color(0x12FFFFFF),
+    glassBorderSubtle = Color(0x08FFFFFF),
+    textPrimary = Color(0xFFF4F3EF),
+    textSecondary = Color(0xFF9E9D99),
+    textMuted = Color(0xFF666560),
+    vinylBody = Color(0xFF111113),
+    vinylGroove = Color(0xFF1B1B20),
+    vinylCenterRing = Color(0xFF292930)
 )
 
-// 2. Synthwave (Warm Sunset Amber & Deep Espresso Plum)
+// 2. Champagne Hi-Fi (Bang & Olufsen Brushed Titanium & Warm Brass Gold)
 val SynthwavePalette = AuraPalette(
-    background = Color(0xFF0E0A14),
-    backgroundDark = Color(0xFF08050C),
-    surface = Color(0xFF171121),
-    surfaceCard = Color(0xFF1C1528),
-    surfaceActive = Color(0xFF2A203B),
-    cyan = Color(0xFFF59E0B),
-    cyanGlow = Color(0x28F59E0B),
-    neonPurple = Color(0xFFC084FC),
-    cyberPink = Color(0xFFF43F5E),
-    cyberGreen = Color(0xFF34D399),
-    cyberAmber = Color(0xFFFBBF24),
-    cyberRed = Color(0xFFFB7185),
-    glassBorder = Color(0x14FFFFFF),
-    glassBorderSubtle = Color(0x0AFFFFFF),
-    textPrimary = Color(0xFFFAF5FF),
-    textSecondary = Color(0xFFB4A5C7),
-    textMuted = Color(0xFF7E6E94),
-    vinylBody = Color(0xFF140E1C),
-    vinylGroove = Color(0xFF21172E),
-    vinylCenterRing = Color(0xFF332447)
+    background = Color(0xFF0E0F12),
+    backgroundDark = Color(0xFF08090B),
+    surface = Color(0xFF16181D),
+    surfaceCard = Color(0xFF1C1E24),
+    surfaceActive = Color(0xFF272A32),
+    cyan = Color(0xFFD4AF6A),
+    cyanGlow = Color(0x24D4AF6A),
+    neonPurple = Color(0xFFB89B64),
+    cyberPink = Color(0xFFD96B52),
+    cyberGreen = Color(0xFF65A378),
+    cyberAmber = Color(0xFFD4AF6A),
+    cyberRed = Color(0xFFD9534F),
+    glassBorder = Color(0x12FFFFFF),
+    glassBorderSubtle = Color(0x08FFFFFF),
+    textPrimary = Color(0xFFF5F3EE),
+    textSecondary = Color(0xFFA3A19A),
+    textMuted = Color(0xFF6E6C66),
+    vinylBody = Color(0xFF121317),
+    vinylGroove = Color(0xFF1C1E24),
+    vinylCenterRing = Color(0xFF2B2E37)
 )
 
-// 3. Matrix 99 (Forest Emerald & Deep Carbon)
+// 3. Olive Vinyl (Organic Slate & Matte Sage Green)
 val MatrixPalette = AuraPalette(
-    background = Color(0xFF070C09),
-    backgroundDark = Color(0xFF040705),
-    surface = Color(0xFF0F1712),
-    surfaceCard = Color(0xFF131D17),
-    surfaceActive = Color(0xFF1C2B22),
-    cyan = Color(0xFF10B981),
-    cyanGlow = Color(0x2810B981),
-    neonPurple = Color(0xFF6EE7B7),
-    cyberPink = Color(0xFFF43F5E),
-    cyberGreen = Color(0xFF10B981),
-    cyberAmber = Color(0xFFFBBF24),
-    cyberRed = Color(0xFFEF4444),
-    glassBorder = Color(0x14FFFFFF),
-    glassBorderSubtle = Color(0x0AFFFFFF),
-    textPrimary = Color(0xFFECFDF5),
-    textSecondary = Color(0xFF9CA3AF),
-    textMuted = Color(0xFF6B7280),
-    vinylBody = Color(0xFF0B120E),
-    vinylGroove = Color(0xFF142019),
-    vinylCenterRing = Color(0xFF1F3327)
+    background = Color(0xFF0A0D0B),
+    backgroundDark = Color(0xFF060807),
+    surface = Color(0xFF121714),
+    surfaceCard = Color(0xFF171E1A),
+    surfaceActive = Color(0xFF212B25),
+    cyan = Color(0xFF7FA982),
+    cyanGlow = Color(0x247FA982),
+    neonPurple = Color(0xFF9ABCA0),
+    cyberPink = Color(0xFFD96B52),
+    cyberGreen = Color(0xFF7FA982),
+    cyberAmber = Color(0xFFD4A359),
+    cyberRed = Color(0xFFD9534F),
+    glassBorder = Color(0x12FFFFFF),
+    glassBorderSubtle = Color(0x08FFFFFF),
+    textPrimary = Color(0xFFF0F4F1),
+    textSecondary = Color(0xFF99A39B),
+    textMuted = Color(0xFF636E66),
+    vinylBody = Color(0xFF0E1310),
+    vinylGroove = Color(0xFF17201B),
+    vinylCenterRing = Color(0xFF243029)
 )
 
-// 4. OLED Black (Pure Minimalist Stealth: Pure Black & Crisp Silver/White)
+// 4. Leica Monochrome (Pure OLED Black & High-Contrast Silver/White)
 val OledPalette = AuraPalette(
     background = Color(0xFF000000),
     backgroundDark = Color(0xFF000000),
-    surface = Color(0xFF111113),
-    surfaceCard = Color(0xFF141417),
-    surfaceActive = Color(0xFF222226),
+    surface = Color(0xFF0F0F11),
+    surfaceCard = Color(0xFF151517),
+    surfaceActive = Color(0xFF222225),
     cyan = Color(0xFFFFFFFF),
-    cyanGlow = Color(0x24FFFFFF),
+    cyanGlow = Color(0x20FFFFFF),
     neonPurple = Color(0xFFA1A1AA),
-    cyberPink = Color(0xFFF43F5E),
-    cyberGreen = Color(0xFF4ADE80),
-    cyberAmber = Color(0xFFFBBF24),
-    cyberRed = Color(0xFFF87171),
-    glassBorder = Color(0x16FFFFFF),
-    glassBorderSubtle = Color(0x0DFFFFFF),
+    cyberPink = Color(0xFFE14D43),
+    cyberGreen = Color(0xFF65A378),
+    cyberAmber = Color(0xFFD4AF6A),
+    cyberRed = Color(0xFFD9534F),
+    glassBorder = Color(0x14FFFFFF),
+    glassBorderSubtle = Color(0x0AFFFFFF),
     textPrimary = Color(0xFFFFFFFF),
     textSecondary = Color(0xFFA1A1AA),
-    textMuted = Color(0xFF71717A),
+    textMuted = Color(0xFF6E6E77),
     vinylBody = Color(0xFF0A0A0C),
-    vinylGroove = Color(0xFF141417),
-    vinylCenterRing = Color(0xFF27272A)
+    vinylGroove = Color(0xFF151518),
+    vinylCenterRing = Color(0xFF26262B)
 )
 
 val LocalAuraPalette = staticCompositionLocalOf { CyberNeonPalette }
 
-// Composable accessors for backward compatibility and automatic dynamic theme propagation
 val CyberBackground: Color @Composable get() = LocalAuraPalette.current.background
 val CyberBackgroundDark: Color @Composable get() = LocalAuraPalette.current.backgroundDark
 val CyberSurface: Color @Composable get() = LocalAuraPalette.current.surface

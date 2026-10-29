@@ -7,13 +7,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 
 @Composable
 fun AuraMusicTheme(
-    themeName: String = "Cyber Neon",
+    themeName: String = "Studio Carbon",
     content: @Composable () -> Unit
 ) {
     val palette = when (themeName) {
-        "Synthwave" -> SynthwavePalette
-        "Matrix 99" -> MatrixPalette
-        "OLED Black" -> OledPalette
+        "Champagne Hi-Fi", "Synthwave" -> SynthwavePalette
+        "Olive Vinyl", "Matrix 99" -> MatrixPalette
+        "Leica Monochrome", "OLED Black" -> OledPalette
         else -> CyberNeonPalette
     }
 

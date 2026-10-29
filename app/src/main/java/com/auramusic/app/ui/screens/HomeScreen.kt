@@ -127,7 +127,6 @@ fun HomeScreen(
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(CyberSurfaceCard)
-                        .border(1.dp, GlassBorder, CircleShape)
                         .clickable { onOpenSettings() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -141,7 +140,7 @@ fun HomeScreen(
             }
         }
 
-        // 2. Genre & Mood Pills
+        // 2. Genre & Mood Pills (Unbordered tactile chips)
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -149,9 +148,8 @@ fun HomeScreen(
                 items(stations) { vibe ->
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
+                            .clip(RoundedCornerShape(18.dp))
                             .background(CyberSurfaceCard)
-                            .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
                             .clickable { onSelectVibe(vibe) }
                             .padding(horizontal = 16.dp, vertical = 9.dp)
                     ) {
@@ -328,8 +326,7 @@ private fun ArtistAvatarCard(
                 .size(76.dp)
                 .shadow(elevation = 8.dp, shape = CircleShape, spotColor = Color.Black.copy(alpha = 0.5f))
                 .clip(CircleShape)
-                .background(CyberSurfaceCard)
-                .border(1.dp, GlassBorder, CircleShape),
+                .background(CyberSurfaceCard),
             contentAlignment = Alignment.Center
         ) {
             if (song.coverUrl.isNotBlank()) {
@@ -377,10 +374,9 @@ private fun TrendingAlbumCard(
         Box(
             modifier = Modifier
                 .size(142.dp)
-                .shadow(elevation = 10.dp, shape = RoundedCornerShape(12.dp), spotColor = Color.Black.copy(alpha = 0.5f))
-                .clip(RoundedCornerShape(12.dp))
-                .background(CyberSurfaceCard)
-                .border(1.dp, GlassBorder, RoundedCornerShape(12.dp)),
+                .shadow(elevation = 10.dp, shape = RoundedCornerShape(10.dp), spotColor = Color.Black.copy(alpha = 0.5f))
+                .clip(RoundedCornerShape(10.dp))
+                .background(CyberSurfaceCard),
             contentAlignment = Alignment.Center
         ) {
             if (album.coverUrl.isNotBlank()) {
@@ -439,14 +435,9 @@ private fun QuickPickCard(
         Box(
             modifier = Modifier
                 .size(142.dp)
-                .shadow(elevation = 10.dp, shape = RoundedCornerShape(12.dp), spotColor = Color.Black.copy(alpha = 0.55f))
-                .clip(RoundedCornerShape(12.dp))
-                .background(CyberSurfaceCard)
-                .border(
-                    1.dp,
-                    if (isCurrent) CyberCyan else GlassBorder,
-                    RoundedCornerShape(12.dp)
-                ),
+                .shadow(elevation = 10.dp, shape = RoundedCornerShape(10.dp), spotColor = Color.Black.copy(alpha = 0.55f))
+                .clip(RoundedCornerShape(10.dp))
+                .background(CyberSurfaceCard),
             contentAlignment = Alignment.Center
         ) {
             if (song.coverUrl.isNotBlank()) {
@@ -517,31 +508,26 @@ private fun ChartTrackRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isCurrent) CyberSurfaceActive else CyberSurfaceCard.copy(alpha = 0.65f))
-            .border(
-                1.dp,
-                if (isCurrent) CyberCyan.copy(alpha = 0.45f) else GlassBorder,
-                RoundedCornerShape(12.dp)
-            )
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isCurrent) CyberSurfaceCard else Color.Transparent)
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+            .padding(horizontal = 6.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = String.format("%02d", rank),
             color = if (isCurrent) CyberCyan else TextMuted,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = FontFamily.Monospace,
-            modifier = Modifier.width(26.dp)
+            modifier = Modifier.width(28.dp)
         )
 
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(46.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(CyberBackgroundDark),
+                .background(CyberSurfaceCard),
             contentAlignment = Alignment.Center
         ) {
             if (song.coverUrl.isNotBlank()) {
@@ -568,7 +554,7 @@ private fun ChartTrackRow(
                 text = song.title,
                 color = if (isCurrent) CyberCyan else TextPrimary,
                 fontSize = 14.sp,
-                fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                 letterSpacing = (-0.1).sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -583,19 +569,11 @@ private fun ChartTrackRow(
             )
         }
 
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(if (isCurrent) CyberCyan else CyberSurfaceActive),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (isCurrent && isPlaying) Icons.Default.Equalizer else Icons.Default.PlayArrow,
-                contentDescription = "Play",
-                tint = if (isCurrent) CyberBackgroundDark else TextSecondary,
-                modifier = Modifier.size(16.dp)
-            )
-        }
+        Icon(
+            imageVector = if (isCurrent && isPlaying) Icons.Default.Equalizer else Icons.Default.PlayArrow,
+            contentDescription = "Play",
+            tint = if (isCurrent) CyberCyan else TextMuted,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }

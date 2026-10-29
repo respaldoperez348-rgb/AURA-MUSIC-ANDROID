@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import com.auramusic.app.data.model.Album
 import com.auramusic.app.data.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,7 +37,7 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
 
     companion object {
         const val DATABASE_NAME = "aura_music.db"
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
 
         // Table Names
         const val TABLE_FAVORITES = "favorites"
@@ -45,6 +46,8 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         const val TABLE_DOWNLOADS = "downloads"
         const val TABLE_HISTORY = "history"
         const val TABLE_SEARCH_HISTORY = "search_history"
+        const val TABLE_FOLLOWED_ARTISTS = "followed_artists"
+        const val TABLE_SAVED_ALBUMS = "saved_albums"
 
         @Volatile
         private var instance: AuraDatabase? = null
@@ -138,6 +141,28 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
                 timestamp INTEGER
             )
         """.trimIndent())
+
+        // Followed Artists Table
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_FOLLOWED_ARTISTS (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                coverUrl TEXT,
+                subscribers TEXT,
+                followedAt INTEGER
+            )
+        """.trimIndent())
+
+        // Saved Albums Table
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_SAVED_ALBUMS (
+                browseId TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                artistOrYear TEXT,
+                coverUrl TEXT,
+                savedAt INTEGER
+            )
+        """.trimIndent())
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -147,6 +172,26 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     query TEXT UNIQUE,
                     timestamp INTEGER
+                )
+            """.trimIndent())
+        }
+        if (oldVersion < 3) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS $TABLE_FOLLOWED_ARTISTS (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    coverUrl TEXT,
+                    subscribers TEXT,
+                    followedAt INTEGER
+                )
+            """.trimIndent())
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS $TABLE_SAVED_ALBUMS (
+                    browseId TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    artistOrYear TEXT,
+                    coverUrl TEXT,
+                    savedAt INTEGER
                 )
             """.trimIndent())
         }
@@ -640,9 +685,150 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         )
     }
 
+    // ==========================================
+    // FOLLOWED ARTISTS & SAVED ALBUMS
+    // ==========================================
+
+    suspend fun getFollowedArtists(): List<Song> = withContext(Dispatchers.IO) {
+        val list = mutableListOf<Song>()
+        try {
+            val db = readableDatabase
+            val cursor = db.rawQuery(
+                "SELECT id, name, coverUrl, subscribers FROM $TABLE_FOLLOWED_ARTISTS ORDER BY followedAt DESC",
+                null
+            )
+            cursor.use {
+                while (it.moveToNext()) {
+                    val id = it.getString(0) ?: ""
+                    val name = it.getString(1) ?: ""
+                    val coverUrl = it.getString(2) ?: ""
+                    val subs = it.getString(3) ?: "Artista"
+                    list.add(
+                        Song(
+                            id = id.ifBlank { name },
+                            title = name,
+                            artist = subs.ifBlank { "Artista" },
+                            coverUrl = coverUrl,
+                            durationMs = 0L,
+                            mediaUri = "",
+                            isArtist = true
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        list
+    }
+
+    suspend fun isArtistFollowed(artistId: String, artistName: String = ""): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val db = readableDatabase
+            val cursor = db.rawQuery(
+                "SELECT 1 FROM $TABLE_FOLLOWED_ARTISTS WHERE id = ? OR LOWER(name) = LOWER(?)",
+                arrayOf(artistId, artistName.ifBlank { artistId })
+            )
+            val exists = cursor.count > 0
+            cursor.close()
+            exists
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun toggleFollowArtist(
+        artistId: String,
+        artistName: String,
+        coverUrl: String,
+        subscribers: String = ""
+    ): Boolean = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        val cleanId = artistId.ifBlank { artistName }
+        if (isArtistFollowed(cleanId, artistName)) {
+            db.delete(
+                TABLE_FOLLOWED_ARTISTS,
+                "id = ? OR LOWER(name) = LOWER(?)",
+                arrayOf(cleanId, artistName)
+            )
+            false
+        } else {
+            val values = ContentValues().apply {
+                put("id", cleanId)
+                put("name", artistName)
+                put("coverUrl", coverUrl)
+                put("subscribers", subscribers)
+                put("followedAt", System.currentTimeMillis())
+            }
+            db.insertWithOnConflict(TABLE_FOLLOWED_ARTISTS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+            true
+        }
+    }
+
+    suspend fun getSavedAlbums(): List<Album> = withContext(Dispatchers.IO) {
+        val list = mutableListOf<Album>()
+        try {
+            val db = readableDatabase
+            val cursor = db.rawQuery(
+                "SELECT browseId, title, artistOrYear, coverUrl FROM $TABLE_SAVED_ALBUMS ORDER BY savedAt DESC",
+                null
+            )
+            cursor.use {
+                while (it.moveToNext()) {
+                    list.add(
+                        Album(
+                            browseId = it.getString(0) ?: "",
+                            title = it.getString(1) ?: "",
+                            year = it.getString(2) ?: "",
+                            coverUrl = it.getString(3) ?: ""
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        list
+    }
+
+    suspend fun isAlbumSaved(browseId: String): Boolean = withContext(Dispatchers.IO) {
+        if (browseId.isBlank()) return@withContext false
+        try {
+            val db = readableDatabase
+            val cursor = db.rawQuery(
+                "SELECT 1 FROM $TABLE_SAVED_ALBUMS WHERE browseId = ?",
+                arrayOf(browseId)
+            )
+            val exists = cursor.count > 0
+            cursor.close()
+            exists
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun toggleSaveAlbum(album: Album): Boolean = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        val id = album.browseId.ifBlank { album.title }
+        if (isAlbumSaved(id)) {
+            db.delete(TABLE_SAVED_ALBUMS, "browseId = ?", arrayOf(id))
+            false
+        } else {
+            val values = ContentValues().apply {
+                put("browseId", id)
+                put("title", album.title)
+                put("artistOrYear", album.year)
+                put("coverUrl", album.coverUrl)
+                put("savedAt", System.currentTimeMillis())
+            }
+            db.insertWithOnConflict(TABLE_SAVED_ALBUMS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+            true
+        }
+    }
+
     suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
         val root = org.json.JSONObject()
-        root.put("version", "2.0.0")
+        root.put("version", "2.1.0")
         root.put("exportedAt", System.currentTimeMillis())
 
         val favArray = org.json.JSONArray()
@@ -659,6 +845,30 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             favArray.put(obj)
         }
         root.put("favorites", favArray)
+
+        val artistsArray = org.json.JSONArray()
+        getFollowedArtists().forEach { a ->
+            val obj = org.json.JSONObject().apply {
+                put("id", a.id)
+                put("name", a.title)
+                put("coverUrl", a.coverUrl)
+                put("subscribers", a.artist)
+            }
+            artistsArray.put(obj)
+        }
+        root.put("followedArtists", artistsArray)
+
+        val albumsArray = org.json.JSONArray()
+        getSavedAlbums().forEach { alb ->
+            val obj = org.json.JSONObject().apply {
+                put("browseId", alb.browseId)
+                put("title", alb.title)
+                put("year", alb.year)
+                put("coverUrl", alb.coverUrl)
+            }
+            albumsArray.put(obj)
+        }
+        root.put("savedAlbums", albumsArray)
 
         val playlistsArray = org.json.JSONArray()
         getPlaylists().forEach { pl ->
@@ -706,6 +916,35 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
                             isFavorite = true
                         )
                     )
+                }
+            }
+            val artistsArray = root.optJSONArray("followedArtists")
+            if (artistsArray != null) {
+                for (i in 0 until artistsArray.length()) {
+                    val o = artistsArray.optJSONObject(i) ?: continue
+                    val id = o.optString("id")
+                    val name = o.optString("name")
+                    if (name.isNotBlank() && !isArtistFollowed(id, name)) {
+                        toggleFollowArtist(id, name, o.optString("coverUrl"), o.optString("subscribers"))
+                    }
+                }
+            }
+            val albumsArray = root.optJSONArray("savedAlbums")
+            if (albumsArray != null) {
+                for (i in 0 until albumsArray.length()) {
+                    val o = albumsArray.optJSONObject(i) ?: continue
+                    val bId = o.optString("browseId")
+                    val title = o.optString("title")
+                    if (title.isNotBlank() && !isAlbumSaved(bId.ifBlank { title })) {
+                        toggleSaveAlbum(
+                            Album(
+                                browseId = bId.ifBlank { title },
+                                title = title,
+                                year = o.optString("year"),
+                                coverUrl = o.optString("coverUrl")
+                            )
+                        )
+                    }
                 }
             }
             val playlistsArray = root.optJSONArray("playlists")
