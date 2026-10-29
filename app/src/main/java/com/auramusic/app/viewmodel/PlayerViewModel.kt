@@ -44,7 +44,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 enum class MainTab {
     STUDIO, RADAR, VAULT
@@ -487,6 +489,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun fetchCoverBytes(coverUrl: String): ByteArray? = withContext(Dispatchers.IO) {
         if (coverUrl.isBlank()) return@withContext null
         try {
+            if (coverUrl.startsWith("/") || coverUrl.startsWith("file:")) {
+                val f = File(coverUrl.removePrefix("file://"))
+                if (f.exists() && f.length() > 0) {
+                    return@withContext f.readBytes()
+                }
+            }
             val context = getApplication<Application>()
             val loader = Coil.imageLoader(context)
             val request = ImageRequest.Builder(context)
@@ -556,22 +564,59 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         prefetchJob?.cancel()
         playJob = viewModelScope.launch {
             val downloadedList = database.getDownloadedTracks()
-            val localTrack = downloadedList.find { it.song.id == song.id }
+            val localTrack = downloadedList.find {
+                it.song.id == song.id ||
+                (it.song.title.trim().equals(song.title.trim(), ignoreCase = true) &&
+                 it.song.artist.trim().equals(song.artist.trim(), ignoreCase = true))
+            }
 
             // 3. Resolve audio stream & cover art bytes in parallel
             val streamDeferred = async(Dispatchers.IO) {
-                if (localTrack != null) {
-                    localTrack.localFilePath
-                } else if (song.id.startsWith("local_")) {
-                    song.mediaUri
-                } else {
-                    val fallback = "${song.title} ${song.artist}"
-                    AuraStreamResolver.resolveAudioStream(song.id, fallback)
+                // Priority 1: song.mediaUri already points to an existing local file or Android content URI
+                if (song.mediaUri.isNotBlank()) {
+                    val directFile = File(song.mediaUri.removePrefix("file://"))
+                    if (directFile.exists() && directFile.length() > 0) {
+                        return@async directFile.absolutePath
+                    } else if (song.mediaUri.startsWith("content://")) {
+                        return@async song.mediaUri
+                    }
                 }
+
+                // Priority 2: Offline downloaded track file on disk
+                if (localTrack != null) {
+                    val dlFile = File(localTrack.localFilePath)
+                    if (dlFile.exists() && dlFile.length() > 0) {
+                        return@async dlFile.absolutePath
+                    }
+                }
+
+                // Priority 3: Local device track from MediaStore scanner
+                if (song.id.startsWith("local_")) {
+                    return@async song.mediaUri
+                }
+
+                val localDeviceTrack = _uiState.value.localTracks.find {
+                    it.id == song.id ||
+                    (it.title.trim().equals(song.title.trim(), ignoreCase = true) &&
+                     it.artist.trim().equals(song.artist.trim(), ignoreCase = true))
+                }
+                if (localDeviceTrack != null && localDeviceTrack.mediaUri.isNotBlank()) {
+                    return@async localDeviceTrack.mediaUri
+                }
+
+                // Priority 4: Online streaming resolution (requires internet)
+                val fallback = "${song.title} ${song.artist}"
+                AuraStreamResolver.resolveAudioStream(song.id, fallback)
             }
 
             val artworkDeferred = async(Dispatchers.IO) {
-                fetchCoverBytes(song.coverUrl)
+                try {
+                    withTimeoutOrNull(1200L) {
+                        fetchCoverBytes(song.coverUrl)
+                    }
+                } catch (e: Exception) {
+                    null
+                }
             }
 
             val playableUri = streamDeferred.await()
@@ -579,7 +624,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             if (playableUri.isNullOrBlank() || playableUri.startsWith("https://www.youtube.com")) {
                 android.util.Log.e("PlayerViewModel", "Playable audio stream could not be resolved for: ${song.title} (${song.id})")
-                _uiState.update { it.copy(isPlaying = false) }
+                _uiState.update { it.copy(isPlaying = false, toastMessage = "Sin conexión: Canción no disponible offline") }
                 return@launch
             }
 
@@ -590,14 +635,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 .setAlbumTitle(song.album)
 
             if (song.coverUrl.isNotBlank()) {
-                metaBuilder.setArtworkUri(Uri.parse(song.coverUrl))
+                val artUri = if (song.coverUrl.startsWith("/") || song.coverUrl.startsWith("file:")) {
+                    Uri.fromFile(File(song.coverUrl.removePrefix("file://")))
+                } else {
+                    Uri.parse(song.coverUrl)
+                }
+                metaBuilder.setArtworkUri(artUri)
             }
             if (artworkBytes != null) {
                 metaBuilder.setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
             }
 
+            val mediaUri = if (playableUri.startsWith("/") || playableUri.startsWith("file:")) {
+                Uri.fromFile(File(playableUri.removePrefix("file://")))
+            } else {
+                Uri.parse(playableUri)
+            }
+
             val mediaItem = MediaItem.Builder()
-                .setUri(playableUri)
+                .setUri(mediaUri)
                 .setMediaId(song.id)
                 .setMediaMetadata(metaBuilder.build())
                 .build()
@@ -634,19 +690,40 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         prefetchJob?.cancel()
         prefetchJob = viewModelScope.launch(Dispatchers.IO) {
             val downloadedList = database.getDownloadedTracks()
-            val localTrack = downloadedList.find { it.song.id == nextSong.id }
+            val localTrack = downloadedList.find {
+                it.song.id == nextSong.id ||
+                (it.song.title.trim().equals(nextSong.title.trim(), ignoreCase = true) &&
+                 it.song.artist.trim().equals(nextSong.artist.trim(), ignoreCase = true))
+            }
 
-            val playableUri = if (localTrack != null) {
+            val playableUri = if (nextSong.mediaUri.isNotBlank() && (File(nextSong.mediaUri.removePrefix("file://")).let { it.exists() && it.length() > 0 } || nextSong.mediaUri.startsWith("content://"))) {
+                nextSong.mediaUri
+            } else if (localTrack != null && File(localTrack.localFilePath).let { it.exists() && it.length() > 0 }) {
                 localTrack.localFilePath
             } else if (nextSong.id.startsWith("local_")) {
                 nextSong.mediaUri
             } else {
-                val fallback = "${nextSong.title} ${nextSong.artist}"
-                AuraStreamResolver.resolveAudioStream(nextSong.id, fallback)
+                val localDeviceTrack = _uiState.value.localTracks.find {
+                    it.id == nextSong.id ||
+                    (it.title.trim().equals(nextSong.title.trim(), ignoreCase = true) &&
+                     it.artist.trim().equals(nextSong.artist.trim(), ignoreCase = true))
+                }
+                if (localDeviceTrack != null && localDeviceTrack.mediaUri.isNotBlank()) {
+                    localDeviceTrack.mediaUri
+                } else {
+                    val fallback = "${nextSong.title} ${nextSong.artist}"
+                    AuraStreamResolver.resolveAudioStream(nextSong.id, fallback)
+                }
             }
 
             if (!playableUri.isNullOrBlank() && !playableUri.startsWith("https://www.youtube.com")) {
-                val artworkBytes = fetchCoverBytes(nextSong.coverUrl)
+                val artworkBytes = try {
+                    withTimeoutOrNull(1000L) {
+                        fetchCoverBytes(nextSong.coverUrl)
+                    }
+                } catch (e: Exception) {
+                    null
+                }
                 withContext(Dispatchers.Main) {
                     val controller = mediaController ?: return@withContext
                     if (controller.mediaItemCount == 1 && controller.currentMediaItem?.mediaId == curSong.id) {
@@ -655,14 +732,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                             .setArtist(nextSong.artist)
                             .setAlbumTitle(nextSong.album)
                         if (nextSong.coverUrl.isNotBlank()) {
-                            metaBuilder.setArtworkUri(Uri.parse(nextSong.coverUrl))
+                            val artUri = if (nextSong.coverUrl.startsWith("/") || nextSong.coverUrl.startsWith("file:")) {
+                                Uri.fromFile(File(nextSong.coverUrl.removePrefix("file://")))
+                            } else {
+                                Uri.parse(nextSong.coverUrl)
+                            }
+                            metaBuilder.setArtworkUri(artUri)
                         }
                         if (artworkBytes != null) {
                             metaBuilder.setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
                         }
 
+                        val nextUri = if (playableUri.startsWith("/") || playableUri.startsWith("file:")) {
+                            Uri.fromFile(File(playableUri.removePrefix("file://")))
+                        } else {
+                            Uri.parse(playableUri)
+                        }
+
                         val nextMediaItem = MediaItem.Builder()
-                            .setUri(playableUri)
+                            .setUri(nextUri)
                             .setMediaId(nextSong.id)
                             .setMediaMetadata(metaBuilder.build())
                             .build()

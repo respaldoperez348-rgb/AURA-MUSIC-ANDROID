@@ -149,30 +149,88 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
     // FAVORITES OPERATIONS
     // ==========================================
 
+    private fun getDownloadMap(db: SQLiteDatabase): Map<String, Pair<String, String>> {
+        val map = mutableMapOf<String, Pair<String, String>>()
+        try {
+            val cursor = db.rawQuery(
+                "SELECT songId, title, artist, coverUrl, localFilePath FROM $TABLE_DOWNLOADS",
+                null
+            )
+            cursor.use {
+                while (it.moveToNext()) {
+                    val songId = it.getString(0) ?: ""
+                    val title = it.getString(1)?.trim()?.lowercase() ?: ""
+                    val artist = it.getString(2)?.trim()?.lowercase() ?: ""
+                    val coverUrl = it.getString(3) ?: ""
+                    val localPath = it.getString(4) ?: ""
+
+                    if (localPath.isNotBlank() && java.io.File(localPath).exists()) {
+                        val pair = Pair(coverUrl, localPath)
+                        if (songId.isNotBlank()) map[songId] = pair
+                        if (title.isNotBlank()) map["$title|$artist"] = pair
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return map
+    }
+
     suspend fun getFavorites(): List<Song> = withContext(Dispatchers.IO) {
         val list = mutableListOf<Song>()
         val db = readableDatabase
+        val downloadMap = getDownloadMap(db)
         val cursor: Cursor = db.rawQuery(
             "SELECT id, title, artist, album, durationMs, coverUrl, mediaUri FROM $TABLE_FAVORITES ORDER BY addedAt DESC",
             null
         )
         cursor.use {
             while (it.moveToNext()) {
+                val id = it.getString(0)
+                val title = it.getString(1)
+                val artist = it.getString(2)
+                val album = it.getString(3) ?: ""
+                val durationMs = it.getLong(4)
+                var coverUrl = it.getString(5) ?: ""
+                var mediaUri = it.getString(6) ?: ""
+
+                val dl = downloadMap[id] ?: downloadMap["${title.trim().lowercase()}|${artist.trim().lowercase()}"]
+                if (dl != null) {
+                    if (mediaUri.isBlank() || mediaUri.startsWith("http")) {
+                        mediaUri = dl.second
+                    }
+                    if (coverUrl.isBlank() || coverUrl.startsWith("http")) {
+                        if (dl.first.isNotBlank() && java.io.File(dl.first).exists()) {
+                            coverUrl = dl.first
+                        }
+                    }
+                }
+
                 list.add(
                     Song(
-                        id = it.getString(0),
-                        title = it.getString(1),
-                        artist = it.getString(2),
-                        album = it.getString(3) ?: "",
-                        durationMs = it.getLong(4),
-                        coverUrl = it.getString(5) ?: "",
-                        mediaUri = it.getString(6) ?: "",
+                        id = id,
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        durationMs = durationMs,
+                        coverUrl = coverUrl,
+                        mediaUri = mediaUri,
                         isFavorite = true
                     )
                 )
             }
         }
         list
+    }
+
+    suspend fun updateFavoriteMediaAndCover(songId: String, coverUrl: String, mediaUri: String) = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            if (coverUrl.isNotBlank()) put("coverUrl", coverUrl)
+            if (mediaUri.isNotBlank()) put("mediaUri", mediaUri)
+        }
+        db.update(TABLE_FAVORITES, values, "id = ?", arrayOf(songId))
     }
 
     suspend fun isFavorite(songId: String): Boolean = withContext(Dispatchers.IO) {
@@ -279,6 +337,7 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
     suspend fun getSongsInPlaylist(playlistId: String): List<Song> = withContext(Dispatchers.IO) {
         val list = mutableListOf<Song>()
         val db = readableDatabase
+        val downloadMap = getDownloadMap(db)
         val cursor = db.rawQuery("""
             SELECT songId, title, artist, album, durationMs, coverUrl, mediaUri
             FROM $TABLE_PLAYLIST_SONGS
@@ -288,15 +347,35 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
 
         cursor.use {
             while (it.moveToNext()) {
+                val id = it.getString(0)
+                val title = it.getString(1)
+                val artist = it.getString(2)
+                val album = it.getString(3) ?: ""
+                val durationMs = it.getLong(4)
+                var coverUrl = it.getString(5) ?: ""
+                var mediaUri = it.getString(6) ?: ""
+
+                val dl = downloadMap[id] ?: downloadMap["${title.trim().lowercase()}|${artist.trim().lowercase()}"]
+                if (dl != null) {
+                    if (mediaUri.isBlank() || mediaUri.startsWith("http")) {
+                        mediaUri = dl.second
+                    }
+                    if (coverUrl.isBlank() || coverUrl.startsWith("http")) {
+                        if (dl.first.isNotBlank() && java.io.File(dl.first).exists()) {
+                            coverUrl = dl.first
+                        }
+                    }
+                }
+
                 list.add(
                     Song(
-                        id = it.getString(0),
-                        title = it.getString(1),
-                        artist = it.getString(2),
-                        album = it.getString(3) ?: "",
-                        durationMs = it.getLong(4),
-                        coverUrl = it.getString(5) ?: "",
-                        mediaUri = it.getString(6) ?: ""
+                        id = id,
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        durationMs = durationMs,
+                        coverUrl = coverUrl,
+                        mediaUri = mediaUri
                     )
                 )
             }

@@ -189,12 +189,40 @@ class AuraDownloadManager(
                 outputStream.close()
                 inputStream.close()
 
+                // Download album cover art for offline use
+                var localCoverPath = song.coverUrl
+                if (song.coverUrl.isNotBlank() && (song.coverUrl.startsWith("http://") || song.coverUrl.startsWith("https://"))) {
+                    try {
+                        val coverFile = File(downloadsDir, "${song.id}.jpg")
+                        val coverRequest = Request.Builder()
+                            .url(song.coverUrl)
+                            .header("User-Agent", "AuraMusic/1.0 (Android)")
+                            .build()
+                        val coverResponse = client.newCall(coverRequest).execute()
+                        if (coverResponse.isSuccessful) {
+                            coverResponse.body?.byteStream()?.use { input ->
+                                FileOutputStream(coverFile).use { output ->
+                                    input.copyTo(output)
+                                }
+                            }
+                            if (coverFile.exists() && coverFile.length() > 0) {
+                                localCoverPath = coverFile.absolutePath
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
                 // Register into database
                 database.saveDownload(
-                    song = song,
+                    song = song.copy(coverUrl = localCoverPath),
                     localPath = targetFile.absolutePath,
                     fileSize = targetFile.length()
                 )
+
+                // If also in favorites, update favorites table with offline paths
+                database.updateFavoriteMediaAndCover(song.id, localCoverPath, targetFile.absolutePath)
 
                 _downloadProgress.update { it + (song.id to 100) }
                 activeDownloads.remove(song.id)
@@ -227,6 +255,8 @@ class AuraDownloadManager(
     suspend fun deleteDownload(songId: String) = withContext(Dispatchers.IO) {
         val targetFile = File(downloadsDir, "$songId.mp3")
         if (targetFile.exists()) targetFile.delete()
+        val coverFile = File(downloadsDir, "$songId.jpg")
+        if (coverFile.exists()) coverFile.delete()
         database.removeDownload(songId)
         _downloadProgress.update { it - songId }
     }

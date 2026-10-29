@@ -201,10 +201,16 @@ fun VaultScreen(
                         contentPadding = PaddingValues(bottom = 160.dp)
                     ) {
                         items(favorites) { song ->
+                            val isDownloaded = downloads.any {
+                                it.song.id == song.id ||
+                                (it.song.title.trim().equals(song.title.trim(), ignoreCase = true) &&
+                                 it.song.artist.trim().equals(song.artist.trim(), ignoreCase = true))
+                            }
                             VaultSongRow(
                                 song = song,
                                 isCurrent = song.id == currentSong.id,
                                 isPlaying = isPlaying && song.id == currentSong.id,
+                                isDownloaded = isDownloaded,
                                 onClick = { onSelectSong(song, favorites) },
                                 onOptionClick = { onOpenSongOptions(song) }
                             )
@@ -489,15 +495,41 @@ private fun VaultSongRow(
             modifier = Modifier
                 .size(42.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(CyberBackgroundDark),
+                .background(CyberSurfaceCard),
             contentAlignment = Alignment.Center
         ) {
             if (song.coverUrl.isNotBlank()) {
-                AsyncImage(
+                coil.compose.SubcomposeAsyncImage(
                     model = song.coverUrl,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    loading = {
+                        Box(
+                            modifier = Modifier.fillMaxSize().background(CyberSurfaceCard),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = null,
+                                tint = CyberCyan.copy(alpha = 0.35f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    },
+                    error = {
+                        Box(
+                            modifier = Modifier.fillMaxSize().background(CyberSurfaceCard),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = null,
+                                tint = CyberCyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 )
             } else {
                 Icon(imageVector = Icons.Default.MusicNote, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(20.dp))

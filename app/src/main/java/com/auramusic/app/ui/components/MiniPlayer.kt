@@ -47,6 +47,7 @@ import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
 import com.auramusic.app.ui.theme.CyberCyanGlow
 import com.auramusic.app.ui.theme.CyberPink
+import com.auramusic.app.ui.theme.CyberSurfaceCard
 import com.auramusic.app.ui.theme.GlassBorder
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
@@ -124,15 +125,41 @@ fun MiniPlayer(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(CyberBackgroundDark),
+                        .background(CyberSurfaceCard),
                     contentAlignment = Alignment.Center
                 ) {
                     if (song.coverUrl.isNotBlank()) {
-                        AsyncImage(
+                        coil.compose.SubcomposeAsyncImage(
                             model = song.coverUrl,
                             contentDescription = song.title,
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Crop,
+                            loading = {
+                                Box(
+                                    modifier = Modifier.fillMaxSize().background(CyberSurfaceCard),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MusicNote,
+                                        contentDescription = null,
+                                        tint = CyberCyan.copy(alpha = 0.35f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            },
+                            error = {
+                                Box(
+                                    modifier = Modifier.fillMaxSize().background(CyberSurfaceCard),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MusicNote,
+                                        contentDescription = null,
+                                        tint = CyberCyan,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         )
                     } else {
                         Icon(

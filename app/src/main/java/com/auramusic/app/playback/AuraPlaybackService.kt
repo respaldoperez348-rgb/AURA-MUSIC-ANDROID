@@ -174,8 +174,18 @@ class AuraPlaybackService : MediaSessionService() {
         AuraPlaybackBridge.currentSong.value = nextSong
 
         serviceScope.launch(Dispatchers.IO) {
-            val streamUri = if (nextSong.mediaUri.isNotBlank()) {
+            val db = com.auramusic.app.data.database.AuraDatabase.getInstance(this@AuraPlaybackService)
+            val downloads = db.getDownloadedTracks()
+            val localTrack = downloads.find {
+                it.song.id == nextSong.id ||
+                (it.song.title.trim().equals(nextSong.title.trim(), ignoreCase = true) &&
+                 it.song.artist.trim().equals(nextSong.artist.trim(), ignoreCase = true))
+            }
+
+            val streamUri = if (nextSong.mediaUri.isNotBlank() && (java.io.File(nextSong.mediaUri.removePrefix("file://")).let { it.exists() && it.length() > 0 } || nextSong.mediaUri.startsWith("content://"))) {
                 nextSong.mediaUri
+            } else if (localTrack != null && java.io.File(localTrack.localFilePath).let { it.exists() && it.length() > 0 }) {
+                localTrack.localFilePath
             } else if (nextSong.id.startsWith("local_")) {
                 nextSong.mediaUri
             } else {
@@ -185,15 +195,28 @@ class AuraPlaybackService : MediaSessionService() {
             if (!streamUri.isNullOrBlank() && !streamUri.startsWith("https://www.youtube.com")) {
                 withContext(Dispatchers.Main) {
                     val exo = rawPlayer ?: return@withContext
+                    val mediaUri = if (streamUri.startsWith("/") || streamUri.startsWith("file:")) {
+                        Uri.fromFile(java.io.File(streamUri.removePrefix("file://")))
+                    } else {
+                        Uri.parse(streamUri)
+                    }
+                    val artUri = if (nextSong.coverUrl.isNotBlank()) {
+                        if (nextSong.coverUrl.startsWith("/") || nextSong.coverUrl.startsWith("file:")) {
+                            Uri.fromFile(java.io.File(nextSong.coverUrl.removePrefix("file://")))
+                        } else {
+                            Uri.parse(nextSong.coverUrl)
+                        }
+                    } else null
+
                     val mediaItem = MediaItem.Builder()
-                        .setUri(streamUri)
+                        .setUri(mediaUri)
                         .setMediaId(nextSong.id)
                         .setMediaMetadata(
                             MediaMetadata.Builder()
                                 .setTitle(nextSong.title)
                                 .setArtist(nextSong.artist)
                                 .setAlbumTitle(nextSong.album)
-                                .setArtworkUri(if (nextSong.coverUrl.isNotBlank()) Uri.parse(nextSong.coverUrl) else null)
+                                .setArtworkUri(artUri)
                                 .build()
                         )
                         .build()
