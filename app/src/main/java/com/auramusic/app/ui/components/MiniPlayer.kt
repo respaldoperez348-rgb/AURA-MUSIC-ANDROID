@@ -47,6 +47,7 @@ import com.auramusic.app.data.model.Song
 import com.auramusic.app.ui.theme.CyberCyan
 import com.auramusic.app.ui.theme.CyberPink
 import com.auramusic.app.ui.theme.CyberSurfaceActive
+import com.auramusic.app.ui.theme.CyberSurfaceCard
 import com.auramusic.app.ui.theme.GlassBorderSubtle
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
@@ -85,10 +86,10 @@ fun MiniPlayer(
             .shadow(
                 elevation = 16.dp,
                 shape = RoundedCornerShape(36.dp),
-                spotColor = Color.Black.copy(alpha = 0.65f)
+                spotColor = Color.Black.copy(alpha = 0.45f)
             )
             .clip(RoundedCornerShape(36.dp))
-            .background(Color(0xFF14161C))
+            .background(CyberSurfaceCard)
             .border(1.dp, GlassBorderSubtle, RoundedCornerShape(36.dp))
             .pointerInput(Unit) {
                 detectDragGestures(
@@ -129,10 +130,10 @@ fun MiniPlayer(
                 CircularProgressIndicator(
                     progress = { progress },
                     modifier = Modifier.size(48.dp),
-                    color = Color(0xFFA8C7FA),
+                    color = CyberCyan,
                     strokeWidth = 2.5.dp,
                     strokeCap = StrokeCap.Round,
-                    trackColor = Color.White.copy(alpha = 0.08f)
+                    trackColor = TextMuted.copy(alpha = 0.15f)
                 )
 
                 Box(
@@ -190,7 +191,7 @@ fun MiniPlayer(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.08f))
+                    .background(CyberSurfaceActive)
                     .clickable { onToggleFavorite() },
                 contentAlignment = Alignment.Center
             ) {
@@ -209,7 +210,7 @@ fun MiniPlayer(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFA8C7FA))
+                    .background(CyberCyan)
                     .clickable { onPlayPause() },
                 contentAlignment = Alignment.Center
             ) {

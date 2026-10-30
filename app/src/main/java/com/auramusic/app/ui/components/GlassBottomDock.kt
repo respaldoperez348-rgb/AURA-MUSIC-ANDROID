@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.auramusic.app.data.locale.AuraStrings
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
+import com.auramusic.app.ui.theme.CyberSurfaceActive
 import com.auramusic.app.ui.theme.CyberSurfaceCard
 import com.auramusic.app.ui.theme.GlassBorderSubtle
 import com.auramusic.app.ui.theme.TextMuted
@@ -63,10 +64,10 @@ fun GlassBottomDock(
                 .shadow(
                     elevation = 14.dp,
                     shape = RoundedCornerShape(32.dp),
-                    spotColor = Color.Black.copy(alpha = 0.55f)
+                    spotColor = Color.Black.copy(alpha = 0.45f)
                 )
                 .clip(RoundedCornerShape(32.dp))
-                .background(Color(0xFF13151B))
+                .background(CyberSurfaceCard)
                 .border(1.dp, GlassBorderSubtle, RoundedCornerShape(32.dp))
                 .padding(horizontal = 6.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -100,10 +101,10 @@ fun GlassBottomDock(
                 .shadow(
                     elevation = 14.dp,
                     shape = CircleShape,
-                    spotColor = Color.Black.copy(alpha = 0.55f)
+                    spotColor = Color.Black.copy(alpha = 0.45f)
                 )
                 .clip(CircleShape)
-                .background(if (isSearch) Color.White.copy(alpha = 0.16f) else Color(0xFF13151B))
+                .background(if (isSearch) CyberCyan.copy(alpha = 0.18f) else CyberSurfaceCard)
                 .border(
                     width = 1.dp,
                     color = if (isSearch) CyberCyan.copy(alpha = 0.6f) else GlassBorderSubtle,
@@ -132,7 +133,7 @@ private fun DockPillTabItem(
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(26.dp))
-            .background(if (isSelected) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+            .background(if (isSelected) CyberSurfaceActive else Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 22.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center

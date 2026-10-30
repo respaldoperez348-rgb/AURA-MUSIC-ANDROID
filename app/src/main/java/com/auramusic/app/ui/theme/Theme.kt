@@ -20,11 +20,20 @@ fun AuraMusicTheme(
         else -> true // "oscuro" / "dark" by default for studio fidelity
     }
 
-    val palette = when (themeName) {
-        "Champagne Hi-Fi", "Synthwave" -> SynthwavePalette
-        "Olive Vinyl", "Matrix 99" -> MatrixPalette
-        "Leica Monochrome", "OLED Black" -> OledPalette
-        else -> CyberNeonPalette
+    val palette = if (isDark) {
+        when (themeName) {
+            "Champagne Hi-Fi", "Synthwave" -> SynthwavePalette
+            "Olive Vinyl", "Matrix 99" -> MatrixPalette
+            "Leica Monochrome", "OLED Black" -> OledPalette
+            else -> CyberNeonPalette
+        }
+    } else {
+        when (themeName) {
+            "Champagne Hi-Fi", "Synthwave" -> SynthwavePaletteLight
+            "Olive Vinyl", "Matrix 99" -> MatrixPaletteLight
+            "Leica Monochrome", "OLED Black" -> OledPaletteLight
+            else -> CyberNeonPaletteLight
+        }
     }
 
     val colorScheme = if (isDark) {
@@ -53,13 +62,13 @@ fun AuraMusicTheme(
             secondary = palette.neonPurple,
             onSecondary = androidx.compose.ui.graphics.Color.White,
             tertiary = palette.cyberPink,
-            background = androidx.compose.ui.graphics.Color(0xFFF7F7F8),
-            onBackground = androidx.compose.ui.graphics.Color(0xFF141416),
-            surface = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-            onSurface = androidx.compose.ui.graphics.Color(0xFF141416),
-            surfaceVariant = androidx.compose.ui.graphics.Color(0xFFEBECEF),
-            onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFF555760),
-            outline = androidx.compose.ui.graphics.Color(0x1F000000)
+            background = palette.background,
+            onBackground = palette.textPrimary,
+            surface = palette.surfaceCard,
+            onSurface = palette.textPrimary,
+            surfaceVariant = palette.surface,
+            onSurfaceVariant = palette.textSecondary,
+            outline = palette.glassBorder
         )
     }
 

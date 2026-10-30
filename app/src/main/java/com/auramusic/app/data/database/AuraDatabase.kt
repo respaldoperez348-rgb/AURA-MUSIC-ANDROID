@@ -833,7 +833,7 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
 
     suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
         val root = org.json.JSONObject()
-        root.put("version", "2.1.0")
+        root.put("version", "2.1.2")
         root.put("exportedAt", System.currentTimeMillis())
 
         val favArray = org.json.JSONArray()

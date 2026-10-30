@@ -98,6 +98,17 @@ class MainActivity : ComponentActivity() {
             val uiState by playerViewModel.uiState.collectAsState()
             val context = LocalContext.current
 
+            val isDark = when (uiState.themeMode.lowercase()) {
+                "claro", "light" -> false
+                "sistema", "system" -> androidx.compose.foundation.isSystemInDarkTheme()
+                else -> true
+            }
+
+            androidx.compose.runtime.LaunchedEffect(isDark) {
+                insetsController.isAppearanceLightStatusBars = !isDark
+                insetsController.isAppearanceLightNavigationBars = !isDark
+            }
+
             val permissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions()
             ) { perms ->
@@ -571,28 +582,29 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Changelog Dialog (v2.1.0)
+                        // Changelog Dialog (v2.1.2)
                         if (uiState.showChangelogDialog) {
                             androidx.compose.material3.AlertDialog(
                                 onDismissRequest = { playerViewModel.setShowChangelogDialog(false) },
                                 title = {
-                                    Text("Novedades Aura Music v2.1.0", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = com.auramusic.app.ui.theme.TextPrimary)
+                                    Text("Novedades Aura Music v2.1.2", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = com.auramusic.app.ui.theme.TextPrimary)
                                 },
                                 text = {
                                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                                         Text(
-                                            "• MiniPlayer y barra inferior flotante con anillo de progreso.\n" +
-                                            "• Carga completa de álbumes (sin límite de pistas cortadas).\n" +
+                                            "• Soporte completo de temas visuales dinámicos (Studio Carbon, Champagne Hi-Fi, Olive Vinyl, Leica Monochrome).\n" +
+                                            "• Modos de tema: Oscuro, Claro y Automático del Sistema 100% funcionales.\n" +
+                                            "• Comprobador inteligente de actualizaciones de GitHub con detección de versión actual.\n" +
+                                            "• Barra inferior flotante y Mini-Reproductor cápsula rediseñados.\n" +
+                                            "• Carga completa de álbumes (sin pistas cortadas).\n" +
                                             "• Cambio de canción instantáneo y ultra fluido.\n" +
                                             "• Sincronización de gustos con cuenta de YouTube Music.\n" +
-                                            "• Selector de modo de tema (Oscuro, Claro, Sistema).\n" +
                                             "• Pausa automática al desconectar audífonos o Bluetooth.\n" +
                                             "• Continuar donde lo dejaste: Recupera última pista y posición.\n" +
                                             "• Filtro de audios cortos para ignorar notas de voz de WhatsApp/Telegram.\n" +
                                             "• Interruptor Gapless de reproducción continua sin pausas.\n" +
                                             "• Descargas con opción de solo Wi-Fi.\n" +
-                                            "• Respaldos con selector de archivos SAF en cualquier carpeta.\n" +
-                                            "• Comprobador de actualizaciones directas desde GitHub.",
+                                            "• Respaldos con selector de archivos SAF en cualquier carpeta.",
                                             color = com.auramusic.app.ui.theme.TextSecondary,
                                             lineHeight = 22.sp,
                                             fontSize = 13.sp
@@ -612,7 +624,9 @@ class MainActivity : ComponentActivity() {
                         uiState.updateInfo?.let { update ->
                             if (update.hasUpdate) {
                                 androidx.compose.material3.AlertDialog(
-                                    onDismissRequest = { playerViewModel.showToast("Actualización pospuesta") },
+                                    onDismissRequest = {
+                                        playerViewModel.dismissUpdateDialog()
+                                    },
                                     title = {
                                         Text("¡Nueva versión disponible: v${update.latestVersion}!", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = com.auramusic.app.ui.theme.TextPrimary)
                                     },
@@ -642,13 +656,18 @@ class MainActivity : ComponentActivity() {
                                                 } catch (e: Exception) {
                                                     playerViewModel.showToast("No se pudo abrir el navegador")
                                                 }
+                                                playerViewModel.dismissUpdateDialog()
                                             }
                                         ) {
                                             Text("Descargar APK")
                                         }
                                     },
                                     dismissButton = {
-                                        androidx.compose.material3.TextButton(onClick = { playerViewModel.showToast("Actualización pospuesta") }) {
+                                        androidx.compose.material3.TextButton(
+                                            onClick = {
+                                                playerViewModel.dismissUpdateDialog()
+                                            }
+                                        ) {
                                             Text("Más tarde", color = com.auramusic.app.ui.theme.TextMuted)
                                         }
                                     },

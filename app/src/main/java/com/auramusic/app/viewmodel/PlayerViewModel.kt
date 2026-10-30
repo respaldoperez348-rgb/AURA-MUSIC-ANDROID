@@ -1396,6 +1396,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun dismissUpdateDialog() {
+        _uiState.update { it.copy(updateInfo = null) }
+    }
+
     fun checkForAppUpdates() {
         viewModelScope.launch {
             showToast("Buscando actualizaciones...")
@@ -1404,8 +1408,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 .readTimeout(6, TimeUnit.SECONDS)
                 .build()
             val request = Request.Builder()
-                .url("https://api.github.com/repos/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases/latest")
-                .header("User-Agent", "AuraMusic/2.1.0")
+                .url("https://api.github.com/repos/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases")
+                .header("User-Agent", "AuraMusic/2.1.2")
                 .build()
 
             val update = withContext(Dispatchers.IO) {
@@ -1413,25 +1417,63 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     val response = client.newCall(request).execute()
                     if (response.isSuccessful) {
                         val body = response.body?.string() ?: return@withContext null
-                        val json = JSONObject(body)
-                        val tagName = json.optString("tag_name", "").removePrefix("v").trim()
-                        val currentVersion = "2.1.0"
-                        val bodyNotes = json.optString("body", "Mejoras de rendimiento y estabilidad.")
-                        val assets = json.optJSONArray("assets")
-                        var apkUrl = "https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases"
+                        val jsonArray = org.json.JSONArray(body)
+                        if (jsonArray.length() == 0) return@withContext null
+
+                        val currentVersion = "2.1.2"
+                        var candidateRelease: JSONObject? = null
+                        var candidateTag = ""
+
+                        for (i in 0 until jsonArray.length()) {
+                            val rel = jsonArray.getJSONObject(i)
+                            if (rel.optBoolean("draft", false)) continue
+                            val tag = rel.optString("tag_name", "").removePrefix("v").trim()
+                            if (tag.isNotBlank()) {
+                                candidateRelease = rel
+                                candidateTag = tag
+                                break
+                            }
+                        }
+
+                        if (candidateRelease == null) return@withContext null
+
+                        fun parseVersion(v: String): List<Int> {
+                            val clean = v.split("-").firstOrNull() ?: v
+                            return clean.split(".").mapNotNull { it.toIntOrNull() }
+                        }
+
+                        val remoteParts = parseVersion(candidateTag)
+                        val currentParts = parseVersion(currentVersion)
+                        val maxLen = maxOf(remoteParts.size, currentParts.size)
+                        var isNewer = false
+                        for (idx in 0 until maxLen) {
+                            val r = remoteParts.getOrElse(idx) { 0 }
+                            val c = currentParts.getOrElse(idx) { 0 }
+                            if (r > c) {
+                                isNewer = true
+                                break
+                            } else if (r < c) {
+                                isNewer = false
+                                break
+                            }
+                        }
+
+                        val bodyNotes = candidateRelease.optString("body", "Mejoras de rendimiento y estabilidad.")
+                        val assets = candidateRelease.optJSONArray("assets")
+                        var apkUrl = candidateRelease.optString("html_url", "https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases")
                         if (assets != null && assets.length() > 0) {
-                            for (i in 0 until assets.length()) {
-                                val asset = assets.getJSONObject(i)
+                            for (j in 0 until assets.length()) {
+                                val asset = assets.getJSONObject(j)
                                 if (asset.optString("name").endsWith(".apk")) {
                                     apkUrl = asset.optString("browser_download_url")
                                     break
                                 }
                             }
                         }
-                        val hasNew = tagName.isNotBlank() && tagName != currentVersion
+
                         AppUpdateInfo(
-                            hasUpdate = hasNew,
-                            latestVersion = tagName.ifBlank { currentVersion },
+                            hasUpdate = isNewer,
+                            latestVersion = candidateTag,
                             downloadUrl = apkUrl,
                             releaseNotes = bodyNotes
                         )
@@ -1442,11 +1484,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             if (update != null) {
-                _uiState.update { it.copy(updateInfo = update) }
                 if (update.hasUpdate) {
-                    showToast("¡Nueva versión v${update.latestVersion} disponible en GitHub!")
+                    _uiState.update { it.copy(updateInfo = update) }
+                    showToast("¡Nueva versión v${update.latestVersion} disponible!")
                 } else {
-                    showToast("✓ Ya tienes la última versión instalada (v${update.latestVersion})")
+                    _uiState.update { it.copy(updateInfo = null) }
+                    showToast("✓ Tu aplicación ya está actualizada a la última versión (v2.1.2)")
                 }
             } else {
                 showToast("No se pudo conectar a GitHub Releases")
@@ -1519,6 +1562,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
         prefs.edit().putString("palette", paletteName).apply()
         _uiState.update { it.copy(currentTheme = paletteName) }
+        showToast("Tema: $paletteName")
     }
 
     fun setAppLanguage(language: String) {
@@ -1867,6 +1911,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val prefs = context.getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
             prefs.edit().putString("theme_mode", mode).apply()
         }
+        val title = when (mode.lowercase()) {
+            "claro" -> "Modo Claro"
+            "sistema" -> "Modo Automático del Sistema"
+            else -> "Modo Oscuro"
+        }
+        showToast("✓ $title")
     }
 
     fun logoutYouTubeAccount() {
