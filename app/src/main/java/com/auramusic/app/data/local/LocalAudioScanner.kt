@@ -11,7 +11,7 @@ import kotlinx.coroutines.withContext
 
 object LocalAudioScanner {
 
-    suspend fun scanDeviceAudio(context: Context): List<Song> = withContext(Dispatchers.IO) {
+    suspend fun scanDeviceAudio(context: Context, filterShortAudios: Boolean = true): List<Song> = withContext(Dispatchers.IO) {
         val songList = mutableListOf<Song>()
         val contentResolver = context.contentResolver
 
@@ -27,11 +27,13 @@ object LocalAudioScanner {
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.ALBUM_ID
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DATA
         )
 
-        // Filter out short notification beeps and UI sounds (< 15 seconds)
-        val selection = "${MediaStore.Audio.Media.DURATION} >= 15000"
+        // Filter out short notification beeps, UI sounds and voice notes (>= 30s when active)
+        val minDuration = if (filterShortAudios) 30000L else 10000L
+        val selection = "${MediaStore.Audio.Media.DURATION} >= $minDuration"
         val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
         try {
@@ -50,6 +52,7 @@ object LocalAudioScanner {
                 val albumColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
                 val durationColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val albumIdColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val dataColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
                 while (it.moveToNext()) {
                     val id = it.getLong(idColumn)
@@ -58,6 +61,21 @@ object LocalAudioScanner {
                     val album = it.getString(albumColumn) ?: ""
                     val duration = it.getLong(durationColumn)
                     val albumId = it.getLong(albumIdColumn)
+                    val dataPath = it.getString(dataColumn) ?: ""
+
+                    if (filterShortAudios) {
+                        val lower = dataPath.lowercase()
+                        if (lower.contains("whatsapp") ||
+                            lower.contains("telegram") ||
+                            lower.contains("voice notes") ||
+                            lower.contains("voicenotes") ||
+                            lower.contains("call_rec") ||
+                            lower.contains("/recordings/") ||
+                            lower.endsWith(".opus")
+                        ) {
+                            continue
+                        }
+                    }
 
                     val contentUri: Uri = ContentUris.withAppendedId(
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,

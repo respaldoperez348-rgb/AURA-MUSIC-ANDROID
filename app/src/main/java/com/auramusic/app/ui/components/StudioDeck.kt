@@ -94,6 +94,7 @@ fun StudioDeck(
     isRepeat: Boolean,
     lyrics: List<LyricLine> = emptyList(),
     lyricsOffsetMs: Long = -200L,
+    audioQuality: String = "Hi-Res (320 kbps)",
     appLanguage: String = "Español",
     showTranslation: Boolean = false,
     onToggleTranslation: () -> Unit = {},
@@ -362,8 +363,14 @@ fun StudioDeck(
                                 .background(if (isPlaying) CyberCyan else TextMuted)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
+                        val qualityLabel = when {
+                            song.id.startsWith("local_") -> "LOSSLESS · LOCAL"
+                            audioQuality.contains("96") || audioQuality.contains("Ahorro", ignoreCase = true) -> "ECO · 96 KBPS"
+                            audioQuality.contains("160") || audioQuality.contains("Estándar", ignoreCase = true) -> "STANDARD · 160 KBPS"
+                            else -> "HI-RES · 320 KBPS"
+                        }
                         Text(
-                            text = "HI-RES · 320 KBPS",
+                            text = qualityLabel,
                             color = TextMuted,
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace,

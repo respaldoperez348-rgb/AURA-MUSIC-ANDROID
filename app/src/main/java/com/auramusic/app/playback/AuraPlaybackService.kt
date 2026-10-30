@@ -54,6 +54,14 @@ class AuraPlaybackService : MediaSessionService() {
     private var rawPlayer: ExoPlayer? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    private val noisyReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            if (intent?.action == android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                rawPlayer?.pause()
+            }
+        }
+    }
+
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
@@ -95,6 +103,17 @@ class AuraPlaybackService : MediaSessionService() {
 
         AuraPlaybackBridge.onSkipSilenceChanged = { enabled ->
             rawPlayer?.skipSilenceEnabled = enabled
+        }
+
+        try {
+            val noisyFilter = android.content.IntentFilter(android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(noisyReceiver, noisyFilter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(noisyReceiver, noisyFilter)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
         // Listen for playback state changes (auto advance when running standalone without active UI controller)
@@ -391,6 +410,11 @@ class AuraPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        try {
+            unregisterReceiver(noisyReceiver)
+        } catch (e: Exception) {
+            // Already unregistered
+        }
         AuraPlaybackBridge.onSkipSilenceChanged = null
         serviceScope.cancel()
         AuraAudioEffects.detach()

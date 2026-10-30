@@ -49,6 +49,7 @@ import com.auramusic.app.ui.theme.CyberBackground
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
 import com.auramusic.app.ui.theme.CyberGreen
+import com.auramusic.app.ui.theme.CyberPink
 import com.auramusic.app.ui.theme.CyberSurface
 import com.auramusic.app.ui.theme.CyberSurfaceActive
 import com.auramusic.app.ui.theme.CyberSurfaceCard
@@ -83,6 +84,17 @@ fun SettingsSheet(
     onClearCache: () -> Unit = {},
     onExportBackup: () -> Unit = {},
     onImportBackup: () -> Unit = {},
+    gaplessEnabled: Boolean = true,
+    filterShortAudios: Boolean = true,
+    downloadOnlyOnWifi: Boolean = false,
+    pauseHistory: Boolean = false,
+    onToggleGapless: () -> Unit = {},
+    onToggleFilterShortAudios: () -> Unit = {},
+    onToggleDownloadOnlyOnWifi: () -> Unit = {},
+    onTogglePauseHistory: () -> Unit = {},
+    onClearHistory: () -> Unit = {},
+    onCheckForUpdates: () -> Unit = {},
+    onShowChangelog: () -> Unit = {},
     onOpenUrl: (String) -> Unit = {},
     onDismiss: () -> Unit
 ) {
@@ -610,6 +622,20 @@ fun SettingsSheet(
                     checked = skipSilenceEnabled,
                     onToggle = onToggleSkipSilence
                 )
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+                SettingsToggleItem(
+                    title = "Reproducción continua (Gapless)",
+                    subtitle = "Transición fluida sin silencios ni pausas entre canciones",
+                    checked = gaplessEnabled,
+                    onToggle = onToggleGapless
+                )
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+                SettingsToggleItem(
+                    title = "Filtro de audios cortos & mensajería",
+                    subtitle = "Ignora notas de voz (WhatsApp, Telegram) y audios menores a 30s",
+                    checked = filterShortAudios,
+                    onToggle = onToggleFilterShortAudios
+                )
             }
 
             Spacer(modifier = Modifier.height(26.dp))
@@ -695,6 +721,15 @@ fun SettingsSheet(
                     .clip(RoundedCornerShape(14.dp))
                     .background(CyberSurface)
             ) {
+                SettingsToggleItem(
+                    title = "Descargar solo con Wi-Fi",
+                    subtitle = "Ahorra datos móviles al descargar música offline",
+                    checked = downloadOnlyOnWifi,
+                    onToggle = onToggleDownloadOnlyOnWifi
+                )
+
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -796,10 +831,76 @@ fun SettingsSheet(
             Spacer(modifier = Modifier.height(26.dp))
 
             // ==========================================
-            // 8. COMUNIDAD Y CÓDIGO ABIERTO (GITHUB)
+            // 8. PRIVACIDAD Y DATOS DE ESCUCHA
+            // ==========================================
+            SettingsSectionLabel(text = "PRIVACIDAD Y DATOS")
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurface)
+            ) {
+                SettingsToggleItem(
+                    title = "Pausar historial de reproducción",
+                    subtitle = "No guardar canciones escuchadas ni actualizar estadísticas",
+                    checked = pauseHistory,
+                    onToggle = onTogglePauseHistory
+                )
+
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onClearHistory() }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Borrar historial de escucha",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Elimina el registro de reproducciones y resetea tus estadísticas",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CyberSurfaceCard)
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "Borrar",
+                            color = CyberPink,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(26.dp))
+
+            // ==========================================
+            // 9. COMUNIDAD Y CÓDIGO ABIERTO (GITHUB)
             // ==========================================
             SettingsSectionLabel(text = "COMUNIDAD Y CÓDIGO ABIERTO")
             Spacer(modifier = Modifier.height(10.dp))
+
+            val currentAppVersion = com.auramusic.app.BuildConfig.VERSION_NAME
+            val deviceModel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})"
+            val encodedDevice = java.net.URLEncoder.encode(deviceModel, "UTF-8")
+            val reportIssueUrl = "https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/issues/new?title=%5BBUG%5D+Reporte+de+error&body=%2A%2AVersi%C3%B3n+App%3A%2A%2A+$currentAppVersion%0A%2A%2ADispositivo%3A%2A%2A+$encodedDevice%0A%0A%2A%2ADescripci%C3%B3n+del+problema%3A%2A%2A%0A"
 
             Column(
                 modifier = Modifier
@@ -808,7 +909,7 @@ fun SettingsSheet(
                     .background(CyberSurface)
                     .border(1.dp, GlassBorderSubtle, RoundedCornerShape(16.dp))
             ) {
-                // Ver repositorio en GitHub
+                // Ver código en GitHub
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -848,31 +949,31 @@ fun SettingsSheet(
 
                 HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp)
 
-                // Reportar un problema / Feedback
+                // Reportar un error
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onOpenUrl("https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/issues") }
+                        .clickable { onOpenUrl(reportIssueUrl) }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Reportar un problema",
+                            text = "Reportar un error",
                             color = TextPrimary,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Abrir un ticket o sugerir mejoras en GitHub Issues",
+                            text = "Abre un ticket con versión ($currentAppVersion) y modelo prellenados",
                             color = TextSecondary,
                             fontSize = 12.sp
                         )
                     }
                     Text(
-                        text = "Issues ↗",
+                        text = "New Issue ↗",
                         color = TextMuted,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
@@ -885,7 +986,7 @@ fun SettingsSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onOpenUrl("https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases") }
+                        .clickable { onCheckForUpdates() }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -899,16 +1000,56 @@ fun SettingsSheet(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Consultar nuevas versiones y changelog oficial",
+                            text = "Comprobar si hay un APK más reciente en GitHub Releases",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CyberSurfaceCard)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Comprobar",
+                            color = TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp)
+
+                // Novedades de la versión
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onShowChangelog() }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Novedades de la versión",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Qué hay de nuevo en Aura Music v$currentAppVersion",
                             color = TextSecondary,
                             fontSize = 12.sp
                         )
                     }
                     Text(
-                        text = "Releases ↗",
-                        color = TextMuted,
+                        text = "Ver",
+                        color = CyberCyan,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -916,7 +1057,7 @@ fun SettingsSheet(
             Spacer(modifier = Modifier.height(20.dp))
 
             // ==========================================
-            // 9. VERIFICACIÓN E INTEGRIDAD DE LA APP
+            // 10. VERIFICACIÓN E INTEGRIDAD DE LA APP
             // ==========================================
             SettingsSectionLabel(text = "ESTADO DEL SISTEMA")
             Spacer(modifier = Modifier.height(10.dp))
@@ -933,7 +1074,7 @@ fun SettingsSheet(
             ) {
                 Column {
                     Text(
-                        text = "Aura Music Funcional v2.1.0",
+                        text = "Aura Music Estable v$currentAppVersion",
                         color = TextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold
@@ -963,7 +1104,7 @@ fun SettingsSheet(
             Spacer(modifier = Modifier.height(26.dp))
 
             // ==========================================
-            // 10. ACERCA DE AURA
+            // 11. ACERCA DE AURA
             // ==========================================
             Row(
                 modifier = Modifier
@@ -986,7 +1127,7 @@ fun SettingsSheet(
                     )
                 }
                 Text(
-                    text = "v2.1",
+                    text = "v$currentAppVersion",
                     color = TextMuted,
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace

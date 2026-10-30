@@ -38,6 +38,11 @@ import com.auramusic.app.playback.SleepTimerManager
 import com.auramusic.app.playback.SleepTimerState
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -55,6 +60,13 @@ import java.io.File
 enum class MainTab {
     STUDIO, RADAR, VAULT
 }
+
+data class AppUpdateInfo(
+    val hasUpdate: Boolean,
+    val latestVersion: String,
+    val downloadUrl: String,
+    val releaseNotes: String
+)
 
 data class PlayerUiState(
     val currentSong: Song = Song(
@@ -122,6 +134,12 @@ data class PlayerUiState(
     val autoRadioEnabled: Boolean = true,
     val skipSilenceEnabled: Boolean = false,
     val showLyricsTranslation: Boolean = false,
+    val filterShortAudios: Boolean = true,
+    val downloadOnlyOnWifi: Boolean = false,
+    val pauseHistory: Boolean = false,
+    val gaplessEnabled: Boolean = true,
+    val updateInfo: AppUpdateInfo? = null,
+    val showChangelogDialog: Boolean = false,
     val listeningStats: ListeningStats = ListeningStats()
 )
 
@@ -207,13 +225,40 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val savedLoudness = prefs.getBoolean("loudness_normalizer", true)
             val savedAutoRadio = prefs.getBoolean("auto_radio_enabled", true)
             val savedSkipSilence = prefs.getBoolean("skip_silence_enabled", false)
+            val savedFilterShort = prefs.getBoolean("filter_short_audios", true)
+            val savedWifiOnly = prefs.getBoolean("download_wifi_only", false)
+            val savedPauseHistory = prefs.getBoolean("pause_history", false)
+            val savedGapless = prefs.getBoolean("gapless_enabled", true)
             val ytState = YouTubeAuthManager.loadFromPrefs(context)
 
+            downloadManager.downloadOnlyOnWifi = savedWifiOnly
             AuraStreamResolver.preferredQuality = savedAudioQuality
             AuraAudioEffects.setLoudnessNormalizer(savedLoudness)
             AuraPlaybackBridge.autoRadioEnabled = savedAutoRadio
             AuraPlaybackBridge.skipSilenceEnabled = savedSkipSilence
             AuraPlaybackBridge.onSkipSilenceChanged?.invoke(savedSkipSilence)
+
+            // Continue where you left off
+            val lastSongId = prefs.getString("last_song_id", null)
+            val lastPositionMs = prefs.getLong("last_position_ms", 0L)
+            val lastSongTitle = prefs.getString("last_song_title", null)
+            val lastSongArtist = prefs.getString("last_song_artist", null)
+            val lastSongAlbum = prefs.getString("last_song_album", "") ?: ""
+            val lastSongCover = prefs.getString("last_song_cover", "") ?: ""
+            val lastSongDuration = prefs.getLong("last_song_duration", 0L)
+            val lastSongMediaUri = prefs.getString("last_song_media_uri", "") ?: ""
+
+            val restoredSong = if (!lastSongId.isNullOrBlank() && !lastSongTitle.isNullOrBlank()) {
+                Song(
+                    id = lastSongId,
+                    title = lastSongTitle,
+                    artist = lastSongArtist ?: "Artista",
+                    album = lastSongAlbum,
+                    coverUrl = lastSongCover,
+                    durationMs = lastSongDuration,
+                    mediaUri = lastSongMediaUri
+                )
+            } else null
 
             // 1. Instantly load persistent SQLite data & curated fallback lists (0ms cold start)
             val savedFavs = database.getFavorites()
@@ -241,6 +286,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     popularStations = stations,
                     searchHistory = sHistory,
                     queue = if (it.queue.isNotEmpty()) it.queue else fallbackTracks,
+                    currentSong = restoredSong ?: (if (it.currentSong.id.isNotBlank() && it.currentSong.id != "1") it.currentSong else fallbackTracks.firstOrNull() ?: it.currentSong),
+                    currentPositionMs = if (restoredSong != null) lastPositionMs else 0L,
+                    durationMs = restoredSong?.durationMs ?: (fallbackTracks.firstOrNull()?.durationMs ?: 212000L),
+                    isPlaying = false,
                     favorites = if (savedFavs.isNotEmpty()) savedFavs else fallbackTracks.filter { s -> s.isFavorite },
                     downloads = savedDownloads,
                     playlists = savedPlaylists,
@@ -252,6 +301,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     loudnessNormalizer = savedLoudness,
                     autoRadioEnabled = savedAutoRadio,
                     skipSilenceEnabled = savedSkipSilence,
+                    filterShortAudios = savedFilterShort,
+                    downloadOnlyOnWifi = savedWifiOnly,
+                    pauseHistory = savedPauseHistory,
+                    gaplessEnabled = savedGapless,
                     listeningStats = stats
                 )
             }
@@ -479,6 +532,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun startProgressUpdater() {
         viewModelScope.launch {
+            var saveCounter = 0
             while (true) {
                 mediaController?.let { controller ->
                     if (controller.isPlaying) {
@@ -492,6 +546,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                                     isPlaying = true
                                 )
                             }
+                        }
+                        saveCounter++
+                        if (saveCounter % 8 == 0 && pos > 0L) { // Save every ~2 seconds
+                            val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+                            prefs.edit().putLong("last_position_ms", pos).apply()
                         }
                     }
                 }
@@ -820,13 +879,29 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 play()
             }
 
-            database.addToHistory(song)
-            val updatedUserTop = database.getTopArtistsFromHistoryAndFavorites()
-            val updatedStats = database.getListeningStats()
-            _uiState.update { it.copy(userTopArtists = updatedUserTop, listeningStats = updatedStats) }
+            if (!_uiState.value.pauseHistory) {
+                database.addToHistory(song)
+                val updatedUserTop = database.getTopArtistsFromHistoryAndFavorites()
+                val updatedStats = database.getListeningStats()
+                _uiState.update { it.copy(userTopArtists = updatedUserTop, listeningStats = updatedStats) }
+            }
+
+            val appPrefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+            appPrefs.edit()
+                .putString("last_song_id", song.id)
+                .putString("last_song_title", song.title)
+                .putString("last_song_artist", song.artist)
+                .putString("last_song_album", song.album)
+                .putString("last_song_cover", song.coverUrl)
+                .putLong("last_song_duration", song.durationMs)
+                .putString("last_song_media_uri", song.mediaUri)
+                .putLong("last_position_ms", 0L)
+                .apply()
 
             // 5. Seamlessly prefetch & enqueue NEXT song into ExoPlayer queue for gapless auto-advance
-            prefetchNextTrackIntoPlayer()
+            if (_uiState.value.gaplessEnabled) {
+                prefetchNextTrackIntoPlayer()
+            }
         }
     }
 
@@ -1026,7 +1101,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun scanLocalTracks() {
         viewModelScope.launch {
             _uiState.update { it.copy(isScanningLocal = true) }
-            val tracks = com.auramusic.app.data.local.LocalAudioScanner.scanDeviceAudio(getApplication())
+            val tracks = com.auramusic.app.data.local.LocalAudioScanner.scanDeviceAudio(
+                getApplication(),
+                _uiState.value.filterShortAudios
+            )
             _uiState.update { it.copy(localTracks = tracks, isScanningLocal = false) }
         }
     }
@@ -1060,7 +1138,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     // ==========================================
 
     fun startDownload(song: Song) {
-        downloadManager.startDownload(song)
+        val ok = downloadManager.startDownload(song)
+        if (!ok && _uiState.value.downloadOnlyOnWifi) {
+            showToast("Descarga detenida: Ajustado para solo descargar con Wi-Fi")
+        }
     }
 
     fun deleteDownload(song: Song) {
@@ -1206,10 +1287,177 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun toggleFilterShortAudios() {
+        val newVal = !_uiState.value.filterShortAudios
+        _uiState.update { it.copy(filterShortAudios = newVal) }
+        val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("filter_short_audios", newVal).apply()
+        scanLocalTracks()
+        showToast(if (newVal) "Filtro activo: Ocultando audios < 30s y notas de voz" else "Filtro desactivado: Mostrando todos los audios")
+    }
+
+    fun toggleDownloadOnlyOnWifi() {
+        val newVal = !_uiState.value.downloadOnlyOnWifi
+        _uiState.update { it.copy(downloadOnlyOnWifi = newVal) }
+        downloadManager.downloadOnlyOnWifi = newVal
+        val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("download_wifi_only", newVal).apply()
+        showToast(if (newVal) "Descargas limitadas a solo Wi-Fi" else "Descargas permitidas con datos móviles")
+    }
+
+    fun togglePauseHistory() {
+        val newVal = !_uiState.value.pauseHistory
+        _uiState.update { it.copy(pauseHistory = newVal) }
+        val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("pause_history", newVal).apply()
+        showToast(if (newVal) "Historial de escucha pausado" else "Historial de escucha reanudado")
+    }
+
+    fun clearListeningHistory() {
+        viewModelScope.launch {
+            database.clearHistory()
+            val updatedUserTop = database.getTopArtistsFromHistoryAndFavorites()
+            val updatedStats = database.getListeningStats()
+            _uiState.update { it.copy(userTopArtists = updatedUserTop, listeningStats = updatedStats) }
+            showToast("✓ Historial de reproducción eliminado")
+        }
+    }
+
+    fun toggleGapless() {
+        val newVal = !_uiState.value.gaplessEnabled
+        _uiState.update { it.copy(gaplessEnabled = newVal) }
+        val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("gapless_enabled", newVal).apply()
+        showToast(if (newVal) "Gapless activado: Reproducción continua sin pausas" else "Gapless desactivado")
+    }
+
+    fun setShowChangelogDialog(show: Boolean) {
+        _uiState.update { it.copy(showChangelogDialog = show) }
+    }
+
+    fun exportBackupToUri(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val json = database.exportBackupJson()
+                val context = getApplication<Application>()
+                val success = withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { os ->
+                        os.write(json.toByteArray(Charsets.UTF_8))
+                        true
+                    } ?: false
+                }
+                if (success) {
+                    showToast("✓ Respaldo exportado correctamente")
+                } else {
+                    showToast("No se pudo escribir el archivo de respaldo")
+                }
+            } catch (e: Exception) {
+                showToast("Error al exportar: ${e.message}")
+            }
+        }
+    }
+
+    fun importBackupFromUri(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val context = getApplication<Application>()
+                val json = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        inputStream.bufferedReader().use { it.readText() }
+                    }
+                }
+                if (!json.isNullOrBlank()) {
+                    val ok = database.importBackupJson(json)
+                    if (ok) {
+                        val favs = database.getFavorites()
+                        val pls = database.getPlaylists()
+                        val followed = database.getFollowedArtists()
+                        val savedAlbs = database.getSavedAlbums()
+                        val stats = database.getListeningStats()
+                        _uiState.update {
+                            it.copy(
+                                favorites = favs,
+                                playlists = pls,
+                                followedArtists = followed,
+                                savedAlbums = savedAlbs,
+                                listeningStats = stats
+                            )
+                        }
+                        showToast("✓ Respaldo restaurado (${favs.size} favs, ${pls.size} listas)")
+                    } else {
+                        showToast("Error al restaurar el respaldo")
+                    }
+                } else {
+                    showToast("El archivo de respaldo está vacío")
+                }
+            } catch (e: Exception) {
+                showToast("Error al restaurar: ${e.message}")
+            }
+        }
+    }
+
+    fun checkForAppUpdates() {
+        viewModelScope.launch {
+            showToast("Buscando actualizaciones...")
+            val client = OkHttpClient.Builder()
+                .connectTimeout(6, TimeUnit.SECONDS)
+                .readTimeout(6, TimeUnit.SECONDS)
+                .build()
+            val request = Request.Builder()
+                .url("https://api.github.com/repos/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases/latest")
+                .header("User-Agent", "AuraMusic/2.1.0")
+                .build()
+
+            val update = withContext(Dispatchers.IO) {
+                try {
+                    val response = client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val body = response.body?.string() ?: return@withContext null
+                        val json = JSONObject(body)
+                        val tagName = json.optString("tag_name", "").removePrefix("v").trim()
+                        val currentVersion = "2.1.0"
+                        val bodyNotes = json.optString("body", "Mejoras de rendimiento y estabilidad.")
+                        val assets = json.optJSONArray("assets")
+                        var apkUrl = "https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases"
+                        if (assets != null && assets.length() > 0) {
+                            for (i in 0 until assets.length()) {
+                                val asset = assets.getJSONObject(i)
+                                if (asset.optString("name").endsWith(".apk")) {
+                                    apkUrl = asset.optString("browser_download_url")
+                                    break
+                                }
+                            }
+                        }
+                        val hasNew = tagName.isNotBlank() && tagName != currentVersion
+                        AppUpdateInfo(
+                            hasUpdate = hasNew,
+                            latestVersion = tagName.ifBlank { currentVersion },
+                            downloadUrl = apkUrl,
+                            releaseNotes = bodyNotes
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            if (update != null) {
+                _uiState.update { it.copy(updateInfo = update) }
+                if (update.hasUpdate) {
+                    showToast("¡Nueva versión v${update.latestVersion} disponible en GitHub!")
+                } else {
+                    showToast("✓ Ya tienes la última versión instalada (v${update.latestVersion})")
+                }
+            } else {
+                showToast("No se pudo conectar a GitHub Releases")
+            }
+        }
+    }
+
     fun exportBackup() {
+        val context = getApplication<Application>()
         viewModelScope.launch {
             val json = database.exportBackupJson()
-            val context = getApplication<Application>()
             val savedFile = withContext(Dispatchers.IO) {
                 try {
                     val dir = context.getExternalFilesDir(null) ?: context.filesDir
@@ -1221,7 +1469,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
             if (savedFile != null) {
-                showToast("✓ Backup exportado (${savedFile.name})")
+                showToast("✓ Backup guardado en almacenamiento (${savedFile.name})")
             } else {
                 showToast("Error al exportar backup")
             }
@@ -1229,8 +1477,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun importBackup() {
+        val context = getApplication<Application>()
         viewModelScope.launch {
-            val context = getApplication<Application>()
             val json = withContext(Dispatchers.IO) {
                 try {
                     val dir = context.getExternalFilesDir(null) ?: context.filesDir

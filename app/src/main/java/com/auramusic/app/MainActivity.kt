@@ -20,6 +20,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -139,6 +141,18 @@ class MainActivity : ComponentActivity() {
                 } else {
                     permissionLauncher.launch(needed.toTypedArray())
                 }
+            }
+
+            val exportBackupLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+            ) { uri ->
+                uri?.let { playerViewModel.exportBackupToUri(it) }
+            }
+
+            val importBackupLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                uri?.let { playerViewModel.importBackupFromUri(it) }
             }
 
             AuraMusicTheme(
@@ -298,6 +312,7 @@ class MainActivity : ComponentActivity() {
                                 isRepeat = uiState.isRepeat,
                                 lyrics = uiState.lyrics,
                                 lyricsOffsetMs = uiState.lyricsOffsetMs,
+                                audioQuality = uiState.audioQuality,
                                 appLanguage = uiState.appLanguage,
                                 showTranslation = uiState.showLyricsTranslation,
                                 onToggleTranslation = { playerViewModel.toggleLyricsTranslation() },
@@ -399,8 +414,19 @@ class MainActivity : ComponentActivity() {
                                 onSelectThemeMode = { mode -> playerViewModel.setThemeMode(mode) },
                                 onSelectLanguage = { lang -> playerViewModel.setAppLanguage(lang) },
                                 onSelectLyricsOffset = { offset -> playerViewModel.setLyricsOffsetMs(offset) },
-                                onExportBackup = { playerViewModel.exportBackup() },
-                                onImportBackup = { playerViewModel.importBackup() },
+                                onExportBackup = { exportBackupLauncher.launch("aura_backup_v2.json") },
+                                onImportBackup = { importBackupLauncher.launch(arrayOf("application/json", "text/*")) },
+                                gaplessEnabled = uiState.gaplessEnabled,
+                                filterShortAudios = uiState.filterShortAudios,
+                                downloadOnlyOnWifi = uiState.downloadOnlyOnWifi,
+                                pauseHistory = uiState.pauseHistory,
+                                onToggleGapless = { playerViewModel.toggleGapless() },
+                                onToggleFilterShortAudios = { playerViewModel.toggleFilterShortAudios() },
+                                onToggleDownloadOnlyOnWifi = { playerViewModel.toggleDownloadOnlyOnWifi() },
+                                onTogglePauseHistory = { playerViewModel.togglePauseHistory() },
+                                onClearHistory = { playerViewModel.clearListeningHistory() },
+                                onCheckForUpdates = { playerViewModel.checkForAppUpdates() },
+                                onShowChangelog = { playerViewModel.setShowChangelogDialog(true) },
                                 onClearCache = { playerViewModel.clearAppCache() },
                                 onOpenUrl = { url ->
                                     try {
@@ -542,6 +568,92 @@ class MainActivity : ComponentActivity() {
                                         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                                     )
                                 }
+                            }
+                        }
+
+                        // Changelog Dialog (v2.1.0)
+                        if (uiState.showChangelogDialog) {
+                            androidx.compose.material3.AlertDialog(
+                                onDismissRequest = { playerViewModel.setShowChangelogDialog(false) },
+                                title = {
+                                    Text("Novedades Aura Music v2.1.0", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = com.auramusic.app.ui.theme.TextPrimary)
+                                },
+                                text = {
+                                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                                        Text(
+                                            "• MiniPlayer y barra inferior flotante con anillo de progreso.\n" +
+                                            "• Carga completa de álbumes (sin límite de pistas cortadas).\n" +
+                                            "• Cambio de canción instantáneo y ultra fluido.\n" +
+                                            "• Sincronización de gustos con cuenta de YouTube Music.\n" +
+                                            "• Selector de modo de tema (Oscuro, Claro, Sistema).\n" +
+                                            "• Pausa automática al desconectar audífonos o Bluetooth.\n" +
+                                            "• Continuar donde lo dejaste: Recupera última pista y posición.\n" +
+                                            "• Filtro de audios cortos para ignorar notas de voz de WhatsApp/Telegram.\n" +
+                                            "• Interruptor Gapless de reproducción continua sin pausas.\n" +
+                                            "• Descargas con opción de solo Wi-Fi.\n" +
+                                            "• Respaldos con selector de archivos SAF en cualquier carpeta.\n" +
+                                            "• Comprobador de actualizaciones directas desde GitHub.",
+                                            color = com.auramusic.app.ui.theme.TextSecondary,
+                                            lineHeight = 22.sp,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                },
+                                confirmButton = {
+                                    androidx.compose.material3.TextButton(onClick = { playerViewModel.setShowChangelogDialog(false) }) {
+                                        Text("Entendido", color = com.auramusic.app.ui.theme.CyberCyan)
+                                    }
+                                },
+                                containerColor = com.auramusic.app.ui.theme.CyberSurfaceCard
+                            )
+                        }
+
+                        // New GitHub Release Update Dialog
+                        uiState.updateInfo?.let { update ->
+                            if (update.hasUpdate) {
+                                androidx.compose.material3.AlertDialog(
+                                    onDismissRequest = { playerViewModel.showToast("Actualización pospuesta") },
+                                    title = {
+                                        Text("¡Nueva versión disponible: v${update.latestVersion}!", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = com.auramusic.app.ui.theme.TextPrimary)
+                                    },
+                                    text = {
+                                        Column {
+                                            Text(
+                                                "Hay una nueva versión de Aura Music disponible para descargar.",
+                                                color = com.auramusic.app.ui.theme.TextSecondary,
+                                                fontSize = 13.sp
+                                            )
+                                            if (update.releaseNotes.isNotBlank()) {
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    update.releaseNotes,
+                                                    color = com.auramusic.app.ui.theme.TextMuted,
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                        }
+                                    },
+                                    confirmButton = {
+                                        androidx.compose.material3.Button(
+                                            onClick = {
+                                                try {
+                                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(update.downloadUrl))
+                                                    startActivity(intent)
+                                                } catch (e: Exception) {
+                                                    playerViewModel.showToast("No se pudo abrir el navegador")
+                                                }
+                                            }
+                                        ) {
+                                            Text("Descargar APK")
+                                        }
+                                    },
+                                    dismissButton = {
+                                        androidx.compose.material3.TextButton(onClick = { playerViewModel.showToast("Actualización pospuesta") }) {
+                                            Text("Más tarde", color = com.auramusic.app.ui.theme.TextMuted)
+                                        }
+                                    },
+                                    containerColor = com.auramusic.app.ui.theme.CyberSurfaceCard
+                                )
                             }
                         }
                     }

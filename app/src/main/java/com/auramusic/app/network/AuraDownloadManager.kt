@@ -48,7 +48,17 @@ class AuraDownloadManager(
 
     private val activeDownloads = ConcurrentHashMap<String, Boolean>()
 
+    @Volatile
+    var downloadOnlyOnWifi: Boolean = false
+
     var onDownloadCompleted: ((Song) -> Unit)? = null
+
+    private fun isWifiConnected(): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return true
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+    }
 
     private val downloadsDir: File by lazy {
         val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "aura_downloads")
@@ -124,8 +134,11 @@ class AuraDownloadManager(
         }
     }
 
-    fun startDownload(song: Song) {
-        if (activeDownloads.containsKey(song.id)) return
+    fun startDownload(song: Song): Boolean {
+        if (activeDownloads.containsKey(song.id)) return false
+        if (downloadOnlyOnWifi && !isWifiConnected()) {
+            return false
+        }
         activeDownloads[song.id] = true
 
         _downloadProgress.update { it + (song.id to 0) }
@@ -238,6 +251,7 @@ class AuraDownloadManager(
                 cleanFailedDownload(song.id)
             }
         }
+        return true
     }
 
     private fun cleanFailedDownload(songId: String) {

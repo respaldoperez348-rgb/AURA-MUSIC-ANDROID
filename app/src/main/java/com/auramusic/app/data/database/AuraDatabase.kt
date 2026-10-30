@@ -539,6 +539,11 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         """.trimIndent())
     }
 
+    suspend fun clearHistory() = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        db.delete(TABLE_HISTORY, null, null)
+    }
+
     suspend fun getTopArtistsFromHistoryAndFavorites(): List<Song> = withContext(Dispatchers.IO) {
         val list = mutableListOf<Song>()
         val db = readableDatabase
