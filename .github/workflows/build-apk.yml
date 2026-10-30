@@ -21,11 +21,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -33,39 +33,40 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Build Release and Debug APKs
+        run: ./gradlew assembleRelease assembleDebug --stacktrace --no-configuration-cache
 
-      - name: Upload Debug APK
+      - name: Prepare Release APKs
+        run: |
+          mkdir -p release-assets
+          cp app/build/outputs/apk/release/app-release.apk release-assets/AuraMusic-${{ github.ref_name }}.apk
+          cp app/build/outputs/apk/debug/app-debug.apk release-assets/AuraMusic-${{ github.ref_name }}-debug.apk
+
+      - name: Upload APKs Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aura-music-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: aura-music-apks
+          path: release-assets/*.apk
           retention-days: 14
 
       - name: Create GitHub Release on Tag
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/debug/app-debug.apk
-          name: Aura Music ${{ github.ref_name }} (Fase Beta)
+          files: release-assets/*.apk
+          name: Aura Music ${{ github.ref_name }}
           body: |
-            ## 🚀 Aura Music ${{ github.ref_name }} [FASE BETA]
-            
-            > ⚠️ **Estado**: Esta versión se encuentra actualmente en **Fase Beta** de pruebas continuas. La versión estable oficial comenzará a partir de la versión **v2.5.0**.
-            
-            **Creador & Desarrollador Principal**: MANUEL DAVID TINEO
-            
-            ### ✨ Novedades de Aura Music v2.0.0
-            - 📻 **Auto-Radio Infinito (Automix)**: Al terminar tu cola actual, encola automáticamente canciones relacionadas desde el motor InnerTube `/next` sin interrumpir la reproducción.
-            - 💾 **Caché de Disco Inteligente (512 MB LRU)**: Almacenamiento automático en caché de pistas reproducidas (`SimpleCache` + `CacheDataSource`) para reproducción instantánea sin consumir datos al repetir canciones.
-            - 🔇 **Saltar Silencios (`Skip Silence`)**: Recorte automático en tiempo real de silencios en introducciones y cierres de pistas.
-            - 👆 **Gestos Táctiles en MiniPlayer y Vinilo**: Desliza horizontalmente en el MiniPlayer o sobre el vinilo de Studio Deck para cambiar de canción (Siguiente/Anterior), y desliza hacia arriba en el MiniPlayer para expandir el reproductor.
-            - 🌐 **Traducción de Letras Sincronizadas (Karaoke Bilingüe)**: Traducción en lote de letras sincronizadas con visualización bilingüe tanto en Studio Deck como en pantalla completa.
-            - 📊 **Visualizador de Espectro Acoplado al DSP**: Las barras de frecuencia responden en tiempo real a las 5 bandas del ecualizador y al nivel de `BassBoost`.
-            - ↕️ **Reordenamiento de Cola en Vivo**: Controles directos para subir o bajar canciones en la cola de reproducción con re-sincronización automática de ExoPlayer.
-            - 📥 **Importador de Playlists de YouTube**: Importa listas externas mediante URL, ID (`PL...` / `VL...`) o búsqueda directa desde la pestaña `LISTS` en la Bóveda.
-            - 📈 **Telemetría "Aura Wrapped" & Backup JSON**: Panel de estadísticas en vivo (`PLAYS`, `TIEMPO`, `TOP ARTISTA`) en la Bóveda y exportación/restauración completa en JSON desde Ajustes.
-            - 🛠️ **Correcciones Críticas de Estabilidad y Velocidad**: Solución definitiva al límite de 2 canciones y cierre por `TransactionTooLargeException` (Binder IPC), búsqueda paralela hasta 5x más rápida y optimización de recomposiciones en UI.
+            ## 🎵 Aura Music ${{ github.ref_name }} (Versión Estable)
+
+            **Desarrollador Principal**: MANUEL DAVID TINEO
+
+            ### ✨ Novedades y Características
+            - 🚀 **Lanzamiento Oficial Estable**: La aplicación deja la fase beta y pasa a versión funcional estable.
+            - 📥 **Descargas Offline Reales**: Descarga canciones directamente al almacenamiento local con carátulas incrustadas y soporte para filtro de solo Wi-Fi.
+            - 🎨 **Selector de Temas Visuales Dinámicos**: Tema Oscuro OLED, Claro, Cyberpunk Neón, Sunset Retro y Deep Ocean.
+            - 📻 **Auto-Radio Infinito (Automix)**: Encolado automático de música continua al terminar tu cola actual.
+            - 💾 **Caché Inteligente de Disco**: Almacenamiento local para reproducción instantánea sin consumo repetido de datos móviles.
+            - 🔄 **Actualizador Integrado**: Comprobación directa contra GitHub Releases con descarga de nuevas versiones desde Ajustes.
+            - 📊 **Ecualizador DSP & Visualizador**: 5 bandas, BassBoost y espectro de audio en tiempo real.
           draft: false
-          prerelease: true
+          prerelease: false

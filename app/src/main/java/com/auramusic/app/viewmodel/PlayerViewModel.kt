@@ -175,6 +175,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun setupDownloadListener() {
         downloadManager.onDownloadCompleted = { song ->
+            // Notification delivered directly to Android system notification tray via NotificationManagerCompat
             viewModelScope.launch {
                 val updatedDownloads = database.getDownloadedTracks()
                 val updatedFavorites = database.getFavorites()
