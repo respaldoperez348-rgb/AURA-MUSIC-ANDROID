@@ -36,6 +36,54 @@ object YouTubeMusicEngine {
         searchCache.clear()
     }
 
+    suspend fun fetchPersonalizedHomeFeed(): List<Song> = withContext(Dispatchers.IO) {
+        try {
+            val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"browseId":"FEmusic_home"}"""
+            val req = Request.Builder()
+                .url(BROWSE_URL)
+                .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                .header("Content-Type", "application/json")
+                .apply { YouTubeAuthManager.applyAuthHeaders(this) }
+                .build()
+
+            val resp = client.newCall(req).execute()
+            val body = resp.body?.string() ?: return@withContext emptyList()
+            val root = JSONObject(body)
+            val songs = mutableListOf<Song>()
+            val seenIds = mutableSetOf<String>()
+
+            fun collectTracks(obj: Any?) {
+                when (obj) {
+                    is JSONObject -> {
+                        val col = obj.optJSONObject("musicResponsiveListItemRenderer")
+                        if (col != null) {
+                            val song = extractSongFromListItem(col)
+                            if (song != null && !song.isArtist && !song.isAlbum && seenIds.add(song.id)) {
+                                songs.add(song)
+                            }
+                        }
+                        val keys = obj.keys()
+                        while (keys.hasNext()) {
+                            collectTracks(obj.opt(keys.next()))
+                        }
+                    }
+                    is org.json.JSONArray -> {
+                        for (i in 0 until obj.length()) {
+                            collectTracks(obj.opt(i))
+                        }
+                    }
+                }
+            }
+
+            collectTracks(root)
+            songs
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     suspend fun searchTracks(query: String): List<Song> = withContext(Dispatchers.IO) {
         val effectiveQuery = if (query.isBlank()) "Top Hits Éxitos Globales" else query.trim()
         val cacheKey = effectiveQuery.lowercase()
@@ -982,17 +1030,20 @@ object YouTubeMusicEngine {
     ): List<Song> = withContext(Dispatchers.IO) {
         try {
             val tracks = mutableListOf<Song>()
+            val seenTrackIds = mutableSetOf<String>()
             var resolvedTitle = fallbackTitle
             var resolvedArtist = fallbackArtist
             var resolvedCover = ""
 
             if (browseId.isNotBlank()) {
-                val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"browseId":"$browseId"}"""
+                val actualBrowseId = if (browseId.startsWith("PL") && !browseId.startsWith("VL")) "VL$browseId" else browseId
+                val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"es","gl":"ES"}},"browseId":"$actualBrowseId"}"""
                 val req = Request.Builder()
                     .url(BROWSE_URL)
                     .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                     .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
                     .header("Content-Type", "application/json")
+                    .apply { YouTubeAuthManager.applyAuthHeaders(this) }
                     .build()
 
                 client.newCall(req).execute().use { resp ->
@@ -1000,16 +1051,27 @@ object YouTubeMusicEngine {
                     if (body != null) {
                         val root = JSONObject(body)
 
+                        // 1. Extract Album Title, Cover, and Artist from Header
                         val two = root.optJSONObject("contents")?.optJSONObject("twoColumnBrowseResultsRenderer")
-                        val tabs = two?.optJSONArray("tabs")?.optJSONObject(0)?.optJSONObject("tabRenderer")
-                            ?.optJSONObject("content")?.optJSONObject("sectionListRenderer")?.optJSONArray("contents")
-                        val header = tabs?.optJSONObject(0)?.optJSONObject("musicResponsiveHeaderRenderer")
+                        val single = root.optJSONObject("contents")?.optJSONObject("singleColumnBrowseResultsRenderer")
 
-                        val albumTitle = header?.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: ""
+                        val tabs = (two?.optJSONArray("tabs") ?: single?.optJSONArray("tabs"))
+                            ?.optJSONObject(0)?.optJSONObject("tabRenderer")
+                            ?.optJSONObject("content")?.optJSONObject("sectionListRenderer")?.optJSONArray("contents")
+
+                        val header = tabs?.optJSONObject(0)?.optJSONObject("musicResponsiveHeaderRenderer")
+                            ?: root.optJSONObject("header")?.optJSONObject("musicDetailHeaderRenderer")
+                            ?: root.optJSONObject("header")?.optJSONObject("musicResponsiveHeaderRenderer")
+
+                        val albumTitle = header?.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text")
+                            ?: header?.optJSONObject("title")?.optString("text") ?: ""
                         if (albumTitle.isNotBlank()) resolvedTitle = albumTitle
 
                         val albumCoverThumbs = header?.optJSONObject("thumbnail")?.optJSONObject("musicThumbnailRenderer")
                             ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+                            ?: header?.optJSONObject("thumbnail")?.optJSONObject("croppedSquareThumbnailRenderer")
+                            ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+
                         val albumCover = if (albumCoverThumbs != null && albumCoverThumbs.length() > 0) {
                             albumCoverThumbs.getJSONObject(albumCoverThumbs.length() - 1).optString("url")
                         } else ""
@@ -1019,77 +1081,81 @@ object YouTubeMusicEngine {
                         if (subtitleRuns != null) {
                             for (sIdx in 0 until subtitleRuns.length()) {
                                 val cand = subtitleRuns.getJSONObject(sIdx).optString("text").trim()
-                                if (cand.isNotBlank() && cand != "•" && cand != "Álbum" && cand != "Single" && cand != "EP" && !cand.matches(Regex("\\d{4}"))) {
+                                if (cand.isNotBlank() && cand != "•" && cand != "Álbum" && cand != "Album" && cand != "Single" && cand != "EP" && !cand.matches(Regex("\\d{4}"))) {
                                     resolvedArtist = cand
                                     break
                                 }
                             }
                         }
 
-                        // Direct extraction from secondaryContents (standard YouTube Music album tracklist container)
+                        // 2. Direct extraction from secondaryContents or sectionListRenderer
                         val secContents = two?.optJSONObject("secondaryContents")?.optJSONObject("sectionListRenderer")?.optJSONArray("contents")
                         if (secContents != null) {
                             for (s in 0 until secContents.length()) {
-                                val shelfObj = secContents.optJSONObject(s)?.optJSONObject("musicShelfRenderer") ?: continue
+                                val shelfObj = secContents.optJSONObject(s)?.optJSONObject("musicShelfRenderer")
+                                    ?: secContents.optJSONObject(s)?.optJSONObject("musicPlaylistShelfRenderer") ?: continue
                                 val shelfItems = shelfObj.optJSONArray("contents") ?: continue
                                 for (i in 0 until shelfItems.length()) {
                                     val col = shelfItems.optJSONObject(i)?.optJSONObject("musicResponsiveListItemRenderer") ?: continue
-                                    val song = extractSongFromListItem(col)
-                                    if (song != null) {
-                                        tracks.add(
-                                            song.copy(
-                                                artist = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else resolvedArtist,
-                                                album = if (song.album.isNotBlank()) song.album else resolvedTitle,
-                                                coverUrl = if (song.coverUrl.isNotBlank()) song.coverUrl else resolvedCover
-                                            )
-                                        )
+                                    val song = extractSongFromAlbumItem(col, resolvedArtist, resolvedTitle, resolvedCover)
+                                    if (song != null && seenTrackIds.add(song.id)) {
+                                        tracks.add(song)
                                     }
                                 }
                             }
                         }
 
-                        // If direct extraction did not find tracks, recursive fallback
-                        if (tracks.isEmpty()) {
-                            fun findTracksRecursive(obj: Any?) {
-                                when (obj) {
-                                    is JSONObject -> {
-                                        val col = obj.optJSONObject("musicResponsiveListItemRenderer")
-                                        if (col != null) {
-                                            val song = extractSongFromListItem(col)
-                                            if (song != null) {
-                                                tracks.add(
-                                                    song.copy(
-                                                        artist = if (song.artist.isNotBlank() && song.artist != "Unknown Artist") song.artist else resolvedArtist,
-                                                        album = if (song.album.isNotBlank()) song.album else resolvedTitle,
-                                                        coverUrl = if (song.coverUrl.isNotBlank()) song.coverUrl else resolvedCover
-                                                    )
-                                                )
-                                            }
-                                        }
-                                        val keys = obj.keys()
-                                        while (keys.hasNext()) {
-                                            findTracksRecursive(obj.opt(keys.next()))
-                                        }
-                                    }
-                                    is org.json.JSONArray -> {
-                                        for (idx in 0 until obj.length()) {
-                                            findTracksRecursive(obj.opt(idx))
-                                        }
+                        // 3. Extraction from primary tabs sectionList contents
+                        if (tabs != null) {
+                            for (t in 0 until tabs.length()) {
+                                val shelfObj = tabs.optJSONObject(t)?.optJSONObject("musicShelfRenderer")
+                                    ?: tabs.optJSONObject(t)?.optJSONObject("musicPlaylistShelfRenderer") ?: continue
+                                val shelfItems = shelfObj.optJSONArray("contents") ?: continue
+                                for (i in 0 until shelfItems.length()) {
+                                    val col = shelfItems.optJSONObject(i)?.optJSONObject("musicResponsiveListItemRenderer") ?: continue
+                                    val song = extractSongFromAlbumItem(col, resolvedArtist, resolvedTitle, resolvedCover)
+                                    if (song != null && seenTrackIds.add(song.id)) {
+                                        tracks.add(song)
                                     }
                                 }
                             }
-
-                            findTracksRecursive(root)
                         }
+
+                        // 4. Comprehensive recursive extraction if direct sections didn't catch all
+                        fun findTracksRecursive(obj: Any?) {
+                            when (obj) {
+                                is JSONObject -> {
+                                    val col = obj.optJSONObject("musicResponsiveListItemRenderer")
+                                    if (col != null) {
+                                        val song = extractSongFromAlbumItem(col, resolvedArtist, resolvedTitle, resolvedCover)
+                                        if (song != null && seenTrackIds.add(song.id)) {
+                                            tracks.add(song)
+                                        }
+                                    }
+                                    val keys = obj.keys()
+                                    while (keys.hasNext()) {
+                                        findTracksRecursive(obj.opt(keys.next()))
+                                    }
+                                }
+                                is org.json.JSONArray -> {
+                                    for (idx in 0 until obj.length()) {
+                                        findTracksRecursive(obj.opt(idx))
+                                    }
+                                }
+                            }
+                        }
+
+                        findTracksRecursive(root)
                     }
                 }
             }
 
-            // Fallback search if empty (e.g. mock or restricted browseId)
+            // Fallback search ONLY if truly empty (never truncate to 12 - return full album!)
             if (tracks.isEmpty() && (resolvedTitle.isNotBlank() || fallbackTitle.isNotBlank())) {
                 val q = "${resolvedTitle.ifBlank { fallbackTitle }} ${resolvedArtist.ifBlank { fallbackArtist }}".trim()
                 val searchFallback = searchTracks(q)
-                tracks.addAll(searchFallback.filter { !it.isArtist && !it.isAlbum }.take(12))
+                val cleanFallback = searchFallback.filter { !it.isArtist && !it.isAlbum }
+                tracks.addAll(cleanFallback)
             }
 
             android.util.Log.d("YouTubeMusicEngine", "fetchAlbumTracks for $resolvedTitle ($browseId) resolved ${tracks.size} tracks")
@@ -1097,6 +1163,104 @@ object YouTubeMusicEngine {
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
+        }
+    }
+
+    private fun extractSongFromAlbumItem(
+        col: JSONObject,
+        defaultArtist: String,
+        defaultAlbum: String,
+        defaultCover: String
+    ): Song? {
+        try {
+            val flexColumns = col.optJSONArray("flexColumns") ?: return null
+            if (flexColumns.length() == 0) return null
+
+            val flex0 = flexColumns.getJSONObject(0).optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+            val titleRuns = flex0?.optJSONObject("text")?.optJSONArray("runs")
+                ?: flex0?.optJSONObject("title")?.optJSONArray("runs")
+
+            val title = if (titleRuns != null && titleRuns.length() > 0) {
+                titleRuns.getJSONObject(0).optString("text").trim()
+            } else ""
+
+            if (title.isBlank()) return null
+
+            // Video ID extraction
+            var videoId = ""
+            val overlayPlay = col.optJSONObject("overlay")
+                ?.optJSONObject("musicItemThumbnailOverlayRenderer")
+                ?.optJSONObject("content")
+                ?.optJSONObject("musicPlayButtonRenderer")
+                ?.optJSONObject("playNavigationEndpoint")
+
+            val overlayWatch = overlayPlay?.optJSONObject("watchEndpoint")
+            if (overlayWatch != null) {
+                videoId = overlayWatch.optString("videoId")
+            }
+
+            if (videoId.isBlank() && titleRuns != null && titleRuns.length() > 0) {
+                val nav = titleRuns.getJSONObject(0).optJSONObject("navigationEndpoint")
+                val w = nav?.optJSONObject("watchEndpoint")
+                if (w != null) videoId = w.optString("videoId")
+            }
+
+            if (videoId.isBlank()) {
+                val plItem = col.optJSONObject("playlistItemData")
+                if (plItem != null) videoId = plItem.optString("videoId")
+            }
+
+            if (videoId.isBlank()) {
+                val nav = col.optJSONObject("navigationEndpoint")?.optJSONObject("watchEndpoint")
+                if (nav != null) videoId = nav.optString("videoId")
+            }
+
+            if (videoId.length != 11) return null
+
+            // Artist: check flex1 if present, otherwise defaultArtist
+            var trackArtist = defaultArtist
+            if (flexColumns.length() > 1) {
+                val flex1 = flexColumns.getJSONObject(1).optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                val artistRuns = flex1?.optJSONObject("text")?.optJSONArray("runs")
+                    ?: flex1?.optJSONObject("title")?.optJSONArray("runs")
+                if (artistRuns != null && artistRuns.length() > 0) {
+                    val candidate = artistRuns.getJSONObject(0).optString("text").trim()
+                    if (candidate.isNotBlank() && candidate != "•" && !candidate.equals("Album", ignoreCase = true) && !candidate.equals("Álbum", ignoreCase = true)) {
+                        trackArtist = candidate
+                    }
+                }
+            }
+
+            // Duration: check fixedColumns
+            var durationMs = 210000L
+            val fixedCols = col.optJSONArray("fixedColumns")
+            if (fixedCols != null && fixedCols.length() > 0) {
+                val fixed0 = fixedCols.optJSONObject(0)?.optJSONObject("musicResponsiveListItemFixedColumnRenderer")
+                val fixedText = fixed0?.optJSONObject("text")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text")
+                    ?: fixed0?.optJSONObject("text")?.optString("simpleText")
+                if (!fixedText.isNullOrBlank()) {
+                    val durSec = parseDurationSeconds(fixedText)
+                    if (durSec != null && durSec > 0) {
+                        durationMs = durSec * 1000L
+                    }
+                }
+            }
+
+            val cover = defaultCover.ifBlank { "https://i.ytimg.com/vi/$videoId/hqdefault.jpg" }
+
+            return Song(
+                id = videoId,
+                title = title,
+                artist = if (trackArtist.isNotBlank() && trackArtist != "Unknown Artist") trackArtist else (defaultArtist.ifBlank { "Artista" }),
+                album = defaultAlbum,
+                coverUrl = cover,
+                durationMs = durationMs,
+                mediaUri = "https://www.youtube.com/watch?v=$videoId",
+                isArtist = false,
+                isAlbum = false
+            )
+        } catch (e: Exception) {
+            return null
         }
     }
 

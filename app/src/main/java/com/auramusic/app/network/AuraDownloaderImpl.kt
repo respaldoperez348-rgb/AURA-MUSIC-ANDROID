@@ -19,8 +19,8 @@ class AuraDownloaderImpl private constructor(private val client: OkHttpClient) :
         val instance by lazy {
             val client = OkHttpClient.Builder()
                 .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
-                .connectTimeout(12, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(6, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true)
                 .build()
             AuraDownloaderImpl(client)

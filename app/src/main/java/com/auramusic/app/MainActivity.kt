@@ -141,7 +141,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            AuraMusicTheme(themeName = uiState.currentTheme) {
+            AuraMusicTheme(
+                themeName = uiState.currentTheme,
+                themeMode = uiState.themeMode
+            ) {
                 BackHandler(enabled = uiState.isPlayerExpanded) {
                     playerViewModel.setPlayerExpanded(false)
                 }
@@ -247,12 +250,14 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Unified Bottom Console: Mini-Player + Full-Width Dock
+                        // Unified Floating Console: Mini-Player + Split Dock
                         if (!uiState.isPlayerExpanded) {
                             Column(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .navigationBarsPadding()
+                                    .padding(bottom = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 MiniPlayer(
                                     song = uiState.currentSong,
@@ -267,7 +272,7 @@ class MainActivity : ComponentActivity() {
                                     onExpand = { playerViewModel.setPlayerExpanded(true) }
                                 )
 
-                                Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
 
                                 GlassBottomDock(
                                     currentTab = uiState.currentTab,
@@ -376,6 +381,7 @@ class MainActivity : ComponentActivity() {
                                 autoRadioEnabled = uiState.autoRadioEnabled,
                                 skipSilenceEnabled = uiState.skipSilenceEnabled,
                                 currentTheme = uiState.currentTheme,
+                                themeMode = uiState.themeMode,
                                 appLanguage = uiState.appLanguage,
                                 lyricsOffsetMs = uiState.lyricsOffsetMs,
                                 ytAccount = uiState.ytAccount,
@@ -390,11 +396,20 @@ class MainActivity : ComponentActivity() {
                                 onToggleAutoRadio = { playerViewModel.toggleAutoRadio() },
                                 onToggleSkipSilence = { playerViewModel.toggleSkipSilence() },
                                 onSelectTheme = { themeName -> playerViewModel.setThemePalette(themeName) },
+                                onSelectThemeMode = { mode -> playerViewModel.setThemeMode(mode) },
                                 onSelectLanguage = { lang -> playerViewModel.setAppLanguage(lang) },
                                 onSelectLyricsOffset = { offset -> playerViewModel.setLyricsOffsetMs(offset) },
                                 onExportBackup = { playerViewModel.exportBackup() },
                                 onImportBackup = { playerViewModel.importBackup() },
                                 onClearCache = { playerViewModel.clearAppCache() },
+                                onOpenUrl = { url ->
+                                    try {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                        startActivity(intent)
+                                    } catch (e: Exception) {
+                                        playerViewModel.showToast("No se pudo abrir el enlace")
+                                    }
+                                },
                                 onDismiss = { playerViewModel.setShowSettings(false) }
                             )
                         }

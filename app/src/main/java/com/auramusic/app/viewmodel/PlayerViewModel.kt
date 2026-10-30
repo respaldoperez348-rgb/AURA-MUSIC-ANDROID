@@ -95,7 +95,8 @@ data class PlayerUiState(
     val showSettings: Boolean = false,
     val audioQuality: String = "Hi-Res (320 kbps)",
     val loudnessNormalizer: Boolean = true,
-    val currentTheme: String = "Cyber Neon",
+    val currentTheme: String = "Studio Carbon",
+    val themeMode: String = "Oscuro", // "Oscuro", "Claro", "Sistema"
     val appLanguage: String = "Español",
     val showFullscreenLyrics: Boolean = false,
     val selectedArtist: Song? = null,
@@ -199,6 +200,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val context = getApplication<Application>()
             val prefs = context.getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
             val savedPalette = prefs.getString("palette", "Studio Carbon") ?: "Studio Carbon"
+            val savedThemeMode = prefs.getString("theme_mode", "Oscuro") ?: "Oscuro"
             val savedLanguage = prefs.getString("app_language", "Español") ?: "Español"
             val savedLyricsOffset = prefs.getLong("lyrics_offset_ms", -200L)
             val savedAudioQuality = prefs.getString("audio_quality", "Hi-Res (320 kbps)") ?: "Hi-Res (320 kbps)"
@@ -243,6 +245,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     downloads = savedDownloads,
                     playlists = savedPlaylists,
                     currentTheme = savedPalette,
+                    themeMode = savedThemeMode,
                     appLanguage = savedLanguage,
                     lyricsOffsetMs = savedLyricsOffset,
                     audioQuality = savedAudioQuality,
@@ -261,10 +264,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             scanLocalTracks()
             loadLyricsForSong(_uiState.value.currentSong)
 
-            // 2. Fetch fresh tracks from network in the background without blocking UI or blanking out
+            // 2. Fetch fresh tracks from network (personalized if user linked YouTube Music account)
             launch(Dispatchers.IO) {
                 try {
-                    val freshTracks = YouTubeMusicEngine.searchTracks("")
+                    val freshTracks = if (ytState.isLoggedIn) {
+                        val personalized = YouTubeMusicEngine.fetchPersonalizedHomeFeed()
+                        if (personalized.isNotEmpty()) personalized else YouTubeMusicEngine.searchTracks("")
+                    } else {
+                        YouTubeMusicEngine.searchTracks("")
+                    }
                     if (freshTracks.isNotEmpty()) {
                         _uiState.update {
                             it.copy(
@@ -709,6 +717,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         playJob?.cancel()
         prefetchJob?.cancel()
+        mediaController?.pause()
         playJob = viewModelScope.launch {
             val downloadedList = database.getDownloadedTracks()
             val localTrack = downloadedList.find {
@@ -1593,12 +1602,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // Refresh personalized feed with authenticated session
             launch(Dispatchers.IO) {
                 runCatching {
-                    val fresh = YouTubeMusicEngine.searchTracks("")
+                    val personalized = YouTubeMusicEngine.fetchPersonalizedHomeFeed()
+                    val fresh = if (personalized.isNotEmpty()) personalized else YouTubeMusicEngine.searchTracks("")
                     if (fresh.isNotEmpty()) {
                         _uiState.update { it.copy(searchResults = fresh) }
                     }
                 }
             }
+        }
+    }
+
+    fun setThemeMode(mode: String) {
+        _uiState.update { it.copy(themeMode = mode) }
+        viewModelScope.launch {
+            val context = getApplication<Application>()
+            val prefs = context.getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("theme_mode", mode).apply()
         }
     }
 

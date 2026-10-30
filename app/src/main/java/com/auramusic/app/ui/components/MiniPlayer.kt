@@ -1,13 +1,13 @@
 package com.auramusic.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,9 +22,8 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -44,11 +44,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.auramusic.app.data.model.Song
-import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
 import com.auramusic.app.ui.theme.CyberPink
 import com.auramusic.app.ui.theme.CyberSurfaceActive
-import com.auramusic.app.ui.theme.CyberSurfaceCard
+import com.auramusic.app.ui.theme.GlassBorderSubtle
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
@@ -78,17 +77,19 @@ fun MiniPlayer(
         0f
     }
 
-    Column(
+    // Floating Capsule MiniPlayer (as in reference screenshot)
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 14.dp)
             .shadow(
                 elevation = 16.dp,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(36.dp),
                 spotColor = Color.Black.copy(alpha = 0.65f)
             )
-            .clip(RoundedCornerShape(12.dp))
-            .background(CyberSurfaceCard)
+            .clip(RoundedCornerShape(36.dp))
+            .background(Color(0xFF14161C))
+            .border(1.dp, GlassBorderSubtle, RoundedCornerShape(36.dp))
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = {
@@ -114,35 +115,48 @@ fun MiniPlayer(
                 )
             }
             .clickable { onExpand() }
+            .padding(horizontal = 10.dp, vertical = 7.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Crisp Square Rounded Studio Cover Art
+            // Circular Artwork with Circular Progress Arc Ring
             Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(CyberSurfaceActive),
+                modifier = Modifier.size(50.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (song.coverUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = song.coverUrl,
-                        contentDescription = song.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.MusicNote,
-                        contentDescription = null,
-                        tint = TextMuted,
-                        modifier = Modifier.size(20.dp)
-                    )
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.size(48.dp),
+                    color = Color(0xFFA8C7FA),
+                    strokeWidth = 2.5.dp,
+                    strokeCap = StrokeCap.Round,
+                    trackColor = Color.White.copy(alpha = 0.08f)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(CyberSurfaceActive),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (song.coverUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = song.coverUrl,
+                            contentDescription = song.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
 
@@ -153,8 +167,8 @@ fun MiniPlayer(
                 Text(
                     text = song.title,
                     color = TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     letterSpacing = (-0.2).sp
@@ -169,65 +183,43 @@ fun MiniPlayer(
                 )
             }
 
-            IconButton(
-                onClick = onToggleFavorite,
-                modifier = Modifier.size(36.dp)
+            Spacer(modifier = Modifier.width(6.dp))
+
+            // Circular Heart Favorite Button
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .clickable { onToggleFavorite() },
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = "Favorito",
-                    tint = if (isFavorite) CyberPink else TextSecondary,
-                    modifier = Modifier.size(19.dp)
+                    tint = if (isFavorite) CyberPink else TextPrimary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(2.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
-            // Solid High-Contrast Play/Pause Button
+            // Prominent Solid Tinted Circular Play/Pause Button
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(46.dp)
                     .clip(CircleShape)
-                    .background(TextPrimary)
+                    .background(Color(0xFFA8C7FA))
                     .clickable { onPlayPause() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = "Play/Pause",
-                    tint = CyberBackgroundDark,
-                    modifier = Modifier.size(20.dp)
+                    tint = Color(0xFF0F141C),
+                    modifier = Modifier.size(23.dp)
                 )
             }
-
-            Spacer(modifier = Modifier.width(2.dp))
-
-            IconButton(
-                onClick = onNext,
-                modifier = Modifier.size(34.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SkipNext,
-                    contentDescription = "Siguiente",
-                    tint = TextPrimary,
-                    modifier = Modifier.size(21.dp)
-                )
-            }
-        }
-
-        // Flush Hairline 2.dp Progress Indicator along the bottom edge
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(CyberSurfaceActive)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(progress)
-                    .fillMaxHeight()
-                    .background(CyberCyan)
-            )
         }
     }
 }

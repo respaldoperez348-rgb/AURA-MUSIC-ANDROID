@@ -65,6 +65,7 @@ fun SettingsSheet(
     autoRadioEnabled: Boolean = true,
     skipSilenceEnabled: Boolean = false,
     currentTheme: String = "Studio Carbon",
+    themeMode: String = "Oscuro",
     appLanguage: String = "Español",
     lyricsOffsetMs: Long = -200L,
     ytAccount: YouTubeAccountState = YouTubeAccountState(),
@@ -76,11 +77,13 @@ fun SettingsSheet(
     onToggleAutoRadio: () -> Unit = {},
     onToggleSkipSilence: () -> Unit = {},
     onSelectTheme: (String) -> Unit = {},
+    onSelectThemeMode: (String) -> Unit = {},
     onSelectLanguage: (String) -> Unit = {},
     onSelectLyricsOffset: (Long) -> Unit = {},
     onClearCache: () -> Unit = {},
     onExportBackup: () -> Unit = {},
     onImportBackup: () -> Unit = {},
+    onOpenUrl: (String) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -290,10 +293,47 @@ fun SettingsSheet(
             Spacer(modifier = Modifier.height(26.dp))
 
             // ==========================================
-            // 2. ACABADO VISUAL (4 Hardware Material Palettes)
+            // 2. ACABADO VISUAL Y MODO DE TEMA
             // ==========================================
             SettingsSectionLabel(text = AuraStrings.get("theme_title", appLanguage))
             Spacer(modifier = Modifier.height(10.dp))
+
+            // Selector de Modo de Tema (Oscuro / Claro / Sistema)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CyberSurfaceCard)
+                    .border(1.dp, GlassBorderSubtle, RoundedCornerShape(12.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf(
+                    "Oscuro" to "🌙 Oscuro",
+                    "Claro" to "☀️ Claro",
+                    "Sistema" to "⚙️ Sistema"
+                ).forEach { (modeKey, modeTitle) ->
+                    val isSelected = themeMode.equals(modeKey, ignoreCase = true)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) CyberSurfaceActive else Color.Transparent)
+                            .clickable { onSelectThemeMode(modeKey) }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = modeTitle,
+                            color = if (isSelected) TextPrimary else TextMuted,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             data class HardwareFinish(
                 val id: String,
@@ -756,7 +796,174 @@ fun SettingsSheet(
             Spacer(modifier = Modifier.height(26.dp))
 
             // ==========================================
-            // 8. ACERCA DE AURA
+            // 8. COMUNIDAD Y CÓDIGO ABIERTO (GITHUB)
+            // ==========================================
+            SettingsSectionLabel(text = "COMUNIDAD Y CÓDIGO ABIERTO")
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(CyberSurface)
+                    .border(1.dp, GlassBorderSubtle, RoundedCornerShape(16.dp))
+            ) {
+                // Ver repositorio en GitHub
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenUrl("https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID") }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Repositorio en GitHub",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CyberSurfaceCard)
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Visitar ↗",
+                            color = CyberCyan,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp)
+
+                // Reportar un problema / Feedback
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenUrl("https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/issues") }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Reportar un problema",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Abrir un ticket o sugerir mejoras en GitHub Issues",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Text(
+                        text = "Issues ↗",
+                        color = TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                HorizontalDivider(color = GlassBorderSubtle, thickness = 0.5.dp)
+
+                // Buscar Actualizaciones
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenUrl("https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases") }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Buscar actualizaciones",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Consultar nuevas versiones y changelog oficial",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Text(
+                        text = "Releases ↗",
+                        color = TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ==========================================
+            // 9. VERIFICACIÓN E INTEGRIDAD DE LA APP
+            // ==========================================
+            SettingsSectionLabel(text = "ESTADO DEL SISTEMA")
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurface)
+                    .border(1.dp, GlassBorderSubtle, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Aura Music Funcional v2.1.0",
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Arquitectura offline nativa con SQLite & ExoPlayer",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CyberGreen.copy(alpha = 0.16f))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = "✓ Verificada",
+                        color = CyberGreen,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(26.dp))
+
+            // ==========================================
+            // 10. ACERCA DE AURA
             // ==========================================
             Row(
                 modifier = Modifier
