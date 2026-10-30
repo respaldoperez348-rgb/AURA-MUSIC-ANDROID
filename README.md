@@ -12,7 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
-<img width="749" height="1600" alt="WhatsApp Image 2026-10-29 at 10 12 09" src="https://github.com/user-attachments/assets/de842f76-fdff-4c30-8e34-bd283cc9c668" />
+
 
 
 
