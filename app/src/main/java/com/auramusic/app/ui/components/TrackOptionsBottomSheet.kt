@@ -167,16 +167,16 @@ fun TrackOptionsBottomSheet(
                 // Action: Add to Playlist
                 OptionRow(
                     icon = Icons.AutoMirrored.Filled.PlaylistAdd,
-                    title = "Add to Playlist...",
+                    title = "Añadir a playlist...",
                     tint = CyberCyan,
                     onClick = { showPlaylistPicker = true }
                 )
 
                 // Action: Download
                 val downloadText = when {
-                    isDownloaded || downloadProgress == 100 -> "Downloaded (Offline Ready)"
-                    downloadProgress in 0..99 -> "Downloading... $downloadProgress%"
-                    else -> "Download for Offline Listening"
+                    isDownloaded || downloadProgress == 100 -> "Descargada (Lista sin conexión)"
+                    downloadProgress in 0..99 -> "Descargando... $downloadProgress%"
+                    else -> "Descargar para escuchar sin conexión"
                 }
                 OptionRow(
                     icon = if (isDownloaded) Icons.Default.Check else Icons.Default.Download,
@@ -202,7 +202,7 @@ fun TrackOptionsBottomSheet(
                 if (isDownloaded && onDeleteDownload != null) {
                     OptionRow(
                         icon = Icons.Default.Delete,
-                        title = "Remove Offline Download",
+                        title = "Eliminar descarga sin conexión",
                         tint = CyberPink,
                         onClick = {
                             onDeleteDownload(song)
@@ -214,7 +214,7 @@ fun TrackOptionsBottomSheet(
                 // Action: Favorite
                 OptionRow(
                     icon = if (song.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    title = if (song.isFavorite) "Remove from Favorites" else "Add to Favorites",
+                    title = if (song.isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
                     tint = if (song.isFavorite) CyberPink else TextPrimary,
                     onClick = {
                         onToggleFavorite(song)
@@ -225,7 +225,7 @@ fun TrackOptionsBottomSheet(
                 // Action: Play Next in Queue
                 OptionRow(
                     icon = Icons.AutoMirrored.Filled.QueueMusic,
-                    title = "Play Next in Queue",
+                    title = "Reproducir siguiente en cola",
                     tint = TextPrimary,
                     onClick = {
                         onAddToQueueNext(song)
@@ -240,7 +240,7 @@ fun TrackOptionsBottomSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "SELECT PLAYLIST",
+                        text = "SELECCIONAR PLAYLIST",
                         color = CyberCyan,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -249,7 +249,7 @@ fun TrackOptionsBottomSheet(
                     TextButton(onClick = { showCreateDialog = true }) {
                         Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "New", color = CyberCyan, fontSize = 12.sp)
+                        Text(text = "Nueva", color = CyberCyan, fontSize = 12.sp)
                     }
                 }
 
@@ -272,7 +272,7 @@ fun TrackOptionsBottomSheet(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(text = pl.title, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                Text(text = "${pl.trackCount} tracks", color = TextMuted, fontSize = 11.sp)
+                                Text(text = "${pl.trackCount} pistas", color = TextMuted, fontSize = 11.sp)
                             }
                         }
                     }

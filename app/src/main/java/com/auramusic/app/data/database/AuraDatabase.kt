@@ -500,11 +500,20 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         list
     }
 
-    suspend fun isDownloaded(songId: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun isDownloaded(songId: String, title: String? = null, artist: String? = null): Boolean = withContext(Dispatchers.IO) {
         val db = readableDatabase
-        val cursor = db.rawQuery("SELECT 1 FROM $TABLE_DOWNLOADS WHERE songId = ?", arrayOf(songId))
-        val exists = cursor.count > 0
-        cursor.close()
+        val cursor = if (!title.isNullOrBlank() && !artist.isNullOrBlank()) {
+            db.rawQuery("SELECT localFilePath FROM $TABLE_DOWNLOADS WHERE songId = ? OR (LOWER(TRIM(title)) = LOWER(TRIM(?)) AND LOWER(TRIM(artist)) = LOWER(TRIM(?)))", arrayOf(songId, title, artist))
+        } else {
+            db.rawQuery("SELECT localFilePath FROM $TABLE_DOWNLOADS WHERE songId = ?", arrayOf(songId))
+        }
+        var exists = false
+        cursor.use {
+            if (it.moveToFirst()) {
+                val path = it.getString(0)
+                exists = java.io.File(path).let { f -> f.exists() && f.length() > 0 }
+            }
+        }
         exists
     }
 
@@ -833,7 +842,7 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
 
     suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
         val root = org.json.JSONObject()
-        root.put("version", "2.1.2")
+        root.put("version", "2.1.3")
         root.put("exportedAt", System.currentTimeMillis())
 
         val favArray = org.json.JSONArray()

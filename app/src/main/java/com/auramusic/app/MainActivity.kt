@@ -462,7 +462,7 @@ class MainActivity : ComponentActivity() {
 
                         // Track Options BottomSheet (Download, Add to Playlist, Favorite)
                         uiState.activeOptionSong?.let { song ->
-                            val isDownloaded = playerViewModel.isSongDownloaded(song.id)
+                            val isDownloaded = playerViewModel.isSongDownloaded(song)
                             val progress = uiState.downloadProgressMap[song.id] ?: -1
 
                             TrackOptionsBottomSheet(
@@ -582,29 +582,23 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Changelog Dialog (v2.1.2)
+                        // Changelog Dialog (v2.1.3)
                         if (uiState.showChangelogDialog) {
                             androidx.compose.material3.AlertDialog(
                                 onDismissRequest = { playerViewModel.setShowChangelogDialog(false) },
                                 title = {
-                                    Text("Novedades Aura Music v2.1.2", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = com.auramusic.app.ui.theme.TextPrimary)
+                                    Text("Novedades Aura Music v${com.auramusic.app.BuildConfig.VERSION_NAME}", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = com.auramusic.app.ui.theme.TextPrimary)
                                 },
                                 text = {
                                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                                         Text(
-                                            "• Soporte completo de temas visuales dinámicos (Studio Carbon, Champagne Hi-Fi, Olive Vinyl, Leica Monochrome).\n" +
-                                            "• Modos de tema: Oscuro, Claro y Automático del Sistema 100% funcionales.\n" +
-                                            "• Comprobador inteligente de actualizaciones de GitHub con detección de versión actual.\n" +
-                                            "• Barra inferior flotante y Mini-Reproductor cápsula rediseñados.\n" +
-                                            "• Carga completa de álbumes (sin pistas cortadas).\n" +
-                                            "• Cambio de canción instantáneo y ultra fluido.\n" +
-                                            "• Sincronización de gustos con cuenta de YouTube Music.\n" +
-                                            "• Pausa automática al desconectar audífonos o Bluetooth.\n" +
-                                            "• Continuar donde lo dejaste: Recupera última pista y posición.\n" +
-                                            "• Filtro de audios cortos para ignorar notas de voz de WhatsApp/Telegram.\n" +
-                                            "• Interruptor Gapless de reproducción continua sin pausas.\n" +
-                                            "• Descargas con opción de solo Wi-Fi.\n" +
-                                            "• Respaldos con selector de archivos SAF en cualquier carpeta.",
+                                            "• Sistema de descargas offline 100% verificado y guardado directo en Música/AuraMusic del teléfono.\n" +
+                                            "• Sincronización inmediata con Bóveda y explorador de archivos de Android.\n" +
+                                            "• Validación estricta de integridad de archivos de audio.\n" +
+                                            "• Soporte completo de temas visuales dinámicos (Oscuro, Claro, Sistema).\n" +
+                                            "• Comprobador inteligente de actualizaciones desde GitHub.\n" +
+                                            "• Barra inferior flotante y Mini-Reproductor cápsula.\n" +
+                                            "• Carga completa de álbumes y reproducción fluida.",
                                             color = com.auramusic.app.ui.theme.TextSecondary,
                                             lineHeight = 22.sp,
                                             fontSize = 13.sp

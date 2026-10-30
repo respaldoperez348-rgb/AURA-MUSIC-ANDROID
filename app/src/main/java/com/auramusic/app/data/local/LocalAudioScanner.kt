@@ -104,6 +104,31 @@ object LocalAudioScanner {
             e.printStackTrace()
         }
 
+        // Include offline downloaded tracks into device library
+        try {
+            val db = com.auramusic.app.data.database.AuraDatabase.getInstance(context)
+            val dls = db.getDownloadedTracks()
+            for (dl in dls) {
+                val f = java.io.File(dl.localFilePath)
+                if (f.exists() && f.length() > 0) {
+                    val alreadyIn = songList.any { 
+                        it.title.trim().equals(dl.song.title.trim(), ignoreCase = true) && 
+                        it.artist.trim().equals(dl.song.artist.trim(), ignoreCase = true)
+                    }
+                    if (!alreadyIn) {
+                        songList.add(
+                            dl.song.copy(
+                                id = "local_dl_${dl.song.id}",
+                                mediaUri = f.absolutePath
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         songList
     }
 
@@ -178,6 +203,35 @@ object LocalAudioScanner {
                             mediaUri = contentUri.toString()
                         )
                     )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Include offline downloaded tracks matching search query
+        try {
+            val db = com.auramusic.app.data.database.AuraDatabase.getInstance(context)
+            val dls = db.getDownloadedTracks()
+            for (dl in dls) {
+                val f = java.io.File(dl.localFilePath)
+                if (f.exists() && f.length() > 0) {
+                    val matchesQuery = dl.song.title.contains(trimmed, ignoreCase = true) || 
+                                       dl.song.artist.contains(trimmed, ignoreCase = true)
+                    if (!matchesQuery) continue
+
+                    val alreadyIn = songList.any { 
+                        it.title.trim().equals(dl.song.title.trim(), ignoreCase = true) && 
+                        it.artist.trim().equals(dl.song.artist.trim(), ignoreCase = true)
+                    }
+                    if (!alreadyIn) {
+                        songList.add(
+                            dl.song.copy(
+                                id = "local_dl_${dl.song.id}",
+                                mediaUri = f.absolutePath
+                            )
+                        )
+                    }
                 }
             }
         } catch (e: Exception) {

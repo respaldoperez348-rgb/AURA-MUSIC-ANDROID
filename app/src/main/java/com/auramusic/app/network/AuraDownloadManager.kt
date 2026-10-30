@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Environment
 import androidx.core.app.NotificationCompat
@@ -52,6 +53,7 @@ class AuraDownloadManager(
     var downloadOnlyOnWifi: Boolean = false
 
     var onDownloadCompleted: ((Song) -> Unit)? = null
+    var onDownloadFailed: ((Song, String) -> Unit)? = null
 
     private fun isWifiConnected(): Boolean {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return true
@@ -60,10 +62,39 @@ class AuraDownloadManager(
         return capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
     }
 
-    private val downloadsDir: File by lazy {
+    // App-private fallback folder
+    private val appPrivateDownloadsDir: File by lazy {
         val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "aura_downloads")
         if (!dir.exists()) dir.mkdirs()
         dir
+    }
+
+    // Target storage directory (prefers Public Music/AuraMusic for external visibility)
+    private fun getStorageDirectory(): File {
+        return try {
+            val publicDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "AuraMusic")
+            if (!publicDir.exists()) publicDir.mkdirs()
+            if (publicDir.exists() && publicDir.canWrite()) {
+                publicDir
+            } else {
+                appPrivateDownloadsDir
+            }
+        } catch (e: Exception) {
+            appPrivateDownloadsDir
+        }
+    }
+
+    private fun getTargetFileForSong(song: Song, extension: String = "mp3"): File {
+        val targetDir = getStorageDirectory()
+        val cleanArtist = song.artist.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+        val cleanTitle = song.title.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+        val cleanId = song.id.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(15).trim()
+        val fileName = if (cleanArtist.isNotBlank() && cleanTitle.isNotBlank()) {
+            "$cleanArtist - $cleanTitle [$cleanId].$extension"
+        } else {
+            "${cleanId.ifBlank { "track_${System.currentTimeMillis()}" }}.$extension"
+        }
+        return File(targetDir, fileName)
     }
 
     init {
@@ -120,7 +151,7 @@ class AuraDownloadManager(
             .setContentText("${song.title} • ${song.artist}")
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("${song.title}\n${song.artist} • Guardada en tu Bóveda offline")
+                    .bigText("${song.title}\n${song.artist} • Guardada en tu Bóveda y almacenamiento")
             )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
@@ -134,20 +165,31 @@ class AuraDownloadManager(
         }
     }
 
+    private fun notifyDownloadFailed(song: Song, reason: String) {
+        val notification = NotificationCompat.Builder(context, DOWNLOAD_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_error)
+            .setContentTitle("Error al descargar")
+            .setContentText("${song.title} • $reason")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build()
+        try {
+            NotificationManagerCompat.from(context).notify(song.id.hashCode(), notification)
+        } catch (e: SecurityException) {}
+    }
+
     fun startDownload(song: Song): Boolean {
         if (activeDownloads.containsKey(song.id)) return false
         if (downloadOnlyOnWifi && !isWifiConnected()) {
             return false
         }
         activeDownloads[song.id] = true
-
         _downloadProgress.update { it + (song.id to 0) }
 
         scope.launch(Dispatchers.IO) {
+            var targetFile: File? = null
             try {
-                val targetFile = File(downloadsDir, "${song.id}.mp3")
-
-                // Resolve direct audio stream (from NewPipeExtractor for YouTube or direct URL)
+                // 1. Resolve direct audio stream using browser UA
                 val directStreamUrl = if (song.id.startsWith("local_")) {
                     song.mediaUri
                 } else {
@@ -156,31 +198,47 @@ class AuraDownloadManager(
 
                 if (!directStreamUrl.startsWith("http")) {
                     cleanFailedDownload(song.id)
+                    withContext(Dispatchers.Main) {
+                        notifyDownloadFailed(song, "No se pudo obtener el enlace de audio")
+                        onDownloadFailed?.invoke(song, "No se pudo obtener el audio")
+                    }
                     return@launch
                 }
-                val downloadUrl = directStreamUrl
 
+                // 2. Prepare target file on disk
+                val ext = if (directStreamUrl.contains(".mp4") || directStreamUrl.contains("audio/mp4") || directStreamUrl.contains("itag=140")) "m4a" else "mp3"
+                targetFile = getTargetFileForSong(song, ext)
+
+                // 3. Request audio stream with Desktop Browser UA to avoid 403 Forbidden from Google CDN
                 val request = Request.Builder()
-                    .url(downloadUrl)
-                    .header("User-Agent", "AuraMusic/1.0 (Android)")
+                    .url(directStreamUrl)
+                    .header("User-Agent", AuraDownloaderImpl.USER_AGENT)
                     .build()
 
                 val response = client.newCall(request).execute()
                 if (!response.isSuccessful) {
                     cleanFailedDownload(song.id)
+                    withContext(Dispatchers.Main) {
+                        notifyDownloadFailed(song, "Error del servidor: HTTP ${response.code}")
+                        onDownloadFailed?.invoke(song, "Error del servidor HTTP ${response.code}")
+                    }
                     return@launch
                 }
 
                 val body = response.body ?: run {
                     cleanFailedDownload(song.id)
+                    withContext(Dispatchers.Main) {
+                        notifyDownloadFailed(song, "Respuesta vacía del servidor")
+                        onDownloadFailed?.invoke(song, "Respuesta vacía")
+                    }
                     return@launch
                 }
 
-                val totalBytes = body.contentLength().coerceAtLeast(1L)
+                val totalBytes = body.contentLength()
                 val inputStream = body.byteStream()
                 val outputStream = FileOutputStream(targetFile)
 
-                val buffer = ByteArray(8 * 1024)
+                val buffer = ByteArray(16 * 1024)
                 var bytesRead: Int
                 var downloadedBytes = 0L
                 var lastReported = 0
@@ -191,12 +249,14 @@ class AuraDownloadManager(
                     outputStream.write(buffer, 0, bytesRead)
                     downloadedBytes += bytesRead
 
-                    val progress = ((downloadedBytes * 100) / totalBytes).toInt().coerceIn(0, 99)
-                    _downloadProgress.update { it + (song.id to progress) }
+                    if (totalBytes > 0) {
+                        val progress = ((downloadedBytes * 100) / totalBytes).toInt().coerceIn(0, 99)
+                        _downloadProgress.update { it + (song.id to progress) }
 
-                    if (progress - lastReported >= 10) {
-                        lastReported = progress
-                        notifyDownloadProgress(song, progress)
+                        if (progress - lastReported >= 5) {
+                            lastReported = progress
+                            notifyDownloadProgress(song, progress)
+                        }
                     }
                 }
 
@@ -204,14 +264,25 @@ class AuraDownloadManager(
                 outputStream.close()
                 inputStream.close()
 
-                // Download album cover art for offline use
+                // 4. Critical check: Validate file was actually downloaded and not corrupt/empty
+                if (!targetFile.exists() || targetFile.length() < 50_000L) {
+                    targetFile.delete()
+                    cleanFailedDownload(song.id)
+                    withContext(Dispatchers.Main) {
+                        notifyDownloadFailed(song, "Archivo incompleto o dañado")
+                        onDownloadFailed?.invoke(song, "Descarga incompleta o archivo dañado")
+                    }
+                    return@launch
+                }
+
+                // 5. Download album cover art locally
                 var localCoverPath = song.coverUrl
                 if (song.coverUrl.isNotBlank() && (song.coverUrl.startsWith("http://") || song.coverUrl.startsWith("https://"))) {
                     try {
-                        val coverFile = File(downloadsDir, "${song.id}.jpg")
+                        val coverFile = File(targetFile.parentFile, targetFile.nameWithoutExtension + ".jpg")
                         val coverRequest = Request.Builder()
                             .url(song.coverUrl)
-                            .header("User-Agent", "AuraMusic/1.0 (Android)")
+                            .header("User-Agent", AuraDownloaderImpl.USER_AGENT)
                             .build()
                         val coverResponse = client.newCall(coverRequest).execute()
                         if (coverResponse.isSuccessful) {
@@ -229,26 +300,49 @@ class AuraDownloadManager(
                     }
                 }
 
-                // Register into database
+                // 6. Trigger MediaScanner so Android Gallery, Files and LocalAudioScanner see the new file immediately
+                try {
+                    MediaScannerConnection.scanFile(
+                        context,
+                        arrayOf(targetFile.absolutePath),
+                        arrayOf("audio/*")
+                    ) { _, _ -> }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                // 7. Register download in SQLite Database
+                val downloadedSong = song.copy(
+                    coverUrl = localCoverPath,
+                    mediaUri = targetFile.absolutePath
+                )
                 database.saveDownload(
-                    song = song.copy(coverUrl = localCoverPath),
+                    song = downloadedSong,
                     localPath = targetFile.absolutePath,
                     fileSize = targetFile.length()
                 )
 
-                // If also in favorites, update favorites table with offline paths
+                // 8. Update favorite entry if applicable
                 database.updateFavoriteMediaAndCover(song.id, localCoverPath, targetFile.absolutePath)
 
+                // 9. Mark 100% and notify
                 _downloadProgress.update { it + (song.id to 100) }
                 activeDownloads.remove(song.id)
 
-                // Trigger Android system notification & in-app event
                 notifyDownloadCompleted(song)
-                onDownloadCompleted?.invoke(song)
+
+                withContext(Dispatchers.Main) {
+                    onDownloadCompleted?.invoke(downloadedSong)
+                }
 
             } catch (e: Exception) {
                 e.printStackTrace()
+                targetFile?.let { if (it.exists()) it.delete() }
                 cleanFailedDownload(song.id)
+                withContext(Dispatchers.Main) {
+                    notifyDownloadFailed(song, "Conexión interrumpida")
+                    onDownloadFailed?.invoke(song, "Conexión interrumpida: ${e.localizedMessage ?: ""}")
+                }
             }
         }
         return true
@@ -260,19 +354,43 @@ class AuraDownloadManager(
         } catch (e: Exception) {}
         activeDownloads.remove(songId)
         _downloadProgress.update { it - songId }
-        val targetFile = File(downloadsDir, "$songId.mp3")
-        if (targetFile.exists()) targetFile.delete()
     }
 
     fun isDownloading(songId: String): Boolean = activeDownloads.containsKey(songId)
 
     fun getProgress(songId: String): Int = _downloadProgress.value[songId] ?: -1
 
+    suspend fun deleteDownload(song: Song) = withContext(Dispatchers.IO) {
+        val downloadedTracks = database.getDownloadedTracks()
+        val match = downloadedTracks.find {
+            it.song.id == song.id ||
+            (it.song.title.trim().equals(song.title.trim(), ignoreCase = true) &&
+             it.song.artist.trim().equals(song.artist.trim(), ignoreCase = true))
+        }
+        if (match != null) {
+            val f = File(match.localFilePath)
+            if (f.exists()) f.delete()
+            if (match.song.coverUrl.startsWith("/") || match.song.coverUrl.startsWith("file:")) {
+                val c = File(match.song.coverUrl.removePrefix("file://"))
+                if (c.exists()) c.delete()
+            }
+            database.removeDownload(match.song.id)
+            _downloadProgress.update { it - match.song.id }
+        }
+        _downloadProgress.update { it - song.id }
+    }
+
     suspend fun deleteDownload(songId: String) = withContext(Dispatchers.IO) {
-        val targetFile = File(downloadsDir, "$songId.mp3")
-        if (targetFile.exists()) targetFile.delete()
-        val coverFile = File(downloadsDir, "$songId.jpg")
-        if (coverFile.exists()) coverFile.delete()
+        val downloadedTracks = database.getDownloadedTracks()
+        val match = downloadedTracks.find { it.song.id == songId }
+        if (match != null) {
+            val f = File(match.localFilePath)
+            if (f.exists()) f.delete()
+            if (match.song.coverUrl.startsWith("/") || match.song.coverUrl.startsWith("file:")) {
+                val c = File(match.song.coverUrl.removePrefix("file://"))
+                if (c.exists()) c.delete()
+            }
+        }
         database.removeDownload(songId)
         _downloadProgress.update { it - songId }
     }

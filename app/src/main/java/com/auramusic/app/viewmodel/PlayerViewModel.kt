@@ -175,7 +175,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun setupDownloadListener() {
         downloadManager.onDownloadCompleted = { song ->
-            // Notification delivered directly to Android system notification tray via NotificationManagerCompat
+            viewModelScope.launch {
+                val updatedDownloads = database.getDownloadedTracks()
+                val updatedFavorites = database.getFavorites()
+                _uiState.update {
+                    it.copy(
+                        downloads = updatedDownloads,
+                        favorites = updatedFavorites
+                    )
+                }
+                showToast("✓ ${song.title} guardada en tu teléfono")
+                scanLocalTracks()
+            }
+        }
+        downloadManager.onDownloadFailed = { song, reason ->
+            viewModelScope.launch {
+                val updatedDownloads = database.getDownloadedTracks()
+                _uiState.update { it.copy(downloads = updatedDownloads) }
+                showToast("Error al descargar (${song.title}): $reason")
+            }
         }
     }
 
@@ -1146,7 +1164,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteDownload(song: Song) {
         viewModelScope.launch {
-            downloadManager.deleteDownload(song.id)
+            downloadManager.deleteDownload(song)
             val updatedDownloads = database.getDownloadedTracks()
             val updatedFavorites = database.getFavorites()
             _uiState.update {
@@ -1155,12 +1173,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     favorites = updatedFavorites
                 )
             }
-            showToast("✓ Descarga offline eliminada")
+            showToast("✓ Descarga eliminada: ${song.title}")
+            scanLocalTracks()
+        }
+    }
+
+    fun isSongDownloaded(song: Song): Boolean {
+        val cleanTitle = song.title.trim().lowercase()
+        val cleanArtist = song.artist.trim().lowercase()
+        return _uiState.value.downloads.any { dl ->
+            (dl.song.id == song.id ||
+             (cleanTitle.isNotBlank() && dl.song.title.trim().lowercase() == cleanTitle &&
+              cleanArtist.isNotBlank() && dl.song.artist.trim().lowercase() == cleanArtist)) &&
+            File(dl.localFilePath).let { it.exists() && it.length() > 0 }
         }
     }
 
     fun isSongDownloaded(songId: String): Boolean {
-        return _uiState.value.downloads.any { it.song.id == songId }
+        return _uiState.value.downloads.any { dl ->
+            dl.song.id == songId && File(dl.localFilePath).let { it.exists() && it.length() > 0 }
+        }
     }
 
     // ==========================================
@@ -1409,7 +1441,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 .build()
             val request = Request.Builder()
                 .url("https://api.github.com/repos/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases")
-                .header("User-Agent", "AuraMusic/2.1.2")
+                .header("User-Agent", "AuraMusic/${com.auramusic.app.BuildConfig.VERSION_NAME}")
                 .build()
 
             val update = withContext(Dispatchers.IO) {
@@ -1420,7 +1452,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         val jsonArray = org.json.JSONArray(body)
                         if (jsonArray.length() == 0) return@withContext null
 
-                        val currentVersion = "2.1.2"
+                        val currentVersion = com.auramusic.app.BuildConfig.VERSION_NAME
                         var candidateRelease: JSONObject? = null
                         var candidateTag = ""
 
@@ -1489,7 +1521,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     showToast("¡Nueva versión v${update.latestVersion} disponible!")
                 } else {
                     _uiState.update { it.copy(updateInfo = null) }
-                    showToast("✓ Tu aplicación ya está actualizada a la última versión (v2.1.2)")
+                    showToast("✓ Tu aplicación ya está actualizada a la última versión (v${com.auramusic.app.BuildConfig.VERSION_NAME})")
                 }
             } else {
                 showToast("No se pudo conectar a GitHub Releases")
