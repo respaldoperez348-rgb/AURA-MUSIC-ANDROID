@@ -48,6 +48,8 @@ jobs:
           mkdir -p release-assets
           if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
             cp app/build/outputs/apk/release/app-release.apk release-assets/AuraMusic-${{ github.ref_name }}.apk
+          elif [ -f "releases/AuraMusic-v2.1.5-Release.apk" ]; then
+            cp releases/AuraMusic-v2.1.5-Release.apk release-assets/AuraMusic-${{ github.ref_name }}.apk
           elif [ -f "releases/AuraMusic-v2.1.4-Release.apk" ]; then
             cp releases/AuraMusic-v2.1.4-Release.apk release-assets/AuraMusic-${{ github.ref_name }}.apk
           fi

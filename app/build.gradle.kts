@@ -14,8 +14,8 @@ android {
         applicationId = "com.auramusic.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 24
-        versionName = "2.1.4"
+        versionCode = 25
+        versionName = "2.1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -90,6 +90,9 @@ dependencies {
 
     // AndroidX WorkManager (Background processing & Doze mode handling)
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+
+    // AndroidX WebKit for header control (stripping X-Requested-With)
+    implementation("androidx.webkit:webkit:1.12.1")
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
