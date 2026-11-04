@@ -23,7 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
@@ -35,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
@@ -44,9 +49,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.auramusic.app.data.database.Playlist
 import com.auramusic.app.data.locale.AuraStrings
 import com.auramusic.app.data.model.Album
 import com.auramusic.app.data.model.Song
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import com.auramusic.app.ui.components.AuraIcon
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
 import com.auramusic.app.ui.theme.CyberSurfaceActive
@@ -65,10 +75,15 @@ fun HomeScreen(
     trendingAlbums: List<Album> = emptyList(),
     userTopArtists: List<Song> = emptyList(),
     popularStations: List<String> = emptyList(),
+    playlists: List<Playlist> = emptyList(),
     appLanguage: String = "Español",
     onSelectSong: (Song) -> Unit,
     onSelectVibe: (String) -> Unit,
     onSelectAlbum: (Album) -> Unit = {},
+    onOpenFavorites: () -> Unit = {},
+    onOpenDownloads: () -> Unit = {},
+    onOpenPlaylist: (Playlist) -> Unit = {},
+    onOpenAuraLink: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -84,63 +99,91 @@ fun HomeScreen(
         com.auramusic.app.network.YouTubeMusicEngine.getCuratedFallbackTracks()
     }
 
+    val currentDateStr = rememberCurrentDateFormatted(appLanguage)
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 18.dp),
         contentPadding = PaddingValues(bottom = 160.dp),
-        verticalArrangement = Arrangement.spacedBy(26.dp)
+        verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
-        // 1. Clean Editorial Top Header (Unboxed, breathable, human-crafted)
+        // 1. Editorial Header (Limpio y Senior)
         item {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    com.auramusic.app.ui.components.AuraIcon(
-                        size = 38.dp,
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AuraIcon(
+                        size = 40.dp,
                         isAnimated = isPlaying
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "Aura",
-                            color = TextPrimary,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-0.6).sp
+                            text = "AURA MUSIC",
+                            color = CyberCyan,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.6.sp
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = AuraStrings.get("home_subtitle", appLanguage),
-                            color = TextSecondary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Normal
+                            text = currentDateStr,
+                            color = TextPrimary,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = (-0.5).sp
                         )
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(CyberSurfaceCard)
-                        .clickable { onOpenSettings() },
-                    contentAlignment = Alignment.Center
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Tune,
-                        contentDescription = "Ajustes",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(CyberSurfaceCard)
+                            .clickable { onOpenAuraLink() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Devices,
+                            contentDescription = "Aura Link",
+                            tint = CyberCyan,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(CyberSurfaceCard)
+                            .clickable { onOpenSettings() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Tune,
+                            contentDescription = "Ajustes",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
                 }
             }
         }
 
-        // 2. Genre & Mood Pills (Unbordered tactile chips)
+        // 2. Genre & Mood Pills
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -577,3 +620,19 @@ private fun ChartTrackRow(
         )
     }
 }
+
+@Composable
+private fun rememberCurrentDateFormatted(appLanguage: String): String {
+    return androidx.compose.runtime.remember(appLanguage) {
+        val locale = when (appLanguage.lowercase()) {
+            "english" -> Locale.ENGLISH
+            "português" -> Locale("pt")
+            "français" -> Locale.FRENCH
+            "deutsch" -> Locale.GERMAN
+            else -> Locale("es", "ES")
+        }
+        val sdf = SimpleDateFormat("EEEE, d 'de' MMMM", locale)
+        sdf.format(Date())
+    }
+}
+

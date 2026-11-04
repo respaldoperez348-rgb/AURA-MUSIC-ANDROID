@@ -15,6 +15,7 @@ import com.auramusic.app.data.database.AuraDatabase
 import com.auramusic.app.data.model.Song
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,18 +30,76 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 class AuraDownloadManager(
-    private val context: Context,
+    context: Context,
     private val database: AuraDatabase,
-    private val scope: CoroutineScope
+    externalScope: CoroutineScope? = null
 ) {
     companion object {
         const val DOWNLOAD_CHANNEL_ID = "aura_downloads"
         const val DOWNLOAD_CHANNEL_NAME = "Aura Descargas"
     }
 
+    private val context: Context = context.applicationContext
+    // Independent background scope that survives Activity destruction and app minimization
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val powerManager by lazy {
+        this@AuraDownloadManager.context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+    }
+    private val wifiManager by lazy {
+        this@AuraDownloadManager.context.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+    }
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+    private var wifiLock: android.net.wifi.WifiManager.WifiLock? = null
+
+    @Synchronized
+    private fun acquireLocks() {
+        try {
+            AuraDownloadService.start(context)
+
+            if (wakeLock == null) {
+                wakeLock = powerManager?.newWakeLock(
+                    android.os.PowerManager.PARTIAL_WAKE_LOCK,
+                    "AuraMusic:DownloadWakeLock"
+                )?.apply { setReferenceCounted(false) }
+            }
+            if (wakeLock?.isHeld == false) {
+                wakeLock?.acquire(30 * 60 * 1000L) // 30 min safety timeout
+            }
+
+            if (wifiLock == null) {
+                wifiLock = wifiManager?.createWifiLock(
+                    android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                    "AuraMusic:DownloadWifiLock"
+                )?.apply { setReferenceCounted(false) }
+            }
+            if (wifiLock?.isHeld == false) {
+                wifiLock?.acquire()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    @Synchronized
+    private fun releaseLocksIfDone() {
+        try {
+            if (activeDownloads.isEmpty()) {
+                AuraDownloadService.stop(context)
+                if (wakeLock?.isHeld == true) wakeLock?.release()
+                if (wifiLock?.isHeld == true) wifiLock?.release()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
     // Map: songId -> progress percentage (0..100)
@@ -183,169 +242,200 @@ class AuraDownloadManager(
         if (downloadOnlyOnWifi && !isWifiConnected()) {
             return false
         }
+        scope.launch {
+            downloadSongSuspended(song)
+        }
+        return true
+    }
+
+    suspend fun downloadSongSuspended(song: Song): Boolean = withContext(Dispatchers.IO) {
+        if (activeDownloads.containsKey(song.id)) return@withContext false
+        if (downloadOnlyOnWifi && !isWifiConnected()) {
+            return@withContext false
+        }
         activeDownloads[song.id] = true
         _downloadProgress.update { it + (song.id to 0) }
+        acquireLocks()
 
-        scope.launch(Dispatchers.IO) {
-            var targetFile: File? = null
-            try {
-                // 1. Resolve direct audio stream using browser UA
-                val directStreamUrl = if (song.id.startsWith("local_")) {
-                    song.mediaUri
-                } else {
-                    AuraStreamResolver.resolveAudioStream(song.id, "${song.title} ${song.artist}") ?: ""
-                }
+        var targetFile: File? = null
+        try {
+            // 1. Resolve direct audio stream using browser UA
+            val directStreamUrl = if (song.id.startsWith("local_")) {
+                song.mediaUri
+            } else if (song.mediaUri.startsWith("http") && (song.mediaUri.contains("googlevideo.com") || song.mediaUri.endsWith(".mp3") || song.mediaUri.endsWith(".m4a") || song.mediaUri.endsWith(".opus"))) {
+                song.mediaUri
+            } else {
+                val candidate = if (song.id.isNotBlank() && !song.id.startsWith("http")) song.id else song.mediaUri
+                AuraStreamResolver.resolveAudioStream(candidate, "${song.title} ${song.artist}") ?: ""
+            }
 
-                if (!directStreamUrl.startsWith("http")) {
-                    cleanFailedDownload(song.id)
-                    withContext(Dispatchers.Main) {
-                        notifyDownloadFailed(song, "No se pudo obtener el enlace de audio")
+            if (!directStreamUrl.startsWith("http")) {
+                cleanFailedDownload(song.id)
+                notifyDownloadFailed(song, "No se pudo obtener el enlace de audio")
+                try {
+                    withContext(Dispatchers.Main.immediate) {
                         onDownloadFailed?.invoke(song, "No se pudo obtener el audio")
                     }
-                    return@launch
-                }
+                } catch (ignored: Exception) {}
+                return@withContext false
+            }
 
-                // 2. Prepare target file on disk
-                val ext = if (directStreamUrl.contains(".mp4") || directStreamUrl.contains("audio/mp4") || directStreamUrl.contains("itag=140")) "m4a" else "mp3"
-                targetFile = getTargetFileForSong(song, ext)
+            // 2. Prepare target file on disk
+            val ext = if (directStreamUrl.contains(".mp4") || directStreamUrl.contains("audio/mp4") || directStreamUrl.contains("itag=140")) "m4a" else "mp3"
+            targetFile = getTargetFileForSong(song, ext)
 
-                // 3. Request audio stream with Desktop Browser UA to avoid 403 Forbidden from Google CDN
-                val request = Request.Builder()
-                    .url(directStreamUrl)
-                    .header("User-Agent", AuraDownloaderImpl.USER_AGENT)
-                    .build()
+            // 3. Request audio stream with Desktop Browser UA to avoid 403 Forbidden from Google CDN
+            val request = Request.Builder()
+                .url(directStreamUrl)
+                .header("User-Agent", AuraDownloaderImpl.USER_AGENT)
+                .build()
 
-                val response = client.newCall(request).execute()
-                if (!response.isSuccessful) {
-                    cleanFailedDownload(song.id)
-                    withContext(Dispatchers.Main) {
-                        notifyDownloadFailed(song, "Error del servidor: HTTP ${response.code}")
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                cleanFailedDownload(song.id)
+                notifyDownloadFailed(song, "Error del servidor: HTTP ${response.code}")
+                try {
+                    withContext(Dispatchers.Main.immediate) {
                         onDownloadFailed?.invoke(song, "Error del servidor HTTP ${response.code}")
                     }
-                    return@launch
-                }
+                } catch (ignored: Exception) {}
+                return@withContext false
+            }
 
-                val body = response.body ?: run {
-                    cleanFailedDownload(song.id)
-                    withContext(Dispatchers.Main) {
-                        notifyDownloadFailed(song, "Respuesta vacía del servidor")
+            val body = response.body ?: run {
+                cleanFailedDownload(song.id)
+                notifyDownloadFailed(song, "Respuesta vacía del servidor")
+                try {
+                    withContext(Dispatchers.Main.immediate) {
                         onDownloadFailed?.invoke(song, "Respuesta vacía")
                     }
-                    return@launch
-                }
+                } catch (ignored: Exception) {}
+                return@withContext false
+            }
 
-                val totalBytes = body.contentLength()
-                val inputStream = body.byteStream()
-                val outputStream = FileOutputStream(targetFile)
+            val totalBytes = body.contentLength()
+            val inputStream = body.byteStream()
+            val outputStream = FileOutputStream(targetFile)
 
-                val buffer = ByteArray(16 * 1024)
-                var bytesRead: Int
-                var downloadedBytes = 0L
-                var lastReported = 0
+            val buffer = ByteArray(32 * 1024)
+            var bytesRead: Int
+            var downloadedBytes = 0L
+            var lastReported = 0
 
-                notifyDownloadProgress(song, 0)
+            notifyDownloadProgress(song, 0)
 
-                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                    outputStream.write(buffer, 0, bytesRead)
-                    downloadedBytes += bytesRead
+            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                outputStream.write(buffer, 0, bytesRead)
+                downloadedBytes += bytesRead
 
-                    if (totalBytes > 0) {
-                        val progress = ((downloadedBytes * 100) / totalBytes).toInt().coerceIn(0, 99)
-                        _downloadProgress.update { it + (song.id to progress) }
+                if (totalBytes > 0) {
+                    val progress = ((downloadedBytes * 100) / totalBytes).toInt().coerceIn(0, 99)
+                    _downloadProgress.update { it + (song.id to progress) }
 
-                        if (progress - lastReported >= 5) {
-                            lastReported = progress
-                            notifyDownloadProgress(song, progress)
-                        }
+                    if (progress - lastReported >= 5) {
+                        lastReported = progress
+                        notifyDownloadProgress(song, progress)
                     }
                 }
+            }
 
-                outputStream.flush()
-                outputStream.close()
-                inputStream.close()
+            outputStream.flush()
+            outputStream.close()
+            inputStream.close()
 
-                // 4. Critical check: Validate file was actually downloaded and not corrupt/empty
-                if (!targetFile.exists() || targetFile.length() < 50_000L) {
-                    targetFile.delete()
-                    cleanFailedDownload(song.id)
-                    withContext(Dispatchers.Main) {
-                        notifyDownloadFailed(song, "Archivo incompleto o dañado")
+            // 4. Critical check: Validate file was actually downloaded and not corrupt/empty
+            if (!targetFile.exists() || targetFile.length() < 50_000L) {
+                targetFile.delete()
+                cleanFailedDownload(song.id)
+                notifyDownloadFailed(song, "Archivo incompleto o dañado")
+                try {
+                    withContext(Dispatchers.Main.immediate) {
                         onDownloadFailed?.invoke(song, "Descarga incompleta o archivo dañado")
                     }
-                    return@launch
-                }
+                } catch (ignored: Exception) {}
+                return@withContext false
+            }
 
-                // 5. Download album cover art locally
-                var localCoverPath = song.coverUrl
-                if (song.coverUrl.isNotBlank() && (song.coverUrl.startsWith("http://") || song.coverUrl.startsWith("https://"))) {
-                    try {
-                        val coverFile = File(targetFile.parentFile, targetFile.nameWithoutExtension + ".jpg")
-                        val coverRequest = Request.Builder()
-                            .url(song.coverUrl)
-                            .header("User-Agent", AuraDownloaderImpl.USER_AGENT)
-                            .build()
-                        val coverResponse = client.newCall(coverRequest).execute()
-                        if (coverResponse.isSuccessful) {
-                            coverResponse.body?.byteStream()?.use { input ->
-                                FileOutputStream(coverFile).use { output ->
-                                    input.copyTo(output)
-                                }
-                            }
-                            if (coverFile.exists() && coverFile.length() > 0) {
-                                localCoverPath = coverFile.absolutePath
+            // 5. Download album cover art locally
+            var localCoverPath = song.coverUrl
+            if (song.coverUrl.isNotBlank() && (song.coverUrl.startsWith("http://") || song.coverUrl.startsWith("https://"))) {
+                try {
+                    val coverFile = File(targetFile.parentFile, targetFile.nameWithoutExtension + ".jpg")
+                    val coverRequest = Request.Builder()
+                        .url(song.coverUrl)
+                        .header("User-Agent", AuraDownloaderImpl.USER_AGENT)
+                        .build()
+                    val coverResponse = client.newCall(coverRequest).execute()
+                    if (coverResponse.isSuccessful) {
+                        coverResponse.body?.byteStream()?.use { input ->
+                            FileOutputStream(coverFile).use { output ->
+                                input.copyTo(output)
                             }
                         }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
+                        if (coverFile.exists() && coverFile.length() > 0) {
+                            localCoverPath = coverFile.absolutePath
+                        }
                     }
-                }
-
-                // 6. Trigger MediaScanner so Android Gallery, Files and LocalAudioScanner see the new file immediately
-                try {
-                    MediaScannerConnection.scanFile(
-                        context,
-                        arrayOf(targetFile.absolutePath),
-                        arrayOf("audio/*")
-                    ) { _, _ -> }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
+            }
 
-                // 7. Register download in SQLite Database
-                val downloadedSong = song.copy(
-                    coverUrl = localCoverPath,
-                    mediaUri = targetFile.absolutePath
-                )
-                database.saveDownload(
-                    song = downloadedSong,
-                    localPath = targetFile.absolutePath,
-                    fileSize = targetFile.length()
-                )
-
-                // 8. Update favorite entry if applicable
-                database.updateFavoriteMediaAndCover(song.id, localCoverPath, targetFile.absolutePath)
-
-                // 9. Mark 100% and notify
-                _downloadProgress.update { it + (song.id to 100) }
-                activeDownloads.remove(song.id)
-
-                notifyDownloadCompleted(song)
-
-                withContext(Dispatchers.Main) {
-                    onDownloadCompleted?.invoke(downloadedSong)
-                }
-
+            // 6. Trigger MediaScanner so Android Gallery, Files and LocalAudioScanner see the new file immediately
+            try {
+                MediaScannerConnection.scanFile(
+                    this@AuraDownloadManager.context,
+                    arrayOf(targetFile.absolutePath),
+                    arrayOf("audio/*")
+                ) { _, _ -> }
             } catch (e: Exception) {
                 e.printStackTrace()
-                targetFile?.let { if (it.exists()) it.delete() }
-                cleanFailedDownload(song.id)
-                withContext(Dispatchers.Main) {
-                    notifyDownloadFailed(song, "Conexión interrumpida")
+            }
+
+            // 7. Register download in SQLite Database
+            val downloadedSong = song.copy(
+                coverUrl = localCoverPath,
+                mediaUri = targetFile.absolutePath
+            )
+            database.saveDownload(
+                song = downloadedSong,
+                localPath = targetFile.absolutePath,
+                fileSize = targetFile.length()
+            )
+
+            // 8. Update favorite entry if applicable
+            database.updateFavoriteMediaAndCover(song.id, localCoverPath, targetFile.absolutePath)
+
+            // 9. Mark 100% and notify
+            _downloadProgress.update { it + (song.id to 100) }
+            activeDownloads.remove(song.id)
+
+            notifyDownloadCompleted(song)
+
+            try {
+                withContext(Dispatchers.Main.immediate) {
+                    onDownloadCompleted?.invoke(downloadedSong)
+                }
+            } catch (ignored: Exception) {}
+
+            return@withContext true
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            targetFile?.let { if (it.exists()) it.delete() }
+            cleanFailedDownload(song.id)
+            try {
+                notifyDownloadFailed(song, "Conexión interrumpida")
+            } catch (ignored: Exception) {}
+            try {
+                withContext(Dispatchers.Main.immediate) {
                     onDownloadFailed?.invoke(song, "Conexión interrumpida: ${e.localizedMessage ?: ""}")
                 }
-            }
+            } catch (ignored: Exception) {}
+            return@withContext false
+        } finally {
+            releaseLocksIfDone()
         }
-        return true
     }
 
     private fun cleanFailedDownload(songId: String) {

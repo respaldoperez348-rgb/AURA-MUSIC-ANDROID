@@ -22,6 +22,7 @@ fun AuraMusicTheme(
 
     val palette = if (isDark) {
         when (themeName) {
+            "Midnight Island", "Midnight Blue" -> MidnightIslandPalette
             "Champagne Hi-Fi", "Synthwave" -> SynthwavePalette
             "Olive Vinyl", "Matrix 99" -> MatrixPalette
             "Leica Monochrome", "OLED Black" -> OledPalette
@@ -29,6 +30,7 @@ fun AuraMusicTheme(
         }
     } else {
         when (themeName) {
+            "Midnight Island", "Midnight Blue" -> MidnightIslandPalette
             "Champagne Hi-Fi", "Synthwave" -> SynthwavePaletteLight
             "Olive Vinyl", "Matrix 99" -> MatrixPaletteLight
             "Leica Monochrome", "OLED Black" -> OledPaletteLight

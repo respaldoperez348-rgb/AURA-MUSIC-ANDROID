@@ -27,6 +27,9 @@ object AuraAudioEffects {
     private var loudnessEnhancer: LoudnessEnhancer? = null
     private var prefs: SharedPreferences? = null
 
+    // Adaptive Street DSP compensation offsets in millibels (-1500 to +1500)
+    private val adaptiveOffsets = FloatArray(5) { 0f }
+
     private val _isEnabled = MutableStateFlow(true)
     val isEnabled: StateFlow<Boolean> = _isEnabled.asStateFlow()
 
@@ -105,12 +108,16 @@ object AuraAudioEffects {
                     } else {
                         getDefaultCyberpunkGain(i, numBands)
                     }
-                    eq.setBandLevel(bandIdx, level)
+                    val effective = (level + adaptiveOffsets.getOrElse(i) { 0f }).toInt().toShort().coerceIn(-1500, 1500)
+                    eq.setBandLevel(bandIdx, effective)
                     bandList.add(EqBand(bandIdx, freq, level))
                 }
                 _bands.value = bandList
                 _activePreset.value = prefs?.getString("preset", PRESET_CYBERPUNK) ?: PRESET_CYBERPUNK
             }
+
+            // Initialize Street DSP analyzer
+            AmbientNoiseAnalyzer.init(context)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to attach Audio Effects: ${e.message}")
         }
@@ -149,12 +156,28 @@ object AuraAudioEffects {
             val clamped = levelMb.coerceIn(-1500, 1500)
             currentList[idx] = currentList[idx].copy(levelMb = clamped)
             _bands.value = currentList
-            runCatching { equalizer?.setBandLevel(bandIndex, clamped) }
+            val offset = adaptiveOffsets.getOrElse(idx) { 0f }
+            val effective = (clamped + offset).toInt().toShort().coerceIn(-1500, 1500)
+            runCatching { equalizer?.setBandLevel(bandIndex, effective) }
             _activePreset.value = PRESET_CUSTOM
             prefs?.edit()?.apply {
                 putInt("band_$bandIndex", clamped.toInt())
                 putString("preset", PRESET_CUSTOM)
             }?.apply()
+        }
+    }
+
+    fun updateAdaptiveOffsets(offsets: FloatArray) {
+        for (i in offsets.indices) {
+            if (i < adaptiveOffsets.size) {
+                adaptiveOffsets[i] = offsets[i]
+            }
+        }
+        val current = _bands.value
+        current.forEachIndexed { i, band ->
+            val offset = offsets.getOrElse(i) { 0f }
+            val effective = (band.levelMb + offset).toInt().toShort().coerceIn(-1500, 1500)
+            runCatching { equalizer?.setBandLevel(band.index, effective) }
         }
     }
 
@@ -185,7 +208,9 @@ object AuraAudioEffects {
 
         val updatedList = _bands.value.mapIndexed { i, band ->
             val gain = newGains.getOrElse(i) { 0.toShort() }
-            runCatching { equalizer?.setBandLevel(band.index, gain) }
+            val offset = adaptiveOffsets.getOrElse(i) { 0f }
+            val effective = (gain + offset).toInt().toShort().coerceIn(-1500, 1500)
+            runCatching { equalizer?.setBandLevel(band.index, effective) }
             prefs?.edit()?.putInt("band_${band.index}", gain.toInt())?.apply()
             band.copy(levelMb = gain)
         }

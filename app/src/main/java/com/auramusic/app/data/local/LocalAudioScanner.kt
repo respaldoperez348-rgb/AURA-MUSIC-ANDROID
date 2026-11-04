@@ -94,7 +94,7 @@ object LocalAudioScanner {
                             artist = artist,
                             album = album,
                             durationMs = duration,
-                            coverUrl = albumArtUri,
+                            coverUrl = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) contentUri.toString() else albumArtUri,
                             mediaUri = contentUri.toString()
                         )
                     )
@@ -199,7 +199,7 @@ object LocalAudioScanner {
                             artist = artist,
                             album = album,
                             durationMs = duration,
-                            coverUrl = albumArtUri,
+                            coverUrl = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) contentUri.toString() else albumArtUri,
                             mediaUri = contentUri.toString()
                         )
                     )

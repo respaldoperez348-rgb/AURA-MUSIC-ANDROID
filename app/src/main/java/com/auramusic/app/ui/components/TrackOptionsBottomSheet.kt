@@ -1,5 +1,13 @@
 package com.auramusic.app.ui.components
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,20 +31,28 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -48,15 +64,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.auramusic.app.data.database.Playlist
 import com.auramusic.app.data.model.Song
@@ -66,10 +84,11 @@ import com.auramusic.app.ui.theme.CyberPink
 import com.auramusic.app.ui.theme.CyberSurfaceActive
 import com.auramusic.app.ui.theme.CyberSurfaceCard
 import com.auramusic.app.ui.theme.GlassBorder
-import com.auramusic.app.ui.theme.NeonPurple
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
 import com.auramusic.app.ui.theme.TextSecondary
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +97,7 @@ fun TrackOptionsBottomSheet(
     playlists: List<Playlist>,
     isDownloaded: Boolean,
     downloadProgress: Int, // -1: none, 0..99: downloading, 100: done
+    currentPositionSeconds: Int = 0,
     onDismiss: () -> Unit,
     onToggleFavorite: (Song) -> Unit,
     onDownload: (Song) -> Unit,
@@ -86,9 +106,34 @@ fun TrackOptionsBottomSheet(
     onAddToPlaylist: (playlistId: String, song: Song) -> Unit,
     onCreatePlaylist: (title: String) -> Unit
 ) {
+    val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showPlaylistPicker by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showQrDialog by remember { mutableStateOf(false) }
+    var includeTimestamp by remember { mutableStateOf(false) }
+
+    val isLocal = song.id.startsWith("local_") || song.id.isBlank()
+
+    // Formatear segundos a MM:SS
+    fun formatTime(totalSec: Int): String {
+        val m = totalSec / 60
+        val s = totalSec % 60
+        return "%02d:%02d".format(m, s)
+    }
+
+    // Construcción de la URL limpia
+    fun buildFinalUrl(): String {
+        if (isLocal) return ""
+        val baseUrl = "https://www.youtube.com/watch?v=${song.id}"
+        return if (includeTimestamp && currentPositionSeconds > 0) {
+            "$baseUrl&t=${currentPositionSeconds}s"
+        } else {
+            baseUrl
+        }
+    }
+
+    val finalShareUrl = buildFinalUrl()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -212,10 +257,11 @@ fun TrackOptionsBottomSheet(
                 }
 
                 // Action: Favorite
+                val favRed = Color(0xFFFF1A40)
                 OptionRow(
                     icon = if (song.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     title = if (song.isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
-                    tint = if (song.isFavorite) CyberPink else TextPrimary,
+                    tint = if (song.isFavorite) favRed else TextPrimary,
                     onClick = {
                         onToggleFavorite(song)
                         onDismiss()
@@ -232,6 +278,113 @@ fun TrackOptionsBottomSheet(
                         onDismiss()
                     }
                 )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Fila del Timestamp (Opcional si hay tiempo reproducido)
+                if (!isLocal && currentPositionSeconds > 0) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CyberSurfaceCard)
+                            .border(1.dp, GlassBorder, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Timer,
+                                contentDescription = null,
+                                tint = if (includeTimestamp) CyberCyan else TextMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Iniciar en ${formatTime(currentPositionSeconds)}",
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Switch(
+                            checked = includeTimestamp,
+                            onCheckedChange = { includeTimestamp = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = CyberBackgroundDark,
+                                checkedTrackColor = CyberCyan,
+                                uncheckedTrackColor = CyberBackgroundDark,
+                                uncheckedThumbColor = TextMuted
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // Módulo de Compartir: Acciones Rápidas
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Botón 1: Copiar Enlace
+                    QuickShareButton(
+                        modifier = Modifier.weight(1f),
+                        title = "Copiar Link",
+                        icon = Icons.Default.ContentCopy,
+                        tint = CyberCyan,
+                        onClick = {
+                            if (!isLocal && finalShareUrl.isNotBlank()) {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("URL Canción", finalShareUrl)
+                                clipboard.setPrimaryClip(clip)
+                                Toast.makeText(context, "Enlace copiado al portapapeles", Toast.LENGTH_SHORT).show()
+                                onDismiss()
+                            } else {
+                                Toast.makeText(context, "Pista local sin enlace público", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+
+                    // Botón 2: Compartir Vía (Apps del sistema)
+                    QuickShareButton(
+                        modifier = Modifier.weight(1f),
+                        title = "Compartir",
+                        icon = Icons.Default.Share,
+                        tint = CyberPink,
+                        onClick = {
+                            if (!isLocal && finalShareUrl.isNotBlank()) {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, finalShareUrl)
+                                    clipData = ClipData.newRawUri("Song URL", Uri.parse(finalShareUrl))
+                                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Compartir canción"))
+                                onDismiss()
+                            } else {
+                                Toast.makeText(context, "Pista local sin enlace público", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+
+                    // Botón 3: Código QR
+                    QuickShareButton(
+                        modifier = Modifier.weight(1f),
+                        title = "Código QR",
+                        icon = Icons.Default.QrCode,
+                        tint = TextPrimary,
+                        onClick = {
+                            if (!isLocal && finalShareUrl.isNotBlank()) {
+                                showQrDialog = true
+                            } else {
+                                Toast.makeText(context, "Pista local sin código QR disponible", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+                }
             } else {
                 // Playlist Selection Subview
                 Row(
@@ -291,6 +444,138 @@ fun TrackOptionsBottomSheet(
                 showCreateDialog = false
             }
         )
+    }
+
+    if (showQrDialog) {
+        QrCodePopupDialog(
+            title = song.title,
+            url = finalShareUrl,
+            onDismiss = { showQrDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun QuickShareButton(
+    modifier: Modifier = Modifier,
+    title: String,
+    icon: ImageVector,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(CyberSurfaceCard)
+            .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = tint,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = title,
+            color = TextPrimary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun QrCodePopupDialog(
+    title: String,
+    url: String,
+    onDismiss: () -> Unit
+) {
+    val qrBitmap = remember(url) { generateQrBitmap(url, 512) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(CyberBackgroundDark)
+                .border(1.dp, GlassBorder, RoundedCornerShape(22.dp))
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "ESCANEAR PISTA",
+                    color = CyberCyan,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp
+                )
+                IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Cerrar", tint = TextMuted)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Box(
+                modifier = Modifier
+                    .size(210.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .padding(12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                qrBitmap?.let {
+                    Image(
+                        bitmap = it.asImageBitmap(),
+                        contentDescription = "Código QR",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } ?: CircularProgressIndicator(color = CyberCyan)
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = title,
+                color = TextSecondary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+private fun generateQrBitmap(content: String, size: Int): Bitmap? {
+    return try {
+        val bitMatrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
+        for (x in 0 until size) {
+            for (y in 0 until size) {
+                bitmap.setPixel(x, y, if (bitMatrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
+        }
+        bitmap
+    } catch (_: Exception) {
+        null
     }
 }
 

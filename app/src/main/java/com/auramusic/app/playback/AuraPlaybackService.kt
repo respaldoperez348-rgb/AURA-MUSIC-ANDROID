@@ -24,11 +24,14 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.auramusic.app.MainActivity
+import com.auramusic.app.data.model.Song
 import com.auramusic.app.network.AuraStreamResolver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -46,6 +49,15 @@ class AuraPlaybackService : MediaSessionService() {
                 val evictor = LeastRecentlyUsedCacheEvictor(512L * 1024L * 1024L) // 512 MB smart LRU audio cache
                 val dbProvider = StandaloneDatabaseProvider(context.applicationContext)
                 SimpleCache(cacheFolder, evictor, dbProvider).also { simpleCache = it }
+            }
+        }
+
+        /** Crea la caché de audio en segundo plano para que el servicio no la construya en el hilo principal. */
+        @OptIn(UnstableApi::class)
+        fun warmUpCache(context: android.content.Context) {
+            try {
+                getCache(context)
+            } catch (_: Throwable) {
             }
         }
     }
@@ -66,6 +78,10 @@ class AuraPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
+        try {
+            com.auramusic.app.network.AuraStreamResolver.init(applicationContext.cacheDir)
+        } catch (_: Exception) {}
+
         // Configure audio attributes for music playback & focus handling
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -74,10 +90,10 @@ class AuraPlaybackService : MediaSessionService() {
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                15_000,
-                45_000,
-                500,
-                1_000
+                5_000,
+                30_000,
+                250,
+                500
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
@@ -85,6 +101,8 @@ class AuraPlaybackService : MediaSessionService() {
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
             .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(6_000)
+            .setReadTimeoutMs(6_000)
 
         val upstreamFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
         val cacheDataSourceFactory = CacheDataSource.Factory()
@@ -105,6 +123,37 @@ class AuraPlaybackService : MediaSessionService() {
             rawPlayer?.skipSilenceEnabled = enabled
         }
 
+        AuraPlaybackBridge.onPlayPauseRequested = {
+            serviceScope.launch(Dispatchers.Main) {
+                val exo = rawPlayer ?: return@launch
+                if (exo.isPlaying) exo.pause() else exo.play()
+            }
+        }
+
+        AuraPlaybackBridge.onSeekRequested = { pos ->
+            serviceScope.launch(Dispatchers.Main) {
+                rawPlayer?.seekTo(pos)
+            }
+        }
+
+        AuraPlaybackBridge.onPlayIndexRequested = { idx ->
+            playQueueIndex(idx)
+        }
+
+        // Ticker to keep AuraPlaybackBridge position and playing state updated in real-time
+        serviceScope.launch(Dispatchers.Main) {
+            while (isActive) {
+                val p = rawPlayer
+                if (p != null) {
+                    AuraPlaybackBridge.isPlaying.value = p.isPlaying
+                    AuraPlaybackBridge.currentPositionMs = p.currentPosition.coerceAtLeast(0L)
+                    val dur = p.duration
+                    if (dur > 0L) AuraPlaybackBridge.durationMs = dur
+                }
+                delay(500)
+            }
+        }
+
         try {
             val noisyFilter = android.content.IntentFilter(android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -118,16 +167,33 @@ class AuraPlaybackService : MediaSessionService() {
 
         // Listen for playback state changes (auto advance when running standalone without active UI controller)
         exo.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                AmbientNoiseAnalyzer.setPlaybackState(isPlaying)
+            }
+
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (exo.currentMediaItemIndex > 0) {
                     exo.removeMediaItems(0, exo.currentMediaItemIndex)
                 }
-                if (AuraPlaybackBridge.onNextRequested == null && mediaItem != null) {
+                if (mediaItem != null) {
                     val q = AuraPlaybackBridge.queue.value
                     val idx = q.indexOfFirst { it.id == mediaItem.mediaId }
                     if (idx >= 0) {
                         AuraPlaybackBridge.currentIndex = idx
                         AuraPlaybackBridge.currentSong.value = q[idx]
+                    } else {
+                        val meta = mediaItem.mediaMetadata
+                        val title = meta.title?.toString() ?: ""
+                        val artist = meta.artist?.toString() ?: ""
+                        if (title.isNotBlank()) {
+                            val transientSong = Song(
+                                id = mediaItem.mediaId,
+                                title = title,
+                                artist = artist,
+                                coverUrl = meta.artworkUri?.toString() ?: ""
+                            )
+                            AuraPlaybackBridge.currentSong.value = transientSong
+                        }
                     }
                     prefetchNextInService()
                 }
@@ -251,6 +317,15 @@ class AuraPlaybackService : MediaSessionService() {
         }
     }
 
+    private fun playQueueIndex(index: Int) {
+        val queue = AuraPlaybackBridge.queue.value.filter { !it.isArtist && !it.isAlbum }
+        if (queue.isEmpty() || index !in queue.indices) return
+        val nextSong = queue[index]
+        AuraPlaybackBridge.currentIndex = index
+        AuraPlaybackBridge.currentSong.value = nextSong
+        playSongInternal(nextSong, 1)
+    }
+
     private fun playQueueOffset(offset: Int) {
         val queue = AuraPlaybackBridge.queue.value.filter { !it.isArtist && !it.isAlbum }
         if (queue.isEmpty()) return
@@ -265,6 +340,11 @@ class AuraPlaybackService : MediaSessionService() {
         val nextSong = queue[nextIdx]
         AuraPlaybackBridge.currentIndex = nextIdx
         AuraPlaybackBridge.currentSong.value = nextSong
+        playSongInternal(nextSong, offset)
+    }
+
+    private fun playSongInternal(nextSong: Song, retryOffset: Int) {
+        val queue = AuraPlaybackBridge.queue.value.filter { !it.isArtist && !it.isAlbum }
 
         serviceScope.launch(Dispatchers.IO) {
             val db = com.auramusic.app.data.database.AuraDatabase.getInstance(this@AuraPlaybackService)
@@ -285,6 +365,7 @@ class AuraPlaybackService : MediaSessionService() {
                 val fallbackQuery = "${nextSong.title} ${nextSong.artist}"
                 AuraStreamResolver.resolveAudioStream(nextSong.id, fallbackQuery)
             }
+
             if (!streamUri.isNullOrBlank() && !streamUri.startsWith("https://www.youtube.com")) {
                 withContext(Dispatchers.Main) {
                     val exo = rawPlayer ?: return@withContext
@@ -320,10 +401,10 @@ class AuraPlaybackService : MediaSessionService() {
                     prefetchNextInService()
                 }
             } else {
-                // Skip unplayable item and try the next one in queue
+                // If stream could not be resolved, seamlessly advance to next in queue
                 if (queue.size > 1) {
                     withContext(Dispatchers.Main) {
-                        playQueueOffset(offset)
+                        playQueueOffset(retryOffset)
                     }
                 }
             }

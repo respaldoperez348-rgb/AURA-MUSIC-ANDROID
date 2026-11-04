@@ -57,6 +57,7 @@ import com.auramusic.app.ui.theme.TextSecondary
 fun MiniPlayer(
     song: Song,
     isPlaying: Boolean,
+    isBuffering: Boolean = false,
     currentPositionMs: Long = 0L,
     durationMs: Long = 0L,
     isFavorite: Boolean = false,
@@ -186,19 +187,20 @@ fun MiniPlayer(
 
             Spacer(modifier = Modifier.width(6.dp))
 
-            // Circular Heart Favorite Button
+            // Circular Heart Favorite Button (Pure Neon Red #FF1A40 like Desktop)
+            val favRed = Color(0xFFFF1A40)
             Box(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)
-                    .background(CyberSurfaceActive)
+                    .background(if (isFavorite) favRed.copy(alpha = 0.22f) else CyberSurfaceActive)
                     .clickable { onToggleFavorite() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = "Favorito",
-                    tint = if (isFavorite) CyberPink else TextPrimary,
+                    tint = if (isFavorite) favRed else TextPrimary,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -214,12 +216,20 @@ fun MiniPlayer(
                     .clickable { onPlayPause() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = "Play/Pause",
-                    tint = Color(0xFF0F141C),
-                    modifier = Modifier.size(23.dp)
-                )
+                if (isBuffering) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color(0xFF0F141C),
+                        strokeWidth = 2.5.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Play/Pause",
+                        tint = Color(0xFF0F141C),
+                        modifier = Modifier.size(23.dp)
+                    )
+                }
             }
         }
     }

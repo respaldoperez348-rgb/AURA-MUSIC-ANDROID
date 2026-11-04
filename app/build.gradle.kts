@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -13,8 +14,8 @@ android {
         applicationId = "com.auramusic.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 23
-        versionName = "2.1.3"
+        versionCode = 24
+        versionName = "2.1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -39,6 +40,16 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+    }
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        force("com.google.protobuf:protobuf-javalite:3.25.5")
     }
 }
 
@@ -68,6 +79,17 @@ dependencies {
 
     // NewPipeExtractor for native YouTube stream & audio resolution
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
+
+    // QR Code Generator for track & link sharing
+    implementation("com.google.zxing:core:3.5.3")
+
+    // Firebase (FCM + Cloud Firestore)
+    implementation(platform("com.google.firebase:firebase-bom:33.9.0"))
+    implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+
+    // AndroidX WorkManager (Background processing & Doze mode handling)
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
@@ -81,6 +82,7 @@ fun EqualizerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(20.dp)
         ) {
             // Header
@@ -324,6 +326,11 @@ fun EqualizerSheet(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Adaptive Street DSP (Ambient Noise Unmasking)
+            StreetDspCard()
 
             Spacer(modifier = Modifier.height(16.dp))
         }

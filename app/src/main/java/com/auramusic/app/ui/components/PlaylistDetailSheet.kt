@@ -23,7 +23,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -147,11 +150,13 @@ fun PlaylistDetailSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Action Buttons (Play All & Shuffle)
+            // Action Buttons (Play All & Shuffle & Share)
+            val context = LocalContext.current
             if (songs.isNotEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(
                         onClick = onPlayAll,
@@ -175,6 +180,45 @@ fun PlaylistDetailSheet(
                         Icon(imageVector = Icons.Default.Shuffle, contentDescription = null, tint = CyberPink, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(text = "Aleatorio", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+
+                    IconButton(
+                        onClick = {
+                            val text = buildString {
+                                appendLine("🎶 Playlist \"${playlist.title}\" en Aura Music")
+                                appendLine("Total: ${songs.size} pistas")
+                                if (playlist.description.startsWith("http")) {
+                                    appendLine("🔗 Enlace: ${playlist.description}")
+                                }
+                                appendLine()
+                                songs.take(12).forEachIndexed { i, s ->
+                                    val link = if (s.id.isNotBlank() && !s.id.startsWith("local_")) " (https://youtu.be/${s.id})" else ""
+                                    appendLine("${i + 1}. ${s.title} — ${s.artist}$link")
+                                }
+                                if (songs.size > 12) {
+                                    appendLine("... y ${songs.size - 12} canciones más")
+                                }
+                                appendLine("\n✨ Compartido desde Aura Music")
+                            }
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "Playlist: ${playlist.title}")
+                                putExtra(Intent.EXTRA_TEXT, text)
+                            }
+                            context.startActivity(Intent.createChooser(intent, "Compartir Playlist"))
+                        },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(CyberSurfaceActive)
+                            .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Compartir Playlist",
+                            tint = CyberCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
 

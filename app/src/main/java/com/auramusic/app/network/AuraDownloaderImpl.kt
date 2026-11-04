@@ -14,17 +14,48 @@ class AuraDownloaderImpl private constructor(private val client: OkHttpClient) :
     companion object {
         const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
-        const val YOUTUBE_RESTRICTED_MODE_COOKIE = "PREF=f2=8000000"
+        const val YOUTUBE_PREFS_COOKIE = "PREF=hl=es&gl=US"
 
-        val instance by lazy {
-            val client = OkHttpClient.Builder()
-                .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
-                .connectTimeout(5, TimeUnit.SECONDS)
-                .readTimeout(6, TimeUnit.SECONDS)
-                .retryOnConnectionFailure(true)
-                .build()
-            AuraDownloaderImpl(client)
+        @Volatile
+        private var sharedClient: OkHttpClient? = null
+
+        @Volatile
+        private var currentInstance: AuraDownloaderImpl? = null
+
+        fun initCache(cacheDir: java.io.File) {
+            synchronized(this) {
+                if (sharedClient?.cache == null) {
+                    val builder = OkHttpClient.Builder()
+                        .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
+                        .connectTimeout(5, TimeUnit.SECONDS)
+                        .readTimeout(6, TimeUnit.SECONDS)
+                        .retryOnConnectionFailure(true)
+                    try {
+                        val httpCache = okhttp3.Cache(java.io.File(cacheDir, "newpipe_http_cache"), 64L * 1024L * 1024L)
+                        builder.cache(httpCache)
+                    } catch (_: Exception) {}
+                    val client = builder.build()
+                    sharedClient = client
+                    currentInstance = AuraDownloaderImpl(client)
+                }
+            }
         }
+
+        val instance: AuraDownloaderImpl
+            get() {
+                currentInstance?.let { return it }
+                return synchronized(this) {
+                    currentInstance ?: run {
+                        val client = sharedClient ?: OkHttpClient.Builder()
+                            .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
+                            .connectTimeout(5, TimeUnit.SECONDS)
+                            .readTimeout(6, TimeUnit.SECONDS)
+                            .retryOnConnectionFailure(true)
+                            .build()
+                        AuraDownloaderImpl(client).also { currentInstance = it }
+                    }
+                }
+            }
     }
 
     override fun execute(request: Request): Response {
@@ -38,7 +69,7 @@ class AuraDownloaderImpl private constructor(private val client: OkHttpClient) :
             .addHeader("User-Agent", USER_AGENT)
 
         if (url.contains("youtube.com")) {
-            reqBuilder.addHeader("Cookie", YOUTUBE_RESTRICTED_MODE_COOKIE)
+            reqBuilder.addHeader("Cookie", YOUTUBE_PREFS_COOKIE)
         }
 
         // Apply headers from NewPipe, overriding defaults if specified

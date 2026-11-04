@@ -38,6 +38,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,8 +51,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import coil.Coil
+import coil.ImageLoader
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import com.auramusic.app.ui.components.AlbumDetailSheet
 import com.auramusic.app.ui.components.ArtistDetailSheet
+import com.auramusic.app.ui.components.AuraLinkSheet
+import com.auramusic.app.ui.components.DesktopSyncSheet
 import com.auramusic.app.ui.components.EqualizerSheet
 import com.auramusic.app.ui.components.FullscreenLyricsDialog
 import com.auramusic.app.ui.components.GlassBottomDock
@@ -59,6 +67,7 @@ import com.auramusic.app.ui.components.PlaylistDetailSheet
 import com.auramusic.app.ui.components.QueueSheet
 import com.auramusic.app.ui.components.SettingsSheet
 import com.auramusic.app.ui.components.SleepTimerDialog
+import com.auramusic.app.ui.components.SpotifyImportDialog
 import com.auramusic.app.ui.components.StudioDeck
 import com.auramusic.app.ui.components.TrackOptionsBottomSheet
 import com.auramusic.app.ui.screens.HomeScreen
@@ -68,6 +77,7 @@ import com.auramusic.app.ui.theme.AuraMusicTheme
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
 import com.auramusic.app.ui.theme.CyberPink
+import com.auramusic.app.ui.theme.CyberSurface
 import com.auramusic.app.ui.theme.NeonPurple
 import com.auramusic.app.viewmodel.MainTab
 import com.auramusic.app.viewmodel.PlayerViewModel
@@ -75,6 +85,11 @@ import com.auramusic.app.viewmodel.PlayerViewModel
 class MainActivity : ComponentActivity() {
 
     private val playerViewModel: PlayerViewModel by viewModels()
+
+    override fun onResume() {
+        super.onResume()
+        playerViewModel.syncPlaybackStateFromService()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,11 +103,51 @@ class MainActivity : ComponentActivity() {
         }
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        window.decorView.setBackgroundColor(android.graphics.Color.parseColor("#0B0E14"))
 
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
         insetsController.isAppearanceLightStatusBars = false
         insetsController.isAppearanceLightNavigationBars = false
+
+        // Ultra-fluid 120 FPS Coil ImageLoader setup (25% RAM cache + 128MB Disk cache)
+        val imageLoader = ImageLoader.Builder(this)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.25)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("aura_image_cache"))
+                    .maxSizeBytes(128L * 1024L * 1024L)
+                    .build()
+            }
+            .components {
+                add(com.auramusic.app.data.local.AudioThumbnailFetcher.Factory(applicationContext))
+            }
+            .crossfade(180)
+            .respectCacheHeaders(false)
+            .build()
+        Coil.setImageLoader(imageLoader)
+
+        // Trabajo pesado fuera del hilo principal para que la app abra más rápido:
+        //  - resolución de streams (NewPipe + caché HTTP)
+        //  - caché de audio de ExoPlayer (SimpleCache abre una base SQLite y escanea la carpeta;
+        //    el servicio de reproducción la necesita y se crea en el hilo principal)
+        //  - suscripción FCM del "Push-to-Phone"
+        val appContext = applicationContext
+        Thread {
+            try {
+                com.auramusic.app.network.AuraStreamResolver.init(appContext.cacheDir)
+            } catch (_: Exception) {}
+            com.auramusic.app.playback.AuraPlaybackService.warmUpCache(appContext)
+            try {
+                com.auramusic.app.network.sync.SyncManager.ensureSubscribed(appContext) { topic ->
+                    android.util.Log.i("MainActivity", "Aura Sync activo en topic: $topic")
+                }
+            } catch (_: Exception) {}
+        }.start()
 
         setContent {
             val uiState by playerViewModel.uiState.collectAsState()
@@ -166,6 +221,7 @@ class MainActivity : ComponentActivity() {
                 uri?.let { playerViewModel.importBackupFromUri(it) }
             }
 
+            val isMidnightActive = uiState.currentTheme == "Midnight Island"
             AuraMusicTheme(
                 themeName = uiState.currentTheme,
                 themeMode = uiState.themeMode
@@ -189,9 +245,34 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .size(380.dp)
                                 .offset(x = (-100).dp, y = (-120).dp)
-                                .blur(130.dp)
-                                .background(CyberCyan.copy(alpha = 0.08f), CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(
+                                            CyberCyan.copy(alpha = if (isMidnightActive) 0.22f else 0.13f),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
                         )
+
+                        // Ambient Bottom Dynamic Theme Lagoon for Midnight Island
+                        if (isMidnightActive) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .height(240.dp)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color.Transparent,
+                                                CyberSurface.copy(alpha = 0.35f),
+                                                CyberBackgroundDark.copy(alpha = 0.85f)
+                                            )
+                                        )
+                                    )
+                            )
+                        }
 
                         // Main Content View (Studio / Radar / Vault)
                         Column(
@@ -215,6 +296,7 @@ class MainActivity : ComponentActivity() {
                                             trendingAlbums = uiState.trendingAlbums,
                                             userTopArtists = uiState.userTopArtists,
                                             popularStations = uiState.popularStations,
+                                            playlists = uiState.playlists,
                                             appLanguage = uiState.appLanguage,
                                             onSelectSong = { song -> playerViewModel.playSong(song, uiState.searchResults, buildSmartRadio = true) },
                                             onSelectVibe = { vibe ->
@@ -222,6 +304,10 @@ class MainActivity : ComponentActivity() {
                                                 playerViewModel.selectTab(MainTab.RADAR)
                                             },
                                             onSelectAlbum = { album -> playerViewModel.openAlbumDetail(album) },
+                                            onOpenFavorites = { playerViewModel.selectTab(MainTab.VAULT) },
+                                            onOpenDownloads = { playerViewModel.selectTab(MainTab.VAULT) },
+                                            onOpenPlaylist = { pl -> playerViewModel.openPlaylist(pl) },
+                                            onOpenAuraLink = { playerViewModel.setShowAuraLink(true) },
                                             onOpenSettings = { playerViewModel.setShowSettings(true) }
                                         )
                                     }
@@ -265,10 +351,12 @@ class MainActivity : ComponentActivity() {
                                             onPlayAllLocalTracks = { playerViewModel.playAllLocalTracks() },
                                             onScanLocalTracks = requestScanLocalAudio,
                                             onCreatePlaylist = { title -> playerViewModel.createPlaylist(title) },
+                                            onRenamePlaylist = { id, title -> playerViewModel.renamePlaylist(id, title) },
                                             onImportPlaylist = { queryOrUrl -> playerViewModel.importExternalPlaylist(queryOrUrl) },
                                             onDeletePlaylist = { id -> playerViewModel.deletePlaylist(id) },
                                             onOpenPlaylist = { pl -> playerViewModel.openPlaylist(pl) },
-                                            onOpenSongOptions = { song -> playerViewModel.openSongOptions(song) }
+                                            onOpenSongOptions = { song -> playerViewModel.openSongOptions(song) },
+                                            onOpenSpotifyImport = { playerViewModel.setShowSpotifyImport(true) }
                                         )
                                     }
                                 }
@@ -287,9 +375,13 @@ class MainActivity : ComponentActivity() {
                                 MiniPlayer(
                                     song = uiState.currentSong,
                                     isPlaying = uiState.isPlaying,
+                                    isBuffering = uiState.isBuffering,
                                     currentPositionMs = uiState.currentPositionMs,
                                     durationMs = uiState.durationMs,
-                                    isFavorite = uiState.favorites.any { it.id == uiState.currentSong.id },
+                                    isFavorite = uiState.currentSong.isFavorite || uiState.favorites.any { 
+                                        it.id == uiState.currentSong.id || 
+                                        (it.title.equals(uiState.currentSong.title, ignoreCase = true) && it.artist.equals(uiState.currentSong.artist, ignoreCase = true))
+                                    },
                                     onToggleFavorite = { playerViewModel.toggleFavorite(uiState.currentSong) },
                                     onPlayPause = { playerViewModel.playPause() },
                                     onNext = { playerViewModel.next() },
@@ -301,6 +393,7 @@ class MainActivity : ComponentActivity() {
 
                                 GlassBottomDock(
                                     currentTab = uiState.currentTab,
+                                    dockStyle = uiState.dockStyle,
                                     appLanguage = uiState.appLanguage,
                                     onSelectTab = { playerViewModel.selectTab(it) }
                                 )
@@ -317,6 +410,7 @@ class MainActivity : ComponentActivity() {
                             StudioDeck(
                                 song = uiState.currentSong,
                                 isPlaying = uiState.isPlaying,
+                                isBuffering = uiState.isBuffering,
                                 currentPositionMs = uiState.currentPositionMs,
                                 durationMs = uiState.durationMs,
                                 isShuffle = uiState.isShuffle,
@@ -338,6 +432,8 @@ class MainActivity : ComponentActivity() {
                                 onOpenSleepTimer = { playerViewModel.setShowSleepTimer(true) },
                                 onOpenQueue = { playerViewModel.setShowQueue(true) },
                                 onOpenArtist = { playerViewModel.openCurrentSongArtist() },
+                                onOpenAuraLink = { playerViewModel.setShowAuraLink(true) },
+                                onOpenOptions = { playerViewModel.openSongOptions(uiState.currentSong) },
                                 sleepTimerRemaining = if (uiState.sleepTimer.remainingSeconds != null) {
                                     val mins = uiState.sleepTimer.remainingSeconds!! / 60
                                     val secs = uiState.sleepTimer.remainingSeconds!! % 60
@@ -408,6 +504,7 @@ class MainActivity : ComponentActivity() {
                                 skipSilenceEnabled = uiState.skipSilenceEnabled,
                                 currentTheme = uiState.currentTheme,
                                 themeMode = uiState.themeMode,
+                                dockStyle = uiState.dockStyle,
                                 appLanguage = uiState.appLanguage,
                                 lyricsOffsetMs = uiState.lyricsOffsetMs,
                                 ytAccount = uiState.ytAccount,
@@ -423,6 +520,7 @@ class MainActivity : ComponentActivity() {
                                 onToggleSkipSilence = { playerViewModel.toggleSkipSilence() },
                                 onSelectTheme = { themeName -> playerViewModel.setThemePalette(themeName) },
                                 onSelectThemeMode = { mode -> playerViewModel.setThemeMode(mode) },
+                                onSelectDockStyle = { style -> playerViewModel.setDockStyle(style) },
                                 onSelectLanguage = { lang -> playerViewModel.setAppLanguage(lang) },
                                 onSelectLyricsOffset = { offset -> playerViewModel.setLyricsOffsetMs(offset) },
                                 onExportBackup = { exportBackupLauncher.launch("aura_backup_v2.json") },
@@ -446,6 +544,18 @@ class MainActivity : ComponentActivity() {
                                     } catch (e: Exception) {
                                         playerViewModel.showToast("No se pudo abrir el enlace")
                                     }
+                                },
+                                onOpenAuraLink = {
+                                    playerViewModel.setShowSettings(false)
+                                    playerViewModel.setShowAuraLink(true)
+                                },
+                                onOpenDesktopSync = {
+                                    playerViewModel.setShowSettings(false)
+                                    playerViewModel.setShowDesktopSync(true)
+                                },
+                                onOpenSpotifyImport = {
+                                    playerViewModel.setShowSettings(false)
+                                    playerViewModel.setShowSpotifyImport(true)
                                 },
                                 onDismiss = { playerViewModel.setShowSettings(false) }
                             )
@@ -555,6 +665,30 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        // Aura Link BottomSheet (Carta 2: P2P Local Connect & Handover)
+                        if (uiState.showAuraLink) {
+                            AuraLinkSheet(
+                                onDismiss = { playerViewModel.setShowAuraLink(false) }
+                            )
+                        }
+
+                        // Aura Desktop Sync BottomSheet (Push-to-Phone FCM & Firestore Cloud Sync)
+                        if (uiState.showDesktopSync) {
+                            DesktopSyncSheet(
+                                onDismiss = { playerViewModel.setShowDesktopSync(false) }
+                            )
+                        }
+
+                        // Spotify Public Import Dialog (Carta 3: Zero-Login Playlist Scraper)
+                        if (uiState.showSpotifyImport) {
+                            SpotifyImportDialog(
+                                onDismiss = { playerViewModel.setShowSpotifyImport(false) },
+                                onImportConfirmed = { title, songs ->
+                                    playerViewModel.importSpotifyPlaylist(title, songs)
+                                }
+                            )
+                        }
+
                         // Editorial In-App Notification Pill
                         androidx.compose.animation.AnimatedVisibility(
                             visible = uiState.toastMessage != null,
@@ -582,7 +716,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Changelog Dialog (v2.1.3)
+                        // Changelog Dialog (v2.1.4)
                         if (uiState.showChangelogDialog) {
                             androidx.compose.material3.AlertDialog(
                                 onDismissRequest = { playerViewModel.setShowChangelogDialog(false) },
@@ -592,13 +726,13 @@ class MainActivity : ComponentActivity() {
                                 text = {
                                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                                         Text(
-                                            "• Sistema de descargas offline 100% verificado y guardado directo en Música/AuraMusic del teléfono.\n" +
-                                            "• Sincronización inmediata con Bóveda y explorador de archivos de Android.\n" +
-                                            "• Validación estricta de integridad de archivos de audio.\n" +
-                                            "• Soporte completo de temas visuales dinámicos (Oscuro, Claro, Sistema).\n" +
-                                            "• Comprobador inteligente de actualizaciones desde GitHub.\n" +
-                                            "• Barra inferior flotante y Mini-Reproductor cápsula.\n" +
-                                            "• Carga completa de álbumes y reproducción fluida.",
+                                            "• Nueva Barra de Navegación 'Midnight Island' con tono azul noche satinado y botón de búsqueda flotante.\n" +
+                                            "• Cuadrícula de Accesos Rápidos '¿Lo de siempre?' con carpetas de Favoritos, Descargas, Replay y tus playlists.\n" +
+                                            "• Aura Link blindado para larga distancia con Wi-Fi Lock de alta potencia y reconexión automática sin cortes.\n" +
+                                            "• Consola Web Studio completa para PC/navegador con ambient glow, scrubber interactivo y cola de reproducción.\n" +
+                                            "• Botonera del Studio Deck con geometría perfecta (EQ, Dormir, Link y Cola 100% alineados).\n" +
+                                            "• Reproducción instantánea con bypass de carátula y resolución sin censura.\n" +
+                                            "• Importación de Spotify con portadas nítidas en todas las canciones.",
                                             color = com.auramusic.app.ui.theme.TextSecondary,
                                             lineHeight = 22.sp,
                                             fontSize = 13.sp

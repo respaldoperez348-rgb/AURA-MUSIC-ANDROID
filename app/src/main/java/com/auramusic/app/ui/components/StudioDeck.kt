@@ -26,21 +26,25 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -59,6 +63,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,6 +94,7 @@ enum class DeckDisplayMode {
 fun StudioDeck(
     song: Song,
     isPlaying: Boolean,
+    isBuffering: Boolean = false,
     currentPositionMs: Long,
     durationMs: Long,
     isShuffle: Boolean,
@@ -109,6 +116,8 @@ fun StudioDeck(
     onOpenSleepTimer: () -> Unit = {},
     onOpenQueue: () -> Unit = {},
     onOpenArtist: () -> Unit = {},
+    onOpenAuraLink: () -> Unit = {},
+    onOpenOptions: (() -> Unit)? = null,
     sleepTimerRemaining: String? = null,
     onCollapse: (() -> Unit)? = null,
     onOpenFullscreenLyrics: () -> Unit = {},
@@ -126,7 +135,7 @@ fun StudioDeck(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // 1. Top Bar: Collapse + Clean Mode Switcher (Cover / Vinyl / Lyrics) + Queue
+        // 1. Top Bar: Collapse + Clean 2-Mode Switcher (Portada · Letra) + Options (3 dots)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -152,7 +161,7 @@ fun StudioDeck(
                 Spacer(modifier = Modifier.size(38.dp))
             }
 
-            // 3-Mode Switcher (Portada · Disco · Letras)
+            // 2-Mode Switcher (Portada · Letra)
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
@@ -167,12 +176,6 @@ fun StudioDeck(
                     onClick = { displayMode = DeckDisplayMode.COVER }
                 )
                 ModePillButton(
-                    icon = Icons.Default.Album,
-                    label = AuraStrings.get("deck_vinyl", appLanguage),
-                    isSelected = displayMode == DeckDisplayMode.VINYL,
-                    onClick = { displayMode = DeckDisplayMode.VINYL }
-                )
-                ModePillButton(
                     icon = Icons.Default.Lyrics,
                     label = AuraStrings.get("deck_lyrics", appLanguage),
                     isSelected = displayMode == DeckDisplayMode.LYRICS,
@@ -185,14 +188,14 @@ fun StudioDeck(
                     .size(38.dp)
                     .clip(CircleShape)
                     .background(CyberSurfaceCard)
-                    .clickable { onOpenQueue() },
+                    .clickable { onOpenOptions?.invoke() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                    contentDescription = AuraStrings.get("deck_queue", appLanguage),
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Opciones",
                     tint = TextPrimary,
-                    modifier = Modifier.size(19.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -400,21 +403,53 @@ fun StudioDeck(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
-                IconButton(
-                    onClick = onToggleFavorite,
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(CyberSurfaceCard)
+                val context = LocalContext.current
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = if (song.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = "Favorito",
-                        tint = if (song.isFavorite) CyberPink else TextPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    val favRed = Color(0xFFFF1A40)
+                    IconButton(
+                        onClick = onToggleFavorite,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(if (song.isFavorite) favRed.copy(alpha = 0.22f) else CyberSurfaceCard)
+                    ) {
+                        Icon(
+                            imageVector = if (song.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = "Favorito",
+                            tint = if (song.isFavorite) favRed else TextPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            val shareUrl = if (!song.id.startsWith("local_") && song.id.isNotBlank()) "https://youtu.be/${song.id}" else ""
+                            if (shareUrl.isNotBlank()) {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, shareUrl)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Compartir enlace"))
+                            }
+                        },
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(CyberSurfaceCard)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Compartir",
+                            tint = CyberCyan,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
                 }
             }
 
@@ -503,12 +538,20 @@ fun StudioDeck(
                         .clickable { onPlayPause() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        tint = CyberBackgroundDark,
-                        modifier = Modifier.size(34.dp)
-                    )
+                    if (isBuffering) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(30.dp),
+                            color = CyberBackgroundDark,
+                            strokeWidth = 3.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = "Play/Pause",
+                            tint = CyberBackgroundDark,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
                 }
 
                 IconButton(
@@ -546,31 +589,34 @@ fun StudioDeck(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Studio Utility Strip (DSP Equalizer · Sleep Timer · Artist Profile)
+            // Studio Utility Strip (DSP Equalizer · Sleep Timer · Queue)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 StudioToolPill(
                     icon = Icons.Default.GraphicEq,
                     label = AuraStrings.get("deck_eq", appLanguage),
                     activeHighlight = false,
-                    onClick = onOpenEqualizer
+                    onClick = onOpenEqualizer,
+                    modifier = Modifier.weight(1f)
                 )
 
                 StudioToolPill(
                     icon = Icons.Default.Bedtime,
                     label = sleepTimerRemaining ?: AuraStrings.get("deck_sleep", appLanguage),
                     activeHighlight = sleepTimerRemaining != null,
-                    onClick = onOpenSleepTimer
+                    onClick = onOpenSleepTimer,
+                    modifier = Modifier.weight(1f)
                 )
 
                 StudioToolPill(
                     icon = Icons.AutoMirrored.Filled.QueueMusic,
                     label = AuraStrings.get("deck_queue", appLanguage),
                     activeHighlight = false,
-                    onClick = onOpenQueue
+                    onClick = onOpenQueue,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
@@ -582,14 +628,17 @@ private fun StudioToolPill(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     activeHighlight: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
+            .height(38.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(if (activeHighlight) CyberSurfaceActive else CyberSurface)
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 6.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -598,12 +647,14 @@ private fun StudioToolPill(
             tint = if (activeHighlight) CyberCyan else TextSecondary,
             modifier = Modifier.size(15.dp)
         )
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(5.dp))
         Text(
             text = label,
             color = if (activeHighlight) CyberCyan else TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

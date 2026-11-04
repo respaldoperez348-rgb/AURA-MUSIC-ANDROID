@@ -2,9 +2,12 @@ package com.auramusic.app.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,14 +107,54 @@ fun LyricsView(
                             .scale(textScale),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = line.text,
-                            color = textColor,
-                            fontSize = if (isActive) 22.sp else 18.sp,
-                            fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 30.sp
-                        )
+                        if (isActive && line.words.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                line.words.forEach { wordItem ->
+                                    val isPassed = effectivePosition >= wordItem.endMs
+                                    val isCurrentWord = effectivePosition in wordItem.startMs..wordItem.endMs
+                                    val wordColor = when {
+                                        isPassed || isCurrentWord -> CyberCyan
+                                        else -> TextMuted.copy(alpha = 0.40f)
+                                    }
+                                    val wordScale by animateFloatAsState(
+                                        targetValue = if (isCurrentWord) 1.08f else 1.0f,
+                                        animationSpec = tween(durationMillis = 150),
+                                        label = "word_scale"
+                                    )
+                                    Text(
+                                        text = "${wordItem.word} ",
+                                        color = wordColor,
+                                        fontSize = 22.sp,
+                                        fontWeight = if (isPassed || isCurrentWord) FontWeight.ExtraBold else FontWeight.Medium,
+                                        style = if (isCurrentWord) {
+                                            androidx.compose.ui.text.TextStyle(
+                                                shadow = androidx.compose.ui.graphics.Shadow(
+                                                    color = CyberCyan.copy(alpha = 0.85f),
+                                                    blurRadius = 14f
+                                                )
+                                            )
+                                        } else {
+                                            androidx.compose.ui.text.TextStyle.Default
+                                        },
+                                        modifier = Modifier.scale(wordScale),
+                                        lineHeight = 32.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = line.text,
+                                color = textColor,
+                                fontSize = if (isActive) 22.sp else 18.sp,
+                                fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 30.sp
+                            )
+                        }
                         if (showTranslation && line.translatedText.isNotBlank()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(

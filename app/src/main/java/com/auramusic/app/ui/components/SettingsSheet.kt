@@ -21,6 +21,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -67,6 +69,7 @@ fun SettingsSheet(
     skipSilenceEnabled: Boolean = false,
     currentTheme: String = "Studio Carbon",
     themeMode: String = "Oscuro",
+    dockStyle: String = "Midnight Island",
     appLanguage: String = "Español",
     lyricsOffsetMs: Long = -200L,
     ytAccount: YouTubeAccountState = YouTubeAccountState(),
@@ -79,6 +82,7 @@ fun SettingsSheet(
     onToggleSkipSilence: () -> Unit = {},
     onSelectTheme: (String) -> Unit = {},
     onSelectThemeMode: (String) -> Unit = {},
+    onSelectDockStyle: (String) -> Unit = {},
     onSelectLanguage: (String) -> Unit = {},
     onSelectLyricsOffset: (Long) -> Unit = {},
     onClearCache: () -> Unit = {},
@@ -96,6 +100,9 @@ fun SettingsSheet(
     onCheckForUpdates: () -> Unit = {},
     onShowChangelog: () -> Unit = {},
     onOpenUrl: (String) -> Unit = {},
+    onOpenAuraLink: () -> Unit = {},
+    onOpenDesktopSync: () -> Unit = {},
+    onOpenSpotifyImport: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -305,6 +312,167 @@ fun SettingsSheet(
             Spacer(modifier = Modifier.height(26.dp))
 
             // ==========================================
+            // SINCRONIZACIÓN Y CONEXIÓN DE ESCRITORIO
+            // ==========================================
+            SettingsSectionLabel(text = "CONEXIÓN DE ESCRITORIO")
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .border(1.dp, CyberCyan.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                    .background(CyberSurfaceCard)
+                    .clickable { onOpenDesktopSync() }
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(CyberCyan.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudSync,
+                                contentDescription = null,
+                                tint = CyberCyan,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Aura Desktop Sync",
+                                    color = TextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(CyberCyan.copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "FCM PUSH",
+                                        color = CyberCyan,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = "Sincronizar biblioteca y recibir órdenes Push-to-Phone",
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            val syncTopic = androidx.compose.runtime.remember {
+                                com.auramusic.app.network.sync.SyncManager.getSyncTopic(context)
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(CyberSurface)
+                                    .clickable {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Aura Sync Code", syncTopic))
+                                        android.widget.Toast.makeText(context, "Código copiado: $syncTopic", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = syncTopic,
+                                    color = CyberCyan,
+                                    fontSize = 11.sp,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "COPIAR",
+                                    color = TextSecondary,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .border(1.dp, GlassBorderSubtle, RoundedCornerShape(14.dp))
+                    .background(CyberSurface)
+                    .clickable { onOpenAuraLink() }
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CyberSurfaceCard),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Devices,
+                                contentDescription = null,
+                                tint = TextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Aura Link (Red Local P2P)",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Control directo por Wi-Fi y streaming local",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(26.dp))
+
+            // ==========================================
             // 2. ACABADO VISUAL Y MODO DE TEMA
             // ==========================================
             SettingsSectionLabel(text = AuraStrings.get("theme_title", appLanguage))
@@ -388,6 +556,14 @@ fun SettingsSheet(
                     subtitle = "OLED Negro Puro",
                     chassisColor = Color(0xFF050505),
                     accentColor = Color(0xFFFFFFFF)
+                ),
+                HardwareFinish(
+                    id = "Midnight Island",
+                    legacyId = "Midnight Blue",
+                    label = "Midnight Island",
+                    subtitle = "Índigo Noche & Cian",
+                    chassisColor = Color(0xFF0F1526),
+                    accentColor = Color(0xFF38BDF8)
                 )
             )
 
@@ -448,58 +624,134 @@ fun SettingsSheet(
                 }
             }
 
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Selector de Estilo de Barra de Navegación (Midnight Island vs Cyber Dock)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CyberSurfaceCard)
+                    .border(1.dp, GlassBorderSubtle, RoundedCornerShape(12.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf(
+                    "Midnight Island" to "✨ Midnight Island (Doble cápsula)",
+                    "Cyber Dock" to "⚡ Cyber Dock (Clásica)"
+                ).forEach { (styleKey, styleTitle) ->
+                    val isSelected = dockStyle.equals(styleKey, ignoreCase = true)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) CyberSurfaceActive else Color.Transparent)
+                            .clickable { onSelectDockStyle(styleKey) }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = styleTitle,
+                            color = if (isSelected) TextPrimary else TextMuted,
+                            fontSize = 11.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(26.dp))
 
             // ==========================================
-            // 3. IDIOMA DE LA INTERFAZ
+            // 3. IDIOMA DE LA INTERFAZ (Senior Grouped List)
             // ==========================================
             SettingsSectionLabel(text = AuraStrings.get("language_title", appLanguage))
             Spacer(modifier = Modifier.height(10.dp))
 
             val languages = listOf(
-                "Español" to "ES",
-                "English" to "EN",
-                "Português" to "PT",
-                "Français" to "FR",
-                "Deutsch" to "DE",
-                "日本語" to "JA"
+                Triple("Español", "ES", "Español (Latinoamérica / España)"),
+                Triple("English", "EN", "English (United States / Global)"),
+                Triple("Português", "PT", "Português (Brasil / Portugal)"),
+                Triple("Français", "FR", "Français (France / Canada)"),
+                Triple("Deutsch", "DE", "Deutsch (Deutschland / Österreich)"),
+                Triple("日本語", "JA", "日本語 (Japón / Nihongo)")
             )
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                languages.chunked(3).forEach { rowLangs ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(CyberSurface)
+                    .border(1.dp, GlassBorderSubtle, RoundedCornerShape(16.dp))
+            ) {
+                languages.forEachIndexed { index, (langName, code, subtitle) ->
+                    val isSelected = appLanguage.equals(langName, ignoreCase = true)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectLanguage(langName) }
+                            .background(if (isSelected) CyberCyan.copy(alpha = 0.08f) else Color.Transparent)
+                            .padding(horizontal = 16.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        rowLangs.forEach { (langName, code) ->
-                            val isSelected = appLanguage == langName
-                            Row(
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) CyberCyan.copy(alpha = 0.2f) else CyberSurfaceCard)
+                                .border(1.dp, if (isSelected) CyberCyan.copy(alpha = 0.5f) else Color.Transparent, RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = code,
+                                color = if (isSelected) CyberCyan else TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = langName,
+                                color = if (isSelected) TextPrimary else TextSecondary,
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = subtitle,
+                                color = if (isSelected) CyberCyan.copy(alpha = 0.85f) else TextMuted,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        if (isSelected) {
+                            Box(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isSelected) TextPrimary else CyberSurface)
-                                    .clickable { onSelectLanguage(langName) }
-                                    .padding(horizontal = 10.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(CyberCyan),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = code,
-                                    color = if (isSelected) CyberBackgroundDark.copy(alpha = 0.65f) else TextMuted,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = langName,
-                                    color = if (isSelected) CyberBackgroundDark else TextPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    maxLines = 1
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Seleccionado",
+                                    tint = CyberBackgroundDark,
+                                    modifier = Modifier.size(14.dp)
                                 )
                             }
                         }
+                    }
+
+                    if (index < languages.size - 1) {
+                        HorizontalDivider(
+                            color = GlassBorderSubtle,
+                            thickness = 0.5.dp,
+                            modifier = Modifier.padding(start = 64.dp)
+                        )
                     }
                 }
             }

@@ -53,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.auramusic.app.ui.components.AuraCover
 import com.auramusic.app.data.locale.AuraStrings
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.ui.theme.CyberBackgroundDark
@@ -97,17 +99,20 @@ fun SearchScreen(
     modifier: Modifier = Modifier
 ) {
     var searchText by remember { mutableStateOf("") }
+    var showSuggestions by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
 
     // Debounce suggestions by 300ms to eliminate keystroke queue bottlenecks
     androidx.compose.runtime.LaunchedEffect(searchText) {
         val query = searchText.trim()
-        if (query.length < 2) {
+        if (query.length < 2 || !showSuggestions) {
             onFetchSuggestions("")
             return@LaunchedEffect
         }
         kotlinx.coroutines.delay(300L)
-        onFetchSuggestions(query)
+        if (showSuggestions) {
+            onFetchSuggestions(query)
+        }
     }
 
     val trendingTags = listOf(
@@ -144,6 +149,7 @@ fun SearchScreen(
                 value = searchText,
                 onValueChange = {
                     searchText = it
+                    showSuggestions = it.isNotBlank()
                 },
                 placeholder = {
                     Text(
@@ -164,6 +170,7 @@ fun SearchScreen(
                     if (searchText.isNotEmpty()) {
                         IconButton(onClick = {
                             searchText = ""
+                            showSuggestions = false
                             onFetchSuggestions("")
                         }) {
                             Icon(
@@ -178,8 +185,9 @@ fun SearchScreen(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = {
                     if (searchText.isNotBlank()) {
+                        showSuggestions = false
                         focusManager.clearFocus()
-                        onSearch(searchText)
+                        onSearch(searchText.trim())
                     }
                 }),
                 singleLine = true,
@@ -192,7 +200,13 @@ fun SearchScreen(
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { fState ->
+                        if (fState.isFocused && searchText.isNotBlank()) {
+                            showSuggestions = true
+                        }
+                    }
             )
         }
 
@@ -226,8 +240,8 @@ fun SearchScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 150.dp)
             ) {
-                // 1. Live Search Suggestions (when typing)
-                if (searchText.isNotBlank() && searchSuggestions.isNotEmpty()) {
+                // 1. Live Search Suggestions (strictly while actively typing)
+                if (showSuggestions && searchText.isNotBlank() && searchSuggestions.isNotEmpty()) {
                     item {
                         Text(
                             text = AuraStrings.get("suggestions", appLanguage),
@@ -246,9 +260,11 @@ fun SearchScreen(
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(CyberSurfaceCard.copy(alpha = 0.7f))
                                 .clickable {
-                                    searchText = suggestion
+                                    val chosen = suggestion
+                                    searchText = chosen
+                                    showSuggestions = false
                                     focusManager.clearFocus()
-                                    onSearch(suggestion)
+                                    onSearch(chosen)
                                 }
                                 .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -486,14 +502,11 @@ fun SearchResultRow(
                 .background(CyberBackgroundDark),
             contentAlignment = Alignment.Center
         ) {
-            if (song.coverUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = song.coverUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
+            AuraCover(
+                song = song,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            ) {
                 Icon(
                     imageVector = when {
                         song.isArtist -> Icons.Default.Person

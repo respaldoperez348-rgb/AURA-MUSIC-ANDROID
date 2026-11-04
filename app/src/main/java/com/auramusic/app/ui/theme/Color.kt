@@ -127,6 +127,30 @@ val OledPalette = AuraPalette(
     vinylCenterRing = Color(0xFF26262B)
 )
 
+// 5. Midnight Island (Navy Indigo & Electric Sky Blue - Edición Transparente)
+val MidnightIslandPalette = AuraPalette(
+    background = Color(0xFF0A0F1D),
+    backgroundDark = Color(0xFF070B16),
+    surface = Color(0xFF0F1526),
+    surfaceCard = Color(0xFF141C32),
+    surfaceActive = Color(0xFF1D2846),
+    cyan = Color(0xFF38BDF8),
+    cyanGlow = Color(0x3038BDF8),
+    neonPurple = Color(0xFF818CF8),
+    cyberPink = Color(0xFFF43F5E),
+    cyberGreen = Color(0xFF34D399),
+    cyberAmber = Color(0xFFFBBF24),
+    cyberRed = Color(0xFFEF4444),
+    glassBorder = Color(0x2838BDF8),
+    glassBorderSubtle = Color(0x18486591),
+    textPrimary = Color(0xFFF1F5F9),
+    textSecondary = Color(0xFF94A3B8),
+    textMuted = Color(0xFF64748B),
+    vinylBody = Color(0xFF090E1A),
+    vinylGroove = Color(0xFF10182D),
+    vinylCenterRing = Color(0xFF1D2846)
+)
+
 // =========================================================================
 // LIGHT PALETTES (Clean Daylight Studio Edition)
 // =========================================================================

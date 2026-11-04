@@ -17,6 +17,7 @@ import coil.Coil
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.auramusic.app.data.database.AuraDatabase
+import com.auramusic.app.data.database.DatabaseEvents
 import com.auramusic.app.data.database.DownloadedTrack
 import com.auramusic.app.data.database.ListeningStats
 import com.auramusic.app.data.database.Playlist
@@ -26,11 +27,13 @@ import com.auramusic.app.data.model.ArtistProfile
 import com.auramusic.app.data.model.LyricLine
 import com.auramusic.app.data.model.Song
 import com.auramusic.app.network.AuraDownloadManager
+import com.auramusic.app.network.AuraLinkServer
 import com.auramusic.app.network.AuraStreamResolver
 import com.auramusic.app.network.LyricsEngine
 import com.auramusic.app.network.YouTubeAccountState
 import com.auramusic.app.network.YouTubeAuthManager
 import com.auramusic.app.network.YouTubeMusicEngine
+import com.auramusic.app.playback.AmbientNoiseAnalyzer
 import com.auramusic.app.playback.AuraAudioEffects
 import com.auramusic.app.playback.AuraPlaybackBridge
 import com.auramusic.app.playback.AuraPlaybackService
@@ -80,6 +83,7 @@ data class PlayerUiState(
         isFavorite = true
     ),
     val isPlaying: Boolean = false,
+    val isBuffering: Boolean = false,
     val currentPositionMs: Long = 0L,
     val durationMs: Long = 212000L,
     val isShuffle: Boolean = false,
@@ -138,6 +142,10 @@ data class PlayerUiState(
     val downloadOnlyOnWifi: Boolean = false,
     val pauseHistory: Boolean = false,
     val gaplessEnabled: Boolean = true,
+    val dockStyle: String = "Midnight Island", // "Midnight Island" vs "Cyber Dock"
+    val showAuraLink: Boolean = false,
+    val showDesktopSync: Boolean = false,
+    val showSpotifyImport: Boolean = false,
     val updateInfo: AppUpdateInfo? = null,
     val showChangelogDialog: Boolean = false,
     val listeningStats: ListeningStats = ListeningStats()
@@ -146,9 +154,9 @@ data class PlayerUiState(
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = AuraDatabase.getInstance(application)
-    private val downloadManager = AuraDownloadManager(application, database, viewModelScope)
+    private val downloadManager = AuraDownloadManager(application, database)
 
-    private val _uiState = MutableStateFlow(PlayerUiState())
+    private val _uiState = MutableStateFlow(createInitialUiState(application))
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -163,14 +171,125 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var isTransitioning = false
 
     init {
-        AuraStreamResolver.init()
+        // NewPipe + caché HTTP en un hilo de fondo: antes bloqueaba el hilo principal al abrir la app
+        viewModelScope.launch(Dispatchers.IO) {
+            AuraStreamResolver.init(application.cacheDir)
+        }
         setupPlaybackBridge()
         initializeMediaController()
         startProgressUpdater()
         setupDownloadListener()
+        observeDatabaseEvents()
         loadInitialData()
         observeDownloadProgress()
         observeSleepTimer()
+    }
+
+    companion object {
+        fun createInitialUiState(app: Application): PlayerUiState {
+            val prefs = app.getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+            val savedPalette = prefs.getString("palette", "Studio Carbon") ?: "Studio Carbon"
+            val savedThemeMode = prefs.getString("theme_mode", "Oscuro") ?: "Oscuro"
+            val savedDockStyle = prefs.getString("dock_style", "Midnight Island") ?: "Midnight Island"
+            val savedLanguage = prefs.getString("app_language", "Español") ?: "Español"
+            val savedLyricsOffset = prefs.getLong("lyrics_offset_ms", -200L)
+            val savedAudioQuality = prefs.getString("audio_quality", "Hi-Res (320 kbps)") ?: "Hi-Res (320 kbps)"
+            val savedLoudness = prefs.getBoolean("loudness_normalizer", true)
+            val savedAutoRadio = prefs.getBoolean("auto_radio_enabled", true)
+            val savedSkipSilence = prefs.getBoolean("skip_silence_enabled", false)
+            val savedFilterShort = prefs.getBoolean("filter_short_audios", true)
+            val savedWifiOnly = prefs.getBoolean("download_wifi_only", false)
+            val savedPauseHistory = prefs.getBoolean("pause_history", false)
+            val savedGapless = prefs.getBoolean("gapless_enabled", true)
+
+            val lastSongId = prefs.getString("last_song_id", null)
+            val lastPositionMs = prefs.getLong("last_position_ms", 0L)
+            val lastSongTitle = prefs.getString("last_song_title", null)
+            val lastSongArtist = prefs.getString("last_song_artist", null)
+            val lastSongAlbum = prefs.getString("last_song_album", "") ?: ""
+            val lastSongCover = prefs.getString("last_song_cover", "") ?: ""
+            val lastSongDuration = prefs.getLong("last_song_duration", 0L)
+            val lastSongMediaUri = prefs.getString("last_song_media_uri", "") ?: ""
+
+            val fallbackTracks = YouTubeMusicEngine.getCuratedFallbackTracks()
+            val restoredSong = if (!lastSongId.isNullOrBlank() && !lastSongTitle.isNullOrBlank()) {
+                Song(
+                    id = lastSongId,
+                    title = lastSongTitle,
+                    artist = lastSongArtist ?: "Artista",
+                    album = lastSongAlbum,
+                    coverUrl = lastSongCover,
+                    durationMs = lastSongDuration,
+                    mediaUri = lastSongMediaUri
+                )
+            } else fallbackTracks.firstOrNull() ?: Song(
+                id = "4D7u5KF7SP8",
+                title = "Get Lucky",
+                artist = "Daft Punk ft. Pharrell Williams",
+                album = "Random Access Memories",
+                durationMs = 248000L,
+                coverUrl = "https://i.ytimg.com/vi/4D7u5KF7SP8/hqdefault.jpg"
+            )
+
+            return PlayerUiState(
+                currentTheme = savedPalette,
+                themeMode = savedThemeMode,
+                dockStyle = savedDockStyle,
+                appLanguage = savedLanguage,
+                lyricsOffsetMs = savedLyricsOffset,
+                audioQuality = savedAudioQuality,
+                loudnessNormalizer = savedLoudness,
+                autoRadioEnabled = savedAutoRadio,
+                skipSilenceEnabled = savedSkipSilence,
+                filterShortAudios = savedFilterShort,
+                downloadOnlyOnWifi = savedWifiOnly,
+                pauseHistory = savedPauseHistory,
+                gaplessEnabled = savedGapless,
+                currentSong = restoredSong,
+                currentPositionMs = lastPositionMs,
+                durationMs = restoredSong.durationMs,
+                queue = fallbackTracks,
+                searchResults = fallbackTracks,
+                popularArtists = YouTubeMusicEngine.getCuratedPopularArtists(),
+                trendingAlbums = YouTubeMusicEngine.getCuratedTrendingAlbums(),
+                popularStations = YouTubeMusicEngine.getCuratedStations()
+            )
+        }
+    }
+
+    private fun observeDatabaseEvents() {
+        viewModelScope.launch {
+            DatabaseEvents.favoritesChanged.collect {
+                val updatedFavorites = database.getFavorites()
+                val favIds = updatedFavorites.map { f -> f.id }.toSet()
+                _uiState.update { state ->
+                    val isCurFav = favIds.contains(state.currentSong.id) || updatedFavorites.any { 
+                        it.title.equals(state.currentSong.title, ignoreCase = true) && it.artist.equals(state.currentSong.artist, ignoreCase = true)
+                    }
+                    state.copy(
+                        favorites = updatedFavorites,
+                        currentSong = state.currentSong.copy(isFavorite = isCurFav),
+                        queue = state.queue.map { qSong -> 
+                            val qFav = favIds.contains(qSong.id) || updatedFavorites.any { it.title.equals(qSong.title, ignoreCase = true) && it.artist.equals(qSong.artist, ignoreCase = true) }
+                            qSong.copy(isFavorite = qFav) 
+                        },
+                        searchResults = state.searchResults.map { sSong -> 
+                            val sFav = favIds.contains(sSong.id) || updatedFavorites.any { it.title.equals(sSong.title, ignoreCase = true) && it.artist.equals(sSong.artist, ignoreCase = true) }
+                            sSong.copy(isFavorite = sFav) 
+                        }
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            DatabaseEvents.downloadsChanged.collect {
+                val updatedDownloads = database.getDownloadedTracks()
+                _uiState.update { state ->
+                    state.copy(downloads = updatedDownloads)
+                }
+                scanLocalTracks()
+            }
+        }
     }
 
     private fun setupDownloadListener() {
@@ -217,6 +336,50 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 previous()
             }
         }
+        AuraLinkServer.onPlayPauseRequested = {
+            viewModelScope.launch(Dispatchers.Main) {
+                playPause()
+            }
+        }
+        AuraLinkServer.onNextRequested = {
+            viewModelScope.launch(Dispatchers.Main) {
+                next()
+            }
+        }
+        AuraLinkServer.onPreviousRequested = {
+            viewModelScope.launch(Dispatchers.Main) {
+                previous()
+            }
+        }
+        AuraLinkServer.onSeekRequested = { pos ->
+            viewModelScope.launch(Dispatchers.Main) {
+                seekTo(pos)
+            }
+        }
+        AuraPlaybackBridge.onPlayIndexRequested = { idx ->
+            viewModelScope.launch(Dispatchers.Main) {
+                playQueueItem(idx)
+            }
+        }
+        AuraLinkServer.onHandoverReceived = { song, queue, pos ->
+            viewModelScope.launch(Dispatchers.Main) {
+                if (queue.isNotEmpty()) {
+                    val idx = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+                    playPlaylist(queue, idx, false)
+                } else {
+                    playSong(song)
+                }
+                if (pos > 0) {
+                    delay(300)
+                    seekTo(pos)
+                }
+            }
+        }
+        AuraLinkServer.onDownloadRequested = { song ->
+            viewModelScope.launch(Dispatchers.Main) {
+                downloadManager.startDownload(song)
+            }
+        }
         val current = AuraPlaybackBridge.currentSong.value
         if (current != null) {
             val q = AuraPlaybackBridge.queue.value
@@ -230,6 +393,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
             loadLyricsForSong(current)
         }
+
+        // Continuous real-time synchronization from AuraPlaybackBridge so UI never falls behind background track changes
+        viewModelScope.launch {
+            AuraPlaybackBridge.currentSong.collect { bridgeSong ->
+                if (bridgeSong != null && bridgeSong.id != _uiState.value.currentSong.id) {
+                    _uiState.update { state ->
+                        val q = state.queue
+                        val newIdx = q.indexOfFirst { it.id == bridgeSong.id }.takeIf { it >= 0 } ?: AuraPlaybackBridge.currentIndex
+                        state.copy(
+                            currentSong = bridgeSong,
+                            currentIndex = newIdx,
+                            isPlaying = AuraPlaybackBridge.isPlaying.value
+                        )
+                    }
+                    loadLyricsForSong(bridgeSong)
+                }
+            }
+        }
     }
 
     private fun loadInitialData() {
@@ -238,6 +419,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val prefs = context.getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
             val savedPalette = prefs.getString("palette", "Studio Carbon") ?: "Studio Carbon"
             val savedThemeMode = prefs.getString("theme_mode", "Oscuro") ?: "Oscuro"
+            val savedDockStyle = prefs.getString("dock_style", "Midnight Island") ?: "Midnight Island"
             val savedLanguage = prefs.getString("app_language", "Español") ?: "Español"
             val savedLyricsOffset = prefs.getLong("lyrics_offset_ms", -200L)
             val savedAudioQuality = prefs.getString("audio_quality", "Hi-Res (320 kbps)") ?: "Hi-Res (320 kbps)"
@@ -253,6 +435,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             downloadManager.downloadOnlyOnWifi = savedWifiOnly
             AuraStreamResolver.preferredQuality = savedAudioQuality
             AuraAudioEffects.setLoudnessNormalizer(savedLoudness)
+            AmbientNoiseAnalyzer.init(context)
             AuraPlaybackBridge.autoRadioEnabled = savedAutoRadio
             AuraPlaybackBridge.skipSilenceEnabled = savedSkipSilence
             AuraPlaybackBridge.onSkipSilenceChanged?.invoke(savedSkipSilence)
@@ -314,6 +497,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     playlists = savedPlaylists,
                     currentTheme = savedPalette,
                     themeMode = savedThemeMode,
+                    dockStyle = savedDockStyle,
                     appLanguage = savedLanguage,
                     lyricsOffsetMs = savedLyricsOffset,
                     audioQuality = savedAudioQuality,
@@ -333,8 +517,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 fallbackTracks.filter { it.isFavorite }.forEach { database.addFavorite(it) }
             }
 
-            scanLocalTracks()
-            loadLyricsForSong(_uiState.value.currentSong)
+            // Defer local disk scan and network requests so the cold start UI renders in <100ms
+            launch(Dispatchers.IO) {
+                delay(600)
+                scanLocalTracks()
+            }
 
             // 2. Fetch fresh tracks from network (personalized if user linked YouTube Music account)
             launch(Dispatchers.IO) {
@@ -403,6 +590,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 videoId = song.id
             )
             _uiState.update { it.copy(lyrics = lyrics) }
+            AuraPlaybackBridge.activeLyrics.value = lyrics
             if (_uiState.value.showLyricsTranslation && lyrics.isNotEmpty()) {
                 val targetLang = getLanguageCode(_uiState.value.appLanguage)
                 val translated = LyricsEngine.translateLyrics(lyrics, targetLang)
@@ -446,6 +634,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         mediaController?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _uiState.update { it.copy(isPlaying = isPlaying) }
+                AuraPlaybackBridge.isPlaying.value = isPlaying
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -466,7 +655,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 if (playbackState == Player.STATE_READY) {
                     isTransitioning = false
                     val duration = mediaController?.duration?.takeIf { it > 0 } ?: _uiState.value.durationMs
-                    _uiState.update { it.copy(durationMs = duration) }
+                    _uiState.update { it.copy(durationMs = duration, isBuffering = false) }
+                } else if (playbackState == Player.STATE_BUFFERING) {
+                    _uiState.update { it.copy(isBuffering = true) }
                 } else if (playbackState == Player.STATE_ENDED) {
                     val wasEndOfTrack = _uiState.value.sleepTimer.isEndOfTrack
                     SleepTimerManager.notifyTrackEnded()
@@ -522,7 +713,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     album = album,
                     coverUrl = cover,
                     durationMs = dur,
-                    isFavorite = _uiState.value.favorites.any { it.id == currentItem.mediaId }
+                    isFavorite = _uiState.value.favorites.any { 
+                        it.id == currentItem.mediaId || 
+                        (it.title.equals(title, ignoreCase = true) && it.artist.equals(artist, ignoreCase = true))
+                    }
                 )
             }
             val previousSongId = _uiState.value.currentSong.id
@@ -549,6 +743,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun syncPlaybackStateFromService() {
+        val bridgeSong = AuraPlaybackBridge.currentSong.value
+        if (bridgeSong != null && bridgeSong.id != _uiState.value.currentSong.id) {
+            _uiState.update { current ->
+                val q = current.queue
+                val newIdx = q.indexOfFirst { it.id == bridgeSong.id }.takeIf { it >= 0 } ?: AuraPlaybackBridge.currentIndex
+                current.copy(
+                    currentSong = bridgeSong,
+                    currentIndex = newIdx,
+                    isPlaying = AuraPlaybackBridge.isPlaying.value
+                )
+            }
+            loadLyricsForSong(bridgeSong)
+        }
+        syncStateFromController()
+    }
+
     private fun startProgressUpdater() {
         viewModelScope.launch {
             var saveCounter = 0
@@ -567,13 +778,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                             }
                         }
                         saveCounter++
-                        if (saveCounter % 8 == 0 && pos > 0L) { // Save every ~2 seconds
+                        val saveEvery = if (_uiState.value.isPlayerExpanded) 8 else 2
+                        if (saveCounter % saveEvery == 0 && pos > 0L) { // Save every ~2 seconds
                             val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
                             prefs.edit().putLong("last_position_ms", pos).apply()
                         }
                     }
                 }
-                delay(250)
+                // Con el reproductor cerrado solo hace falta mover la barrita del mini-player
+                // (1 vez por segundo). Antes toda la pantalla se recomponía 4 veces por segundo.
+                if (_uiState.value.isPlayerExpanded) {
+                    delay(250L)
+                } else {
+                    // Se despierta antes si el usuario abre el reproductor completo
+                    var waited = 0L
+                    while (waited < 1000L && !_uiState.value.isPlayerExpanded) {
+                        delay(100L)
+                        waited += 100L
+                    }
+                }
             }
         }
     }
@@ -626,7 +849,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 val combined: List<Song> = if (localMatches.isNotEmpty()) {
                     (localMatches + remoteTracks).distinctBy { s: Song -> s.id }
                 } else {
-                    remoteTracks
+                    remoteTracks.distinctBy { s: Song -> s.id }
                 }
                 _uiState.update {
                     it.copy(
@@ -634,12 +857,39 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         isSearching = false
                     )
                 }
+
+                // Precargar las portadas de los primeros resultados para que aparezcan al instante
+                preloadCovers(combined.take(14))
+
+                // Ultra-responsive prefetch: resolve stream for top 2 search results in background
+                combined.take(2).forEach { s ->
+                    if (!s.isArtist && !s.isAlbum && s.id.isNotBlank() && !s.id.startsWith("local_")) {
+                        AuraStreamResolver.prefetchAudioStream(s.id, "${s.title} ${s.artist}")
+                    }
+                }
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
                     _uiState.update { it.copy(isSearching = false) }
                 }
             }
         }
+    }
+
+    private fun preloadCovers(songs: List<Song>) {
+        try {
+            val context = getApplication<Application>()
+            val loader = Coil.imageLoader(context)
+            songs.forEach { s ->
+                if (s.coverUrl.isNotBlank()) {
+                    loader.enqueue(
+                        ImageRequest.Builder(context)
+                            .data(s.coverUrl)
+                            .size(256, 256)
+                            .build()
+                    )
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     fun fetchSearchSuggestions(query: String) {
@@ -756,9 +1006,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
         val newIndex = playQueue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
 
+        // 1. Instantly pause active audio so the previous track stops lingering immediately
+        try {
+            mediaController?.pause()
+        } catch (_: Exception) {}
+
         AuraPlaybackBridge.currentSong.value = song
         AuraPlaybackBridge.queue.value = playQueue
         AuraPlaybackBridge.currentIndex = newIndex
+
+        val alreadyCached = song.mediaUri.isNotBlank() || song.id.startsWith("local_") || AuraStreamResolver.isCached(song.id)
 
         _uiState.update { state ->
             state.copy(
@@ -766,38 +1023,46 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 queue = playQueue,
                 currentIndex = newIndex,
                 isPlaying = true,
+                isBuffering = !alreadyCached,
                 currentPositionMs = 0L,
                 durationMs = song.durationMs,
                 lyrics = emptyList() // Clear previous song lyrics immediately
             )
         }
+        AuraPlaybackBridge.activeLyrics.value = emptyList()
 
-        // 2. Fetch lyrics concurrently
-        loadLyricsForSong(song)
+        // La canción tocada tiene prioridad absoluta sobre la red: ya no se lanzan prefetch de
+        // otras canciones (ni letras, ni radio) hasta que esta empiece a sonar. Antes se
+        // resolvían 4 streams extra a la vez y la canción elegida tardaba mucho en arrancar.
+        lyricsJob?.cancel() // evita que las letras de la canción anterior aparezcan en la nueva
 
-        // 2b. If started from Search or Home track tap, build a Spotify-style Song Radio (RDAMVM) queue around this track
-        if (buildSmartRadio && !song.id.startsWith("local_")) {
-            radioQueueJob?.cancel()
-            radioQueueJob = viewModelScope.launch(Dispatchers.IO) {
-                val related = YouTubeMusicEngine.fetchRelatedTracks(song.id, song.title, song.artist)
-                    .filter { it.id != song.id && !it.isArtist && !it.isAlbum }
-                if (related.isNotEmpty() && _uiState.value.currentSong.id == song.id) {
-                    unshuffledQueue = listOf(song) + related
-                    val orderedRelated = if (_uiState.value.isShuffle) related.shuffled() else related
-                    val smartQueue = listOf(song) + orderedRelated
-                    AuraPlaybackBridge.queue.value = smartQueue
-                    AuraPlaybackBridge.currentIndex = 0
-                    _uiState.update { it.copy(queue = smartQueue, currentIndex = 0) }
-                    prefetchNextTrackIntoPlayer()
+        val startSecondaryWork: () -> Unit = {
+            // Letras en paralelo, ya con el audio en marcha
+            loadLyricsForSong(song)
+
+            // Si se inició desde Búsqueda/Inicio, armar la radio tipo Spotify alrededor de la canción
+            if (buildSmartRadio && !song.id.startsWith("local_")) {
+                radioQueueJob?.cancel()
+                radioQueueJob = viewModelScope.launch(Dispatchers.IO) {
+                    val related = YouTubeMusicEngine.fetchRelatedTracks(song.id, song.title, song.artist)
+                        .filter { it.id != song.id && !it.isArtist && !it.isAlbum }
+                    if (related.isNotEmpty() && _uiState.value.currentSong.id == song.id) {
+                        unshuffledQueue = listOf(song) + related
+                        val orderedRelated = if (_uiState.value.isShuffle) related.shuffled() else related
+                        val smartQueue = listOf(song) + orderedRelated
+                        AuraPlaybackBridge.queue.value = smartQueue
+                        AuraPlaybackBridge.currentIndex = 0
+                        _uiState.update { it.copy(queue = smartQueue, currentIndex = 0) }
+                        prefetchNextTrackIntoPlayer()
+                    }
                 }
             }
         }
 
         playJob?.cancel()
         prefetchJob?.cancel()
-        mediaController?.pause()
         playJob = viewModelScope.launch {
-            val downloadedList = database.getDownloadedTracks()
+            val downloadedList = _uiState.value.downloads.ifEmpty { database.getDownloadedTracks() }
             val localTrack = downloadedList.find {
                 it.song.id == song.id ||
                 (it.song.title.trim().equals(song.title.trim(), ignoreCase = true) &&
@@ -843,26 +1108,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 AuraStreamResolver.resolveAudioStream(song.id, fallback)
             }
 
-            val artworkDeferred = async(Dispatchers.IO) {
-                try {
-                    withTimeoutOrNull(1200L) {
-                        fetchCoverBytes(song.coverUrl)
-                    }
-                } catch (e: Exception) {
-                    null
-                }
-            }
-
             val playableUri = streamDeferred.await()
-            val artworkBytes = artworkDeferred.await()
 
             if (playableUri.isNullOrBlank() || playableUri.startsWith("https://www.youtube.com")) {
                 android.util.Log.e("PlayerViewModel", "Playable audio stream could not be resolved for: ${song.title} (${song.id})")
-                _uiState.update { it.copy(isPlaying = false, toastMessage = "Sin conexión: Canción no disponible offline") }
+                val q = _uiState.value.queue.filter { !it.isArtist && !it.isAlbum }
+                if (q.size > 1) {
+                    next()
+                } else {
+                    _uiState.update { it.copy(isPlaying = false, toastMessage = "No se pudo reproducir este audio") }
+                }
                 return@launch
             }
 
-            // 4. Build MediaMetadata with Artwork URI and Artwork Data Bytes for system notification
+            // 4. Build MediaMetadata with Artwork URI
             val metaBuilder = MediaMetadata.Builder()
                 .setTitle(song.title)
                 .setArtist(song.artist)
@@ -875,9 +1134,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     Uri.parse(song.coverUrl)
                 }
                 metaBuilder.setArtworkUri(artUri)
-            }
-            if (artworkBytes != null) {
-                metaBuilder.setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
             }
 
             val mediaUri = if (playableUri.startsWith("/") || playableUri.startsWith("file:")) {
@@ -896,6 +1152,29 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 setMediaItem(mediaItem)
                 prepare()
                 play()
+            }
+
+            // Ya suena: ahora sí se pueden lanzar letras y radio sin quitarle red a la canción actual
+            startSecondaryWork()
+
+            // Async artwork byte load for system lockscreen without delaying audio
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val bytes = fetchCoverBytes(song.coverUrl)
+                    if (bytes != null && _uiState.value.currentSong.id == song.id) {
+                        val enrichedMeta = metaBuilder.setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()
+                        val updatedItem = MediaItem.Builder()
+                            .setUri(mediaUri)
+                            .setMediaId(song.id)
+                            .setMediaMetadata(enrichedMeta)
+                            .build()
+                        withContext(Dispatchers.Main) {
+                            if (mediaController?.currentMediaItem?.mediaId == song.id) {
+                                mediaController?.replaceMediaItem(mediaController?.currentMediaItemIndex ?: 0, updatedItem)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {}
             }
 
             if (!_uiState.value.pauseHistory) {
@@ -951,6 +1230,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // Queue is already ordered (either sequential or Fisher-Yates shuffled when Shuffle is toggled)
             val nextIdx = (currentIdx + 1) % q.size
             val nextSong = q[nextIdx]
+
+            // Multi-track prefetch pipeline in background for immediate skip readiness
+            val indicesToPrefetch = listOf(
+                (currentIdx + 2) % q.size,
+                (currentIdx - 1 + q.size) % q.size
+            ).distinct().filter { it != nextIdx && it != currentIdx }
+
+            for (idx in indicesToPrefetch) {
+                val s = q[idx]
+                if (!s.id.startsWith("local_") && !AuraStreamResolver.isCached(s.id)) {
+                    AuraStreamResolver.prefetchAudioStream(s.id, "${s.title} ${s.artist}")
+                }
+            }
+
             val downloadedList = database.getDownloadedTracks()
             val localTrack = downloadedList.find {
                 it.song.id == nextSong.id ||
@@ -1062,6 +1355,32 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         val nextIdx = if (currentPos >= 0) (currentPos + 1) % playQueue.size else 0
         val nextSong = playQueue[nextIdx]
+
+        // Fast-path: Check if ExoPlayer already pre-queued nextSong for instant 0ms advance
+        val controller = mediaController
+        if (controller != null && controller.hasNextMediaItem()) {
+            val curItemIdx = controller.currentMediaItemIndex
+            if (curItemIdx + 1 < controller.mediaItemCount && controller.getMediaItemAt(curItemIdx + 1).mediaId == nextSong.id) {
+                AuraPlaybackBridge.currentIndex = nextIdx
+                AuraPlaybackBridge.currentSong.value = nextSong
+                _uiState.update {
+                    it.copy(
+                        currentSong = nextSong,
+                        currentIndex = nextIdx,
+                        isPlaying = true,
+                        isBuffering = false,
+                        currentPositionMs = 0L,
+                        durationMs = nextSong.durationMs,
+                        lyrics = emptyList()
+                    )
+                }
+                loadLyricsForSong(nextSong)
+                controller.seekToNextMediaItem()
+                prefetchNextTrackIntoPlayer()
+                return
+            }
+        }
+
         AuraPlaybackBridge.currentIndex = nextIdx
         playSong(nextSong, playQueue)
     }
@@ -1208,6 +1527,32 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun importSpotifyPlaylist(title: String, songs: List<Song>) {
+        viewModelScope.launch {
+            val created = database.createPlaylist(title)
+            if (created != null) {
+                songs.forEach { song ->
+                    database.addSongToPlaylist(created.id, song)
+                }
+                val updated = database.getPlaylists()
+                _uiState.update { it.copy(playlists = updated) }
+                showToast("✓ Playlist de Spotify importada (${songs.size} canciones)")
+            }
+        }
+    }
+
+    fun setShowAuraLink(show: Boolean) {
+        _uiState.update { it.copy(showAuraLink = show) }
+    }
+
+    fun setShowDesktopSync(show: Boolean) {
+        _uiState.update { it.copy(showDesktopSync = show) }
+    }
+
+    fun setShowSpotifyImport(show: Boolean) {
+        _uiState.update { it.copy(showSpotifyImport = show) }
+    }
+
     fun deletePlaylist(playlistId: String) {
         viewModelScope.launch {
             database.deletePlaylist(playlistId)
@@ -1232,6 +1577,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val songs = database.getSongsInPlaylist(playlist.id)
             _uiState.update { it.copy(selectedPlaylist = playlist, playlistSongs = songs) }
+            songs.take(3).forEach { s ->
+                if (!s.isArtist && !s.isAlbum && !s.id.startsWith("local_")) {
+                    AuraStreamResolver.prefetchAudioStream(s.id, "${s.title} ${s.artist}")
+                }
+            }
         }
     }
 
@@ -1297,6 +1647,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         showToast(if (newValue) "✓ Saltar silencios activado" else "Saltar silencios desactivado")
     }
 
+    fun renamePlaylist(playlistId: String, newTitle: String) {
+        val trimmed = newTitle.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            database.renamePlaylist(playlistId, trimmed)
+            val updated = database.getPlaylists()
+            _uiState.update { it.copy(playlists = updated) }
+            showToast("✓ Nombre actualizado: $trimmed")
+        }
+    }
+
     fun importExternalPlaylist(urlOrQuery: String) {
         val trimmed = urlOrQuery.trim()
         if (trimmed.isBlank()) return
@@ -1307,7 +1668,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
             if (result != null && result.second.isNotEmpty()) {
                 val (playlistTitle, tracks) = result
-                val created = database.createPlaylist(playlistTitle)
+                val created = database.createPlaylist(playlistTitle, description = trimmed)
                 tracks.forEach { song ->
                     database.addSongToPlaylist(created.id, song)
                 }
@@ -1598,6 +1959,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         showToast("Tema: $paletteName")
     }
 
+    fun setDockStyle(style: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("dock_style", style).apply()
+        _uiState.update { current ->
+            val updatedTheme = if (style.equals("Midnight Island", ignoreCase = true)) {
+                if (current.currentTheme == "Studio Carbon") {
+                    prefs.edit().putString("palette", "Midnight Island").apply()
+                    "Midnight Island"
+                } else current.currentTheme
+            } else {
+                if (current.currentTheme == "Midnight Island") {
+                    prefs.edit().putString("palette", "Studio Carbon").apply()
+                    "Studio Carbon"
+                } else current.currentTheme
+            }
+            current.copy(dockStyle = style, currentTheme = updatedTheme)
+        }
+        showToast("Estilo: $style")
+    }
+
     fun setAppLanguage(language: String) {
         val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
         prefs.edit().putString("app_language", language).apply()
@@ -1853,6 +2234,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val tracks = YouTubeMusicEngine.fetchAlbumTracks(album.browseId, album.title, album.year)
             _uiState.update { it.copy(albumTracks = tracks, isLoadingAlbum = false) }
+            tracks.take(3).forEach { s ->
+                if (!s.isArtist && !s.isAlbum && !s.id.startsWith("local_")) {
+                    AuraStreamResolver.prefetchAudioStream(s.id, "${s.title} ${s.artist}")
+                }
+            }
         }
     }
 

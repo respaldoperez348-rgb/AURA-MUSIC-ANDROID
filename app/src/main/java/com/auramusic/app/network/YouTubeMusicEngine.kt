@@ -586,8 +586,13 @@ object YouTubeMusicEngine {
     }
 
     fun searchFirstPlayableVideoId(query: String): String? {
+        if (query.isBlank()) return null
+        val cleanQuery = query.replace(Regex("(?i)\\[.*?\\]|\\(.*?video.*?\\)|\\(.*?audio.*?\\)"), "").trim()
+        val queryToUse = if (cleanQuery.isNotBlank()) cleanQuery else query
+
+        // Attempt 1: YouTube Music Web Remix API
         try {
-            val escapedQuery = query.replace("\\", "\\\\").replace("\"", "\\\"")
+            val escapedQuery = queryToUse.replace("\\", "\\\\").replace("\"", "\\\"")
             val payload = """{"context":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240101.01.00","hl":"en","gl":"US"}},"query":"$escapedQuery"}"""
 
             val request = Request.Builder()
@@ -598,13 +603,32 @@ object YouTubeMusicEngine {
                 .build()
 
             client.newCall(request).execute().use { response ->
-                val body = response.body?.string() ?: return null
+                val body = response.body?.string() ?: ""
                 val match = Regex("\"videoId\":\\s*\"([a-zA-Z0-9_-]{11})\"").find(body)
-                return match?.groupValues?.get(1)
+                if (match != null) return match.groupValues[1]
             }
         } catch (e: Exception) {
-            return null
+            // Fallthrough to web search
         }
+
+        // Attempt 2: Standard YouTube Web Search (Ultra reliable for all regions)
+        try {
+            val encoded = java.net.URLEncoder.encode("$queryToUse audio", "UTF-8")
+            val webRequest = Request.Builder()
+                .url("https://www.youtube.com/results?search_query=$encoded")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                .build()
+
+            client.newCall(webRequest).execute().use { response ->
+                val body = response.body?.string() ?: ""
+                val match = Regex("\"videoId\":\\s*\"([a-zA-Z0-9_-]{11})\"").find(body)
+                if (match != null) return match.groupValues[1]
+            }
+        } catch (e: Exception) {
+            // No result
+        }
+
+        return null
     }
 
     fun getCuratedFallbackTracks(query: String = ""): List<Song> {
@@ -855,17 +879,158 @@ object YouTubeMusicEngine {
         searchTracks(fallbackQuery).filter { !it.isArtist && !it.isAlbum && it.id != videoId }.take(15)
     }
 
+    suspend fun fetchYouTubeWebPlaylist(playlistId: String): Pair<String, List<Song>> = withContext(Dispatchers.IO) {
+        try {
+            val cleanId = playlistId.removePrefix("VL").trim()
+            val url = "https://www.youtube.com/playlist?list=$cleanId"
+            val req = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("Accept-Language", "es-ES,es;q=0.9,en;q=0.8")
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                val html = resp.body?.string() ?: return@withContext Pair("", emptyList())
+                val regex = Regex("var ytInitialData\\s*=\\s*(\\{.+?\\});</script>")
+                val match = regex.find(html) ?: Regex("ytInitialData\\s*=\\s*(\\{.+?\\});").find(html)
+                val jsonStr = match?.groupValues?.get(1) ?: return@withContext Pair("", emptyList())
+                val data = JSONObject(jsonStr)
+
+                var title = data.optJSONObject("metadata")?.optJSONObject("playlistMetadataRenderer")?.optString("title") ?: ""
+                if (title.isBlank()) {
+                    title = data.optJSONObject("header")?.optJSONObject("playlistHeaderRenderer")?.optJSONObject("title")?.optString("simpleText") ?: ""
+                }
+                if (title.isBlank()) {
+                    val mTitle = Regex("<meta property=\"og:title\" content=\"([^\"]+)\"").find(html)
+                    title = mTitle?.groupValues?.get(1) ?: "Playlist de YouTube"
+                }
+
+                val tracks = mutableListOf<Song>()
+                val seen = mutableSetOf<String>()
+
+                fun parseLockup(lockup: JSONObject) {
+                    val metaVm = lockup.optJSONObject("metadata")?.optJSONObject("lockupMetadataViewModel") ?: return
+                    val t = metaVm.optJSONObject("title")?.optString("content") ?: return
+                    if (t.isBlank()) return
+
+                    var artist = ""
+                    val rows = metaVm.optJSONObject("metadata")?.optJSONObject("contentMetadataViewModel")?.optJSONArray("metadataRows")
+                    if (rows != null && rows.length() > 0) {
+                        val parts = rows.optJSONObject(0)?.optJSONArray("metadataParts")
+                        if (parts != null && parts.length() > 0) {
+                            artist = parts.optJSONObject(0)?.optJSONObject("text")?.optString("content") ?: ""
+                        }
+                    }
+
+                    var vid = lockup.optString("contentId")
+                    if (vid.isBlank()) {
+                        vid = lockup.optJSONObject("rendererContext")?.optJSONObject("commandContext")
+                            ?.optJSONObject("onTap")?.optJSONObject("innertubeCommand")
+                            ?.optJSONObject("watchEndpoint")?.optString("videoId") ?: ""
+                    }
+
+                    val sources = lockup.optJSONObject("contentImage")?.optJSONObject("thumbnailViewModel")
+                        ?.optJSONObject("image")?.optJSONArray("sources")
+                    val thumb = if (sources != null && sources.length() > 0) {
+                        sources.getJSONObject(sources.length() - 1).optString("url")
+                    } else if (vid.isNotBlank()) {
+                        "https://i.ytimg.com/vi/$vid/hqdefault.jpg"
+                    } else ""
+
+                    if (vid.isNotBlank() && seen.add(vid)) {
+                        tracks.add(
+                            Song(
+                                id = vid,
+                                title = t,
+                                artist = artist.ifBlank { "YouTube Music" },
+                                album = title,
+                                coverUrl = thumb,
+                                mediaUri = "",
+                                isFavorite = false,
+                                durationMs = 0L
+                            )
+                        )
+                    }
+                }
+
+                fun parsePvr(pvr: JSONObject) {
+                    val vid = pvr.optString("videoId")
+                    var t = pvr.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: ""
+                    if (t.isBlank()) t = pvr.optJSONObject("title")?.optString("simpleText") ?: ""
+                    val artist = pvr.optJSONObject("shortBylineText")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: ""
+                    val thumbs = pvr.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+                    val thumb = if (thumbs != null && thumbs.length() > 0) {
+                        thumbs.getJSONObject(thumbs.length() - 1).optString("url")
+                    } else if (vid.isNotBlank()) {
+                        "https://i.ytimg.com/vi/$vid/hqdefault.jpg"
+                    } else ""
+
+                    if (vid.isNotBlank() && t.isNotBlank() && seen.add(vid)) {
+                        tracks.add(
+                            Song(
+                                id = vid,
+                                title = t,
+                                artist = artist.ifBlank { "YouTube Music" },
+                                album = title,
+                                coverUrl = thumb,
+                                mediaUri = "",
+                                isFavorite = false,
+                                durationMs = 0L
+                            )
+                        )
+                    }
+                }
+
+                fun recurse(obj: Any?) {
+                    when (obj) {
+                        is JSONObject -> {
+                            val lockup = obj.optJSONObject("lockupViewModel")
+                            if (lockup != null) parseLockup(lockup)
+                            val pvr = obj.optJSONObject("playlistVideoRenderer")
+                            if (pvr != null) parsePvr(pvr)
+                            val keys = obj.keys()
+                            while (keys.hasNext()) {
+                                recurse(obj.opt(keys.next()))
+                            }
+                        }
+                        is org.json.JSONArray -> {
+                            for (i in 0 until obj.length()) {
+                                recurse(obj.opt(i))
+                            }
+                        }
+                    }
+                }
+
+                recurse(data)
+                Pair(title, tracks)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Pair("", emptyList())
+        }
+    }
+
     suspend fun importExternalPlaylist(urlOrQuery: String): Pair<String, List<Song>> = withContext(Dispatchers.IO) {
         val raw = urlOrQuery.trim()
         val listParam = if (raw.contains("list=")) {
-            raw.substringAfter("list=").substringBefore("&").trim()
+            raw.substringAfter("list=").substringBefore("&").substringBefore("#").trim()
         } else if (raw.startsWith("PL") || raw.startsWith("VL") || raw.startsWith("OLAK") || raw.startsWith("MPREb_")) {
             raw
         } else {
             ""
         }
 
+        val isUrlOrPlaylist = listParam.isNotBlank() || raw.contains("youtube.com") || raw.contains("youtu.be")
+
         if (listParam.isNotBlank()) {
+            // 1. Try YouTube Web Scraper (supports both modern lockupViewModel and classic playlistVideoRenderer)
+            val webResult = fetchYouTubeWebPlaylist(listParam)
+            if (webResult.second.isNotEmpty()) {
+                val title = webResult.first.ifBlank { "Playlist Importada" }
+                return@withContext Pair(title, webResult.second)
+            }
+
+            // 2. Try YouTube Music InnerTube
             val browseId = when {
                 listParam.startsWith("VL") || listParam.startsWith("MPREb_") -> listParam
                 else -> "VL$listParam"
@@ -877,8 +1042,14 @@ object YouTubeMusicEngine {
             }
         }
 
+        // If it was a playlist URL and failed, DO NOT return random search results!
+        if (isUrlOrPlaylist) {
+            return@withContext Pair("", emptyList())
+        }
+
+        // Only for text search queries (e.g. "Rock de los 80")
         val searched = searchTracks(raw).filter { !it.isArtist && !it.isAlbum }
-        val cleanTitle = raw.removePrefix("https://").removePrefix("http://").take(28).ifBlank { "Mi Mix Importado" }
+        val cleanTitle = raw.take(28).ifBlank { "Mi Mix Importado" }
         Pair(cleanTitle, searched.take(15))
     }
 
@@ -897,8 +1068,56 @@ object YouTubeMusicEngine {
 
                 client.newCall(searchReq).execute().use { resp ->
                     val sBody = resp.body?.string() ?: return@withContext null
-                    val match = Regex("\"browseId\":\\s*\"(UC[a-zA-Z0-9_-]+)\"").find(sBody)
-                    browseId = match?.groupValues?.get(1) ?: return@withContext null
+                    var foundId: String? = null
+                    try {
+                        val sJson = JSONObject(sBody)
+                        val sections = sJson.optJSONObject("contents")
+                            ?.optJSONObject("tabbedSearchResultsRenderer")
+                            ?.optJSONArray("tabs")?.optJSONObject(0)
+                            ?.optJSONObject("tabRenderer")?.optJSONObject("content")
+                            ?.optJSONObject("sectionListRenderer")?.optJSONArray("contents")
+
+                        if (sections != null) {
+                            for (sIdx in 0 until sections.length()) {
+                                val sec = sections.optJSONObject(sIdx) ?: continue
+                                val card = sec.optJSONObject("musicCardShelfRenderer")
+                                if (card != null) {
+                                    val bId = card.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)
+                                        ?.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId")
+                                    if (!bId.isNullOrBlank() && bId.startsWith("UC")) {
+                                        foundId = bId
+                                        break
+                                    }
+                                }
+                                val shelf = sec.optJSONObject("musicShelfRenderer")
+                                if (shelf != null) {
+                                    val items = shelf.optJSONArray("contents") ?: continue
+                                    for (itIdx in 0 until items.length()) {
+                                        val item = items.optJSONObject(itIdx)?.optJSONObject("musicResponsiveListItemRenderer") ?: continue
+                                        val flexCols = item.optJSONArray("flexColumns") ?: continue
+                                        val subRuns = flexCols.optJSONObject(1)?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                                            ?.optJSONObject("text")?.optJSONArray("runs")
+                                        val subText = if (subRuns != null) (0 until subRuns.length()).joinToString("") { subRuns.getJSONObject(it).optString("text") } else ""
+                                        if (subText.contains("Artista", ignoreCase = true) || subText.contains("Artist", ignoreCase = true)) {
+                                            val bId = item.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId")
+                                                ?: flexCols.optJSONObject(0)?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                                                    ?.optJSONObject("text")?.optJSONArray("runs")?.optJSONObject(0)
+                                                    ?.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId")
+                                            if (!bId.isNullOrBlank() && bId.startsWith("UC")) {
+                                                foundId = bId
+                                                break
+                                            }
+                                        }
+                                    }
+                                    if (foundId != null) break
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {}
+
+                    browseId = foundId
+                        ?: Regex("\"browseId\":\\s*\"(UC[a-zA-Z0-9_-]+)\"").find(sBody)?.groupValues?.get(1)
+                        ?: return@withContext null
                 }
             }
 
@@ -1267,73 +1486,108 @@ object YouTubeMusicEngine {
     fun getCuratedPopularArtists(): List<Song> {
         return listOf(
             Song(
-                id = "Jaze",
+                id = "UCYmbp4HPQ1jWKcHWnFq7Gqg",
                 title = "Jaze",
                 artist = "Artista • Freestyle & Pop",
-                coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80",
+                coverUrl = "https://lh3.googleusercontent.com/tOlynauKPIMEAxqhvHa6q18FCRdCxJ8-joiROVVVkoFHOLUCF1xueLkYRC2sRNg3xqvQQ49HbdeaXg=w544-h544-p-l90-rj",
                 isArtist = true
             ),
             Song(
-                id = "Bizarrap",
+                id = "UCONiUl5u7y2bMaVZJcuRDEQ",
                 title = "Bizarrap",
                 artist = "Artista • BZRP Sessions",
-                coverUrl = "https://images.unsplash.com/photo-1571266028243-3716f02d2d2e?w=500&auto=format&fit=crop&q=80",
+                coverUrl = "https://yt3.googleusercontent.com/vEkJjs-EZmAYP3ukHzky6kLxLaA1dGuGGUDvJcNQXHBaAXp4xajwptJlT20BXl-qsx18EcQLqJWiUCQ=w544-h544-p-l90-rj",
                 isArtist = true
             ),
             Song(
-                id = "Daft Punk",
+                id = "UCRr1xG_2WIDs18a6cIiCxeA",
                 title = "Daft Punk",
                 artist = "Artista • Electronic Legends",
-                coverUrl = "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=500&auto=format&fit=crop&q=80",
+                coverUrl = "https://lh3.googleusercontent.com/qLhu6Py_4_xoBsoubKQsXlhOQGqU9YU1ZRAbFusF0LlrPkXbbpu7bEh-k_ZtE4JwLgubvucAQqcK1hRk=w544-h544-p-l90-rj",
                 isArtist = true
             ),
             Song(
-                id = "The Weeknd",
+                id = "UClYV6hHlupm_S_ObS1W-DYw",
                 title = "The Weeknd",
                 artist = "Artista • R&B & Synth-Pop",
-                coverUrl = "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&auto=format&fit=crop&q=80",
+                coverUrl = "https://lh3.googleusercontent.com/U-SAmNOu4TynE818gLCfKsuHZ0U5YNEtO9mrjSI9WCCKERs98LzrCal5kajBBTQNwdcisoB2Bn-pHp4=w544-h544-p-l90-rj",
                 isArtist = true
             ),
             Song(
-                id = "Bad Bunny",
+                id = "UCiY3z8HAGD6BlSNKVn2kSvQ",
                 title = "Bad Bunny",
                 artist = "Artista • Trap & Reggaeton",
-                coverUrl = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80",
+                coverUrl = "https://yt3.googleusercontent.com/ploU_4iWpDoJlX3FOlwwd_yQcex0I8A0_665lePXAEBbNp1zn5g42eNwg5Q7lvYc2mG2--UNIYcIhww=w544-h544-p-l90-rj",
                 isArtist = true
             ),
             Song(
-                id = "Rosalía",
+                id = "UCIsM7Pkp18u1MIEUWhfe3HQ",
+                title = "Hombres G",
+                artist = "Artista • Rock en Español",
+                coverUrl = "https://lh3.googleusercontent.com/FdFuWjsRDN3pS62CrEnP8h8n96h2ojqzPO5QvR-b-SvEk4y95J1RwRDX8Xf3XlBsCFDmQCiW3AnQ5_A=w544-h544-p-l90-rj",
+                isArtist = true
+            ),
+            Song(
+                id = "UCzTGD812LtZe7HthxnGhCXA",
+                title = "Spice Girls",
+                artist = "Artista • 90s Pop Icons",
+                coverUrl = "https://lh3.googleusercontent.com/DhEuuXFAZ-tx1JA_AgLHKZKvDe90J0-MTbm69JNfup7YeFzSwmWA55305knG4e1GI6zaNSqdVZC5maU=w544-h544-p-l90-rj",
+                isArtist = true
+            ),
+            Song(
+                id = "UCedvOgsKFzcK3hA5taf3KoQ",
+                title = "Eminem",
+                artist = "Artista • Rap God",
+                coverUrl = "https://lh3.googleusercontent.com/JFI6JZrS-Lco4UdpqDfHY5Wgwy51VXWxmNdI7bCBU5CDlIpN6WWyisZ7MGlpjbrxEGYMFpsqoR_UwcE=w544-h544-p-l90-rj",
+                isArtist = true
+            ),
+            Song(
+                id = "UCzVb0SIXp9q9PeKCcFjsBtA",
+                title = "Dua Lipa",
+                artist = "Artista • Dance-Pop",
+                coverUrl = "https://lh3.googleusercontent.com/aFx8s1fTuelgxONGbezmTG0EKR8r82uB5H-Q6ZJtssyCWLJWF8GfZNr4tHo84sXdFCPBKrA4R6zXOss=w544-h544-p-l90-rj",
+                isArtist = true
+            ),
+            Song(
+                id = "UCeYz6rzUGhVwqxRM37FUo8w",
                 title = "Rosalía",
                 artist = "Artista • Flamenco & Avant-Pop",
-                coverUrl = "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=500&auto=format&fit=crop&q=80",
+                coverUrl = "https://lh3.googleusercontent.com/gYQfHNwupieC5fsiFqa9P4bjogcTgDg2ChBB_9CnsYbaGy0ZsXgZ8zBufXmcy1zjggMB8poaof2PMA=w544-h544-p-l90-rj",
                 isArtist = true
             ),
             Song(
-                id = "Gorillaz",
+                id = "UCNIV5B_aJnLrKDSnW_MOmcQ",
                 title = "Gorillaz",
                 artist = "Artista • Virtual Alternative",
-                coverUrl = "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&auto=format&fit=crop&q=80",
+                coverUrl = "https://lh3.googleusercontent.com/MQ8sTeoDhSNyEItlabM-Bl1kFgCa4r1Rog38K8nokZ8vAIAgoN0omxEk5G6lXBj5azaaUZAvH7xhuRA=w544-h544-p-l90-rj",
                 isArtist = true
             ),
             Song(
-                id = "Trueno",
+                id = "UCEPYn7xbzvQwL9C21evFGDg",
                 title = "Trueno",
                 artist = "Artista • Hip Hop & Freestyle",
-                coverUrl = "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=500&auto=format&fit=crop&q=80",
+                coverUrl = "https://yt3.googleusercontent.com/HupoNCBrq4WWflprOMqHDPxE9VSf8cGeSNmS8DZPlJQxGtj1Jju8rZf_HGPLk2d2_w1SZK-JwmTwew=w544-h544-p-l90-rj",
                 isArtist = true
             ),
             Song(
-                id = "Travis Scott",
+                id = "UCf_gP4AMRSgAfyzbkeS9k4g",
                 title = "Travis Scott",
                 artist = "Artista • Psychedelic Trap",
-                coverUrl = "https://images.unsplash.com/photo-1511735111819-9a3f7709049c?w=500&auto=format&fit=crop&q=80",
+                coverUrl = "https://yt3.googleusercontent.com/r9k_FpAswxhQnl_cudiaT2ocWFccR6SzEFXgZ9a12iR5eDPSILlIL2EQewyQ-yYSt1JFyH1pqnoBXxs=w544-h544-p-l90-rj",
                 isArtist = true
             ),
             Song(
-                id = "Kendrick Lamar",
+                id = "UCprAFmT0C6O4X0ToEXpeFTQ",
                 title = "Kendrick Lamar",
                 artist = "Artista • Conscious Hip-Hop",
-                coverUrl = "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&auto=format&fit=crop&q=80",
+                coverUrl = "https://yt3.googleusercontent.com/uB8Magh99SvDyT_mcDYeNYxlVZ_F9WN-cJtAFMHw_Q-_N_8y5-uZiay8-EZSKKloNoWxymBzVehSF4PN=w544-h544-p-l90-rj",
+                isArtist = true
+            ),
+            Song(
+                id = "UCIaFw5VBEK8qaW6nRpx_qnw",
+                title = "Coldplay",
+                artist = "Artista • Alternative Rock",
+                coverUrl = "https://lh3.googleusercontent.com/IOKuXtp8PCQ_Fc-vaRKm3sKIXBxFV51gZheLTH5br-YGnWHFQf_Jywcuk7wbprYRoEbQyS_XZY6-nMJX=w544-h544-p-l90-rj",
                 isArtist = true
             )
         )

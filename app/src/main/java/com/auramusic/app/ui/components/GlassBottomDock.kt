@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material3.Icon
@@ -47,7 +49,158 @@ import com.auramusic.app.viewmodel.MainTab
 @Composable
 fun GlassBottomDock(
     currentTab: MainTab,
+    dockStyle: String = "Midnight Island",
     appLanguage: String = "Español",
+    onSelectTab: (MainTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (dockStyle.equals("Cyber Dock", ignoreCase = true)) {
+        CyberClassicDock(
+            currentTab = currentTab,
+            appLanguage = appLanguage,
+            onSelectTab = onSelectTab,
+            modifier = modifier
+        )
+    } else {
+        MidnightIslandDock(
+            currentTab = currentTab,
+            appLanguage = appLanguage,
+            onSelectTab = onSelectTab,
+            modifier = modifier
+        )
+    }
+}
+
+/**
+ * Midnight Island Dock (Inspirado en la Imagen 2)
+ * Fondo índigo noche marino translúcido con cápsula de 3 tabs + burbuja satélite flotante de búsqueda.
+ */
+@Composable
+private fun MidnightIslandDock(
+    currentTab: MainTab,
+    appLanguage: String,
+    onSelectTab: (MainTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val islandSurface = CyberSurfaceCard.copy(alpha = 0.92f)
+    val islandBorder = GlassBorderSubtle
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Cápsula Principal Izquierda (Home, Library)
+        Row(
+            modifier = Modifier
+                .shadow(
+                    elevation = 18.dp,
+                    shape = RoundedCornerShape(32.dp),
+                    spotColor = Color.Black.copy(alpha = 0.55f)
+                )
+                .clip(RoundedCornerShape(32.dp))
+                .background(islandSurface)
+                .border(1.dp, islandBorder, RoundedCornerShape(32.dp))
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val isHome = currentTab == MainTab.STUDIO
+            MidnightTabItem(
+                icon = if (isHome) Icons.Filled.Home else Icons.Outlined.Home,
+                label = "Home",
+                isSelected = isHome,
+                onClick = { onSelectTab(MainTab.STUDIO) }
+            )
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            val isVault = currentTab == MainTab.VAULT
+            MidnightTabItem(
+                icon = if (isVault) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic,
+                label = "Library",
+                isSelected = isVault,
+                onClick = { onSelectTab(MainTab.VAULT) }
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        // Burbuja Satélite Derecha (Búsqueda Flotante)
+        val isSearch = currentTab == MainTab.RADAR
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .shadow(
+                    elevation = 18.dp,
+                    shape = CircleShape,
+                    spotColor = Color.Black.copy(alpha = 0.55f)
+                )
+                .clip(CircleShape)
+                .background(if (isSearch) CyberCyan.copy(alpha = 0.20f) else islandSurface)
+                .border(
+                    width = 1.dp,
+                    color = if (isSearch) CyberCyan.copy(alpha = 0.75f) else islandBorder,
+                    shape = CircleShape
+                )
+                .clickable { onSelectTab(MainTab.RADAR) },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Search,
+                contentDescription = AuraStrings.get("tab_search", appLanguage),
+                tint = if (isSearch) CyberCyan else TextPrimary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MidnightTabItem(
+    icon: ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val activePillBg = CyberCyan.copy(alpha = 0.16f)
+    val inactiveTint = TextSecondary
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (isSelected) activePillBg else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = 18.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (isSelected) CyberCyan else inactiveTint,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = label,
+                color = if (isSelected) CyberCyan else inactiveTint,
+                fontSize = 10.5.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                letterSpacing = (-0.1).sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun CyberClassicDock(
+    currentTab: MainTab,
+    appLanguage: String,
     onSelectTab: (MainTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -58,7 +211,6 @@ fun GlassBottomDock(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Main Navigation Capsule (Inicio + Biblioteca)
         Row(
             modifier = Modifier
                 .shadow(
@@ -93,7 +245,6 @@ fun GlassBottomDock(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // Satellite Floating Circular Search Button (🔍)
         val isSearch = currentTab == MainTab.RADAR
         Box(
             modifier = Modifier

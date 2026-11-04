@@ -8,6 +8,9 @@ import android.database.sqlite.SQLiteOpenHelper
 import com.auramusic.app.data.model.Album
 import com.auramusic.app.data.model.Song
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 
 data class Playlist(
@@ -33,7 +36,24 @@ data class ListeningStats(
     val topSongTitle: String = "—"
 )
 
+object DatabaseEvents {
+    private val _favoritesChanged = MutableSharedFlow<Unit>(extraBufferCapacity = 64)
+    val favoritesChanged: SharedFlow<Unit> = _favoritesChanged.asSharedFlow()
+
+    private val _downloadsChanged = MutableSharedFlow<Unit>(extraBufferCapacity = 64)
+    val downloadsChanged: SharedFlow<Unit> = _downloadsChanged.asSharedFlow()
+
+    fun notifyFavoritesChanged() {
+        _favoritesChanged.tryEmit(Unit)
+    }
+
+    fun notifyDownloadsChanged() {
+        _downloadsChanged.tryEmit(Unit)
+    }
+}
+
 class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+    private val appContext: Context = context.applicationContext
 
     companion object {
         const val DATABASE_NAME = "aura_music.db"
@@ -283,6 +303,7 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             if (mediaUri.isNotBlank()) put("mediaUri", mediaUri)
         }
         db.update(TABLE_FAVORITES, values, "id = ?", arrayOf(songId))
+        DatabaseEvents.notifyFavoritesChanged()
     }
 
     suspend fun isFavorite(songId: String): Boolean = withContext(Dispatchers.IO) {
@@ -306,11 +327,19 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             put("addedAt", System.currentTimeMillis())
         }
         db.insertWithOnConflict(TABLE_FAVORITES, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        DatabaseEvents.notifyFavoritesChanged()
+        try {
+            com.auramusic.app.network.sync.LibrarySyncRepository.syncSingleSongToCloud(appContext, song.copy(isFavorite = true))
+        } catch (_: Exception) {}
     }
 
     suspend fun removeFavorite(songId: String) = withContext(Dispatchers.IO) {
         val db = writableDatabase
         db.delete(TABLE_FAVORITES, "id = ?", arrayOf(songId))
+        DatabaseEvents.notifyFavoritesChanged()
+        try {
+            com.auramusic.app.network.sync.LibrarySyncRepository.removeSongFromCloud(appContext, songId)
+        } catch (_: Exception) {}
     }
 
     suspend fun toggleFavorite(song: Song): Boolean = withContext(Dispatchers.IO) {
@@ -340,6 +369,14 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         }
         db.insert(TABLE_PLAYLISTS, null, values)
         Playlist(id, title, description, "", 0, createdAt)
+    }
+
+    suspend fun renamePlaylist(playlistId: String, newTitle: String) = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put("title", newTitle.trim())
+        }
+        db.update(TABLE_PLAYLISTS, values, "id = ?", arrayOf(playlistId))
     }
 
     suspend fun getPlaylists(): List<Playlist> = withContext(Dispatchers.IO) {
@@ -384,6 +421,9 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             put("sortOrder", System.currentTimeMillis())
         }
         db.insertWithOnConflict(TABLE_PLAYLIST_SONGS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        try {
+            com.auramusic.app.network.sync.LibrarySyncRepository.syncSinglePlaylistToCloud(appContext, playlistId)
+        } catch (_: Exception) {}
     }
 
     suspend fun getSongsInPlaylist(playlistId: String): List<Song> = withContext(Dispatchers.IO) {
@@ -465,6 +505,7 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             put("downloadedAt", System.currentTimeMillis())
         }
         db.insertWithOnConflict(TABLE_DOWNLOADS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        DatabaseEvents.notifyDownloadsChanged()
     }
 
     suspend fun getDownloadedTracks(): List<DownloadedTrack> = withContext(Dispatchers.IO) {
@@ -520,6 +561,7 @@ class AuraDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
     suspend fun removeDownload(songId: String) = withContext(Dispatchers.IO) {
         val db = writableDatabase
         db.delete(TABLE_DOWNLOADS, "songId = ?", arrayOf(songId))
+        DatabaseEvents.notifyDownloadsChanged()
     }
 
     // ==========================================

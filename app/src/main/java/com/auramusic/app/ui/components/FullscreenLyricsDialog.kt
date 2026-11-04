@@ -17,6 +17,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -259,15 +260,55 @@ fun FullscreenLyricsDialog(
                                     .scale(textScale),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(
-                                    text = line.text,
-                                    color = textColor,
-                                    fontSize = if (isActive) 27.sp else 21.sp,
-                                    fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = if (isActive) 36.sp else 28.sp,
-                                    modifier = Modifier.fillMaxWidth(0.92f)
-                                )
+                                if (isActive && line.words.isNotEmpty()) {
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier.fillMaxWidth(0.94f)
+                                    ) {
+                                        line.words.forEach { wordItem ->
+                                            val isPassed = effectivePosition >= wordItem.endMs
+                                            val isCurrentWord = effectivePosition in wordItem.startMs..wordItem.endMs
+                                            val wordColor = when {
+                                                isPassed || isCurrentWord -> CyberCyan
+                                                else -> TextMuted.copy(alpha = 0.40f)
+                                            }
+                                            val wordScale by animateFloatAsState(
+                                                targetValue = if (isCurrentWord) 1.10f else 1.0f,
+                                                animationSpec = tween(durationMillis = 150),
+                                                label = "fs_word_scale"
+                                            )
+                                            Text(
+                                                text = "${wordItem.word} ",
+                                                color = wordColor,
+                                                fontSize = 27.sp,
+                                                fontWeight = if (isPassed || isCurrentWord) FontWeight.ExtraBold else FontWeight.Medium,
+                                                style = if (isCurrentWord) {
+                                                    androidx.compose.ui.text.TextStyle(
+                                                        shadow = androidx.compose.ui.graphics.Shadow(
+                                                            color = CyberCyan.copy(alpha = 0.90f),
+                                                            blurRadius = 18f
+                                                        )
+                                                    )
+                                                } else {
+                                                    androidx.compose.ui.text.TextStyle.Default
+                                                },
+                                                modifier = Modifier.scale(wordScale),
+                                                lineHeight = 38.sp
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Text(
+                                        text = line.text,
+                                        color = textColor,
+                                        fontSize = if (isActive) 27.sp else 21.sp,
+                                        fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = if (isActive) 36.sp else 28.sp,
+                                        modifier = Modifier.fillMaxWidth(0.92f)
+                                    )
+                                }
                                 if (showTranslation && line.translatedText.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
