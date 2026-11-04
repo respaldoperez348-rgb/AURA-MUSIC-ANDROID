@@ -57,16 +57,16 @@
       <sub>Sincronización remota Push-to-Phone vía FCM</sub>
     </td>
     <td align="center" width="20%">
-      <img src="assets/screenshots/05_themes_dark.jpg" width="100%" alt="Temas Cyberpunk" style="border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,0.25);"/>
+      <img src="assets/screenshots/05_studio_deck.jpg" width="100%" alt="Studio Deck Player" style="border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,0.25);"/>
       <br/><br/>
-      <b>05. Temas Cyberpunk</b>
+      <b>05. Studio Deck</b>
       <br/>
-      <sub>Paletas de estudio en Modo Oscuro (Studio Carbon)</sub>
+      <sub>Reproductor inmersivo con controles y dock flotante</sub>
     </td>
   </tr>
 </table>
 
-> *Nota: Próximamente se integrarán las capturas del reproductor Studio Deck y las letras karaoke sincronizadas.*
+> *Tip: En dispositivos móviles, desliza horizontalmente la tabla para apreciar los detalles de cada módulo de la interfaz.*
 
 </div>
 
