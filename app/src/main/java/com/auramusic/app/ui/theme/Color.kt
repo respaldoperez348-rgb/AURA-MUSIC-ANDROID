@@ -31,28 +31,28 @@ data class AuraPalette(
 // DARK PALETTES (High-Fidelity Studio Hardware Finishes)
 // =========================================================================
 
-// 1. Studio Carbon (Default — Braun / Teenage Engineering Matte Carbon & Analog Vermilion)
+// 1. Studio Hi-Fi Obsidian (Default — Precision Audio Cyan & Obsidian OLED)
 val CyberNeonPalette = AuraPalette(
-    background = Color(0xFF0C0C0E),
-    backgroundDark = Color(0xFF070709),
-    surface = Color(0xFF141417),
-    surfaceCard = Color(0xFF1A1A1E),
-    surfaceActive = Color(0xFF25252B),
-    cyan = Color(0xFFE85D2A),
-    cyanGlow = Color(0x24E85D2A),
-    neonPurple = Color(0xFFD97757),
-    cyberPink = Color(0xFFE14D43),
-    cyberGreen = Color(0xFF5E9E72),
-    cyberAmber = Color(0xFFD99B26),
-    cyberRed = Color(0xFFD94A4A),
-    glassBorder = Color(0x12FFFFFF),
-    glassBorderSubtle = Color(0x08FFFFFF),
-    textPrimary = Color(0xFFF4F3EF),
-    textSecondary = Color(0xFF9E9D99),
-    textMuted = Color(0xFF666560),
-    vinylBody = Color(0xFF111113),
-    vinylGroove = Color(0xFF1B1B20),
-    vinylCenterRing = Color(0xFF292930)
+    background = Color(0xFF08090C),
+    backgroundDark = Color(0xFF040507),
+    surface = Color(0xFF0E1118),
+    surfaceCard = Color(0xFF141822),
+    surfaceActive = Color(0xFF1D2332),
+    cyan = Color(0xFF00E5FF),
+    cyanGlow = Color(0x2800E5FF),
+    neonPurple = Color(0xFF38BDF8),
+    cyberPink = Color(0xFFE11D48),
+    cyberGreen = Color(0xFF22C55E),
+    cyberAmber = Color(0xFFF59E0B),
+    cyberRed = Color(0xFFEF4444),
+    glassBorder = Color(0x1800E5FF),
+    glassBorderSubtle = Color(0x0EFFFFFF),
+    textPrimary = Color(0xFFF8FAFC),
+    textSecondary = Color(0xFF94A3B8),
+    textMuted = Color(0xFF64748B),
+    vinylBody = Color(0xFF0B0D12),
+    vinylGroove = Color(0xFF121620),
+    vinylCenterRing = Color(0xFF00E5FF)
 )
 
 // 2. Champagne Hi-Fi (Bang & Olufsen Brushed Titanium & Warm Brass Gold)
@@ -155,28 +155,28 @@ val MidnightIslandPalette = AuraPalette(
 // LIGHT PALETTES (Clean Daylight Studio Edition)
 // =========================================================================
 
-// 1. Studio Carbon (Light — Architectural Porcelain & Vermilion Accent)
+// 1. Studio Hi-Fi Clean (Light — Architectural Crisp Porcelain & Cyan Accent)
 val CyberNeonPaletteLight = AuraPalette(
-    background = Color(0xFFF6F7FA),
+    background = Color(0xFFF8FAFC),
     backgroundDark = Color(0xFFFFFFFF),
-    surface = Color(0xFFECEEF2),
+    surface = Color(0xFFF1F5F9),
     surfaceCard = Color(0xFFFFFFFF),
-    surfaceActive = Color(0xFFDFE3EB),
-    cyan = Color(0xFFE85D2A),
-    cyanGlow = Color(0x22E85D2A),
-    neonPurple = Color(0xFFD97757),
-    cyberPink = Color(0xFFE14D43),
-    cyberGreen = Color(0xFF2E7D47),
-    cyberAmber = Color(0xFFD99B26),
-    cyberRed = Color(0xFFD94A4A),
+    surfaceActive = Color(0xFFE2E8F0),
+    cyan = Color(0xFF00B4D8),
+    cyanGlow = Color(0x2200B4D8),
+    neonPurple = Color(0xFF0284C7),
+    cyberPink = Color(0xFFE11D48),
+    cyberGreen = Color(0xFF16A34A),
+    cyberAmber = Color(0xFFD97706),
+    cyberRed = Color(0xFFDC2626),
     glassBorder = Color(0x18000000),
     glassBorderSubtle = Color(0x0A000000),
-    textPrimary = Color(0xFF121418),
-    textSecondary = Color(0xFF5A606D),
-    textMuted = Color(0xFF8F96A3),
-    vinylBody = Color(0xFF22242B),
-    vinylGroove = Color(0xFF2E313A),
-    vinylCenterRing = Color(0xFFE85D2A)
+    textPrimary = Color(0xFF0F172A),
+    textSecondary = Color(0xFF475569),
+    textMuted = Color(0xFF94A3B8),
+    vinylBody = Color(0xFF1E293B),
+    vinylGroove = Color(0xFF334155),
+    vinylCenterRing = Color(0xFF00B4D8)
 )
 
 // 2. Champagne Hi-Fi (Light — Warm Brushed Titanium & Antique Brass Gold)

@@ -54,125 +54,72 @@ fun GlassBottomDock(
     onSelectTab: (MainTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (dockStyle.equals("Cyber Dock", ignoreCase = true)) {
-        CyberClassicDock(
-            currentTab = currentTab,
-            appLanguage = appLanguage,
-            onSelectTab = onSelectTab,
-            modifier = modifier
-        )
-    } else {
-        MidnightIslandDock(
-            currentTab = currentTab,
-            appLanguage = appLanguage,
-            onSelectTab = onSelectTab,
-            modifier = modifier
-        )
-    }
-}
-
-/**
- * Midnight Island Dock (Inspirado en la Imagen 2)
- * Fondo índigo noche marino translúcido con cápsula de 3 tabs + burbuja satélite flotante de búsqueda.
- */
-@Composable
-private fun MidnightIslandDock(
-    currentTab: MainTab,
-    appLanguage: String,
-    onSelectTab: (MainTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val islandSurface = CyberSurfaceCard.copy(alpha = 0.92f)
-    val islandBorder = GlassBorderSubtle
-
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
     ) {
-        // Cápsula Principal Izquierda (Home, Library)
         Row(
             modifier = Modifier
+                .fillMaxWidth()
                 .shadow(
-                    elevation = 18.dp,
-                    shape = RoundedCornerShape(32.dp),
+                    elevation = 16.dp,
+                    shape = RoundedCornerShape(28.dp),
                     spotColor = Color.Black.copy(alpha = 0.55f)
                 )
-                .clip(RoundedCornerShape(32.dp))
-                .background(islandSurface)
-                .border(1.dp, islandBorder, RoundedCornerShape(32.dp))
+                .clip(RoundedCornerShape(28.dp))
+                .background(CyberSurfaceCard)
+                .border(1.dp, GlassBorderSubtle, RoundedCornerShape(28.dp))
                 .padding(horizontal = 8.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             val isHome = currentTab == MainTab.STUDIO
-            MidnightTabItem(
-                icon = if (isHome) Icons.Filled.Home else Icons.Outlined.Home,
-                label = "Home",
-                isSelected = isHome,
-                onClick = { onSelectTab(MainTab.STUDIO) }
-            )
-
-            Spacer(modifier = Modifier.width(6.dp))
-
+            val isSearch = currentTab == MainTab.RADAR
             val isVault = currentTab == MainTab.VAULT
-            MidnightTabItem(
-                icon = if (isVault) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic,
-                label = "Library",
-                isSelected = isVault,
-                onClick = { onSelectTab(MainTab.VAULT) }
+
+            ModernDockTabItem(
+                icon = if (isHome) Icons.Filled.Home else Icons.Outlined.Home,
+                label = AuraStrings.get("tab_studio", appLanguage),
+                isSelected = isHome,
+                onClick = { onSelectTab(MainTab.STUDIO) },
+                modifier = Modifier.weight(1f)
             )
-        }
 
-        Spacer(modifier = Modifier.width(10.dp))
+            ModernDockTabItem(
+                icon = Icons.Filled.Search,
+                label = AuraStrings.get("tab_search", appLanguage),
+                isSelected = isSearch,
+                onClick = { onSelectTab(MainTab.RADAR) },
+                modifier = Modifier.weight(1f)
+            )
 
-        // Burbuja Satélite Derecha (Búsqueda Flotante)
-        val isSearch = currentTab == MainTab.RADAR
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .shadow(
-                    elevation = 18.dp,
-                    shape = CircleShape,
-                    spotColor = Color.Black.copy(alpha = 0.55f)
-                )
-                .clip(CircleShape)
-                .background(if (isSearch) CyberCyan.copy(alpha = 0.20f) else islandSurface)
-                .border(
-                    width = 1.dp,
-                    color = if (isSearch) CyberCyan.copy(alpha = 0.75f) else islandBorder,
-                    shape = CircleShape
-                )
-                .clickable { onSelectTab(MainTab.RADAR) },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = AuraStrings.get("tab_search", appLanguage),
-                tint = if (isSearch) CyberCyan else TextPrimary,
-                modifier = Modifier.size(24.dp)
+            ModernDockTabItem(
+                icon = if (isVault) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic,
+                label = AuraStrings.get("tab_library", appLanguage),
+                isSelected = isVault,
+                onClick = { onSelectTab(MainTab.VAULT) },
+                modifier = Modifier.weight(1f)
             )
         }
     }
 }
 
 @Composable
-private fun MidnightTabItem(
+private fun ModernDockTabItem(
     icon: ImageVector,
     label: String,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val activePillBg = CyberCyan.copy(alpha = 0.16f)
-    val inactiveTint = TextSecondary
-
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(if (isSelected) activePillBg else Color.Transparent)
-            .clickable { onClick() }
-            .padding(horizontal = 18.dp, vertical = 7.dp),
+        modifier = modifier
+            .height(50.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (isSelected) CyberCyan.copy(alpha = 0.12f) else Color.Transparent)
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -182,130 +129,16 @@ private fun MidnightTabItem(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = if (isSelected) CyberCyan else inactiveTint,
+                tint = if (isSelected) CyberCyan else TextSecondary,
                 modifier = Modifier.size(22.dp)
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = label,
-                color = if (isSelected) CyberCyan else inactiveTint,
-                fontSize = 10.5.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                letterSpacing = (-0.1).sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun CyberClassicDock(
-    currentTab: MainTab,
-    appLanguage: String,
-    onSelectTab: (MainTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            modifier = Modifier
-                .shadow(
-                    elevation = 14.dp,
-                    shape = RoundedCornerShape(32.dp),
-                    spotColor = Color.Black.copy(alpha = 0.45f)
-                )
-                .clip(RoundedCornerShape(32.dp))
-                .background(CyberSurfaceCard)
-                .border(1.dp, GlassBorderSubtle, RoundedCornerShape(32.dp))
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val isStudio = currentTab == MainTab.STUDIO
-            DockPillTabItem(
-                icon = if (isStudio) Icons.Filled.Home else Icons.Outlined.Home,
-                label = AuraStrings.get("tab_studio", appLanguage),
-                isSelected = isStudio,
-                onClick = { onSelectTab(MainTab.STUDIO) }
-            )
-
-            Spacer(modifier = Modifier.width(4.dp))
-
-            val isVault = currentTab == MainTab.VAULT
-            DockPillTabItem(
-                icon = if (isVault) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic,
-                label = AuraStrings.get("tab_library", appLanguage),
-                isSelected = isVault,
-                onClick = { onSelectTab(MainTab.VAULT) }
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        val isSearch = currentTab == MainTab.RADAR
-        Box(
-            modifier = Modifier
-                .size(54.dp)
-                .shadow(
-                    elevation = 14.dp,
-                    shape = CircleShape,
-                    spotColor = Color.Black.copy(alpha = 0.45f)
-                )
-                .clip(CircleShape)
-                .background(if (isSearch) CyberCyan.copy(alpha = 0.18f) else CyberSurfaceCard)
-                .border(
-                    width = 1.dp,
-                    color = if (isSearch) CyberCyan.copy(alpha = 0.6f) else GlassBorderSubtle,
-                    shape = CircleShape
-                )
-                .clickable { onSelectTab(MainTab.RADAR) },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = AuraStrings.get("tab_search", appLanguage),
-                tint = if (isSearch) CyberCyan else TextPrimary,
-                modifier = Modifier.size(23.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun DockPillTabItem(
-    icon: ImageVector,
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(26.dp))
-            .background(if (isSelected) CyberSurfaceActive else Color.Transparent)
-            .clickable { onClick() }
-            .padding(horizontal = 22.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = if (isSelected) TextPrimary else TextMuted,
-                modifier = Modifier.size(21.dp)
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = label,
-                color = if (isSelected) TextPrimary else TextMuted,
+                color = if (isSelected) CyberCyan else TextMuted,
                 fontSize = 11.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                letterSpacing = (-0.1).sp
+                letterSpacing = (-0.2).sp
             )
         }
     }

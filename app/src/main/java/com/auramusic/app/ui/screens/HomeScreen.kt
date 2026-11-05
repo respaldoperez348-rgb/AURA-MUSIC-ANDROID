@@ -411,14 +411,14 @@ private fun TrendingAlbumCard(
 ) {
     Column(
         modifier = Modifier
-            .width(142.dp)
+            .width(150.dp)
             .clickable { onClick() }
     ) {
         Box(
             modifier = Modifier
-                .size(142.dp)
-                .shadow(elevation = 10.dp, shape = RoundedCornerShape(10.dp), spotColor = Color.Black.copy(alpha = 0.5f))
-                .clip(RoundedCornerShape(10.dp))
+                .size(150.dp)
+                .shadow(elevation = 12.dp, shape = RoundedCornerShape(14.dp), spotColor = Color.Black.copy(alpha = 0.5f))
+                .clip(RoundedCornerShape(14.dp))
                 .background(CyberSurfaceCard),
             contentAlignment = Alignment.Center
         ) {
@@ -439,14 +439,14 @@ private fun TrendingAlbumCard(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Text(
             text = album.title,
             color = TextPrimary,
-            fontSize = 13.sp,
+            fontSize = 13.5.sp,
             fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.1).sp,
+            letterSpacing = (-0.2).sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -472,14 +472,14 @@ private fun QuickPickCard(
 ) {
     Column(
         modifier = Modifier
-            .width(142.dp)
+            .width(150.dp)
             .clickable { onClick() }
     ) {
         Box(
             modifier = Modifier
-                .size(142.dp)
-                .shadow(elevation = 10.dp, shape = RoundedCornerShape(10.dp), spotColor = Color.Black.copy(alpha = 0.55f))
-                .clip(RoundedCornerShape(10.dp))
+                .size(150.dp)
+                .shadow(elevation = 12.dp, shape = RoundedCornerShape(14.dp), spotColor = Color.Black.copy(alpha = 0.5f))
+                .clip(RoundedCornerShape(14.dp))
                 .background(CyberSurfaceCard),
             contentAlignment = Alignment.Center
         ) {
@@ -516,14 +516,14 @@ private fun QuickPickCard(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Text(
             text = song.title,
             color = if (isCurrent) CyberCyan else TextPrimary,
-            fontSize = 13.sp,
+            fontSize = 13.5.sp,
             fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.1).sp,
+            letterSpacing = (-0.2).sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

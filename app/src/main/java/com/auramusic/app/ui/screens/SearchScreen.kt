@@ -75,6 +75,7 @@ import com.auramusic.app.ui.theme.CyberPink
 import com.auramusic.app.ui.theme.CyberSurfaceActive
 import com.auramusic.app.ui.theme.CyberSurfaceCard
 import com.auramusic.app.ui.theme.GlassBorder
+import com.auramusic.app.ui.theme.GlassBorderSubtle
 import com.auramusic.app.ui.theme.NeonPurple
 import com.auramusic.app.ui.theme.TextMuted
 import com.auramusic.app.ui.theme.TextPrimary
@@ -473,22 +474,12 @@ fun SearchResultRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                if (isCurrent) {
-                    Brush.horizontalGradient(
-                        listOf(CyberCyan.copy(alpha = 0.18f), Color.Transparent)
-                    )
-                } else {
-                    Brush.horizontalGradient(
-                        listOf(CyberSurfaceCard.copy(alpha = 0.8f), CyberSurfaceCard.copy(alpha = 0.4f))
-                    )
-                }
-            )
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isCurrent) CyberCyan.copy(alpha = 0.12f) else CyberSurfaceCard)
             .border(
                 1.dp,
-                if (isCurrent) CyberCyan.copy(alpha = 0.5f) else GlassBorder,
-                RoundedCornerShape(16.dp)
+                if (isCurrent) CyberCyan.copy(alpha = 0.5f) else GlassBorderSubtle,
+                RoundedCornerShape(14.dp)
             )
             .clickable { onClick() }
             .padding(10.dp),

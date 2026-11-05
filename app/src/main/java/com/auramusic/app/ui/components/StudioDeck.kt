@@ -87,7 +87,7 @@ import com.auramusic.app.ui.theme.TextSecondary
 import java.util.Locale
 
 enum class DeckDisplayMode {
-    COVER, VINYL, LYRICS
+    COVER, LYRICS
 }
 
 @Composable
@@ -232,13 +232,13 @@ fun StudioDeck(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(292.dp)
+                                .size(306.dp)
                                 .shadow(
-                                    elevation = 28.dp,
-                                    shape = RoundedCornerShape(14.dp),
-                                    spotColor = Color.Black.copy(alpha = 0.7f)
+                                    elevation = 20.dp,
+                                    shape = RoundedCornerShape(18.dp),
+                                    spotColor = Color.Black.copy(alpha = 0.65f)
                                 )
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(18.dp))
                                 .background(CyberSurfaceCard),
                             contentAlignment = Alignment.Center
                         ) {
@@ -258,34 +258,6 @@ fun StudioDeck(
                                 )
                             }
                         }
-                    }
-                }
-
-                DeckDisplayMode.VINYL -> {
-                    var vinylSwipeX by remember { mutableFloatStateOf(0f) }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(Unit) {
-                                detectHorizontalDragGestures(
-                                    onDragStart = { vinylSwipeX = 0f },
-                                    onDragEnd = {
-                                        if (vinylSwipeX < -95f) onNext()
-                                        else if (vinylSwipeX > 95f) onPrevious()
-                                    },
-                                    onHorizontalDrag = { change, dragAmount ->
-                                        change.consume()
-                                        vinylSwipeX += dragAmount
-                                    }
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        VinylRecord(
-                            isPlaying = isPlaying,
-                            coverUrl = song.coverUrl,
-                            size = 268.dp
-                        )
                     }
                 }
 
@@ -529,12 +501,12 @@ fun StudioDeck(
                     )
                 }
 
-                // Solid High-Contrast Play/Pause Button (Ivory/White on Matte Carbon)
+                // Solid High-Contrast Play/Pause Button (Hi-Fi Cyan)
                 Box(
                     modifier = Modifier
                         .size(66.dp)
                         .clip(CircleShape)
-                        .background(TextPrimary)
+                        .background(CyberCyan)
                         .clickable { onPlayPause() },
                     contentAlignment = Alignment.Center
                 ) {
