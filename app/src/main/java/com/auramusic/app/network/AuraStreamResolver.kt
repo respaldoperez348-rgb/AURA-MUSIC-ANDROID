@@ -37,9 +37,9 @@ object AuraStreamResolver {
     // que el prefetch y la reproducción compartan el mismo trabajo en curso.
     private val resolverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // Máximo 2 resoluciones de prefetch a la vez, para no competir con la canción que
+    // Máximo 3 resoluciones de prefetch a la vez, para no competir con la canción que
     // el usuario acaba de tocar (la reproducción principal nunca espera este semáforo).
-    private val prefetchGate = Semaphore(2)
+    private val prefetchGate = Semaphore(3)
 
     // Resoluciones en curso: videoId -> trabajo. Si el usuario toca una canción que ya se
     // está resolviendo por prefetch, espera ese mismo resultado en vez de empezar de cero.
@@ -47,7 +47,7 @@ object AuraStreamResolver {
 
     // Si el método rápido (Innertube) no responde en este tiempo, se lanza NewPipe en
     // paralelo y gana el que termine primero.
-    private const val HEDGE_DELAY_MS = 1500L
+    private const val HEDGE_DELAY_MS = 700L
 
     private val YT_ID_REGEX = Regex("^[a-zA-Z0-9_-]{11}$")
 
@@ -256,20 +256,28 @@ object AuraStreamResolver {
             val payload = JSONObject().apply {
                 put("context", JSONObject().apply {
                     put("client", JSONObject().apply {
-                        put("clientName", "ANDROID_VR")
-                        put("clientVersion", "1.60.19")
+                        put("clientName", "IOS")
+                        put("clientVersion", "20.03.02")
+                        put("deviceMake", "Apple")
+                        put("deviceModel", "iPhone16,2")
+                        put("osName", "iPhone")
+                        put("osVersion", "18.2.1.22C161")
                         put("hl", "en")
                         put("gl", "US")
                     })
                 })
                 put("videoId", videoId)
+                put("contentCheckOk", true)
+                put("racyCheckOk", true)
             }
 
             val req = Request.Builder()
-                .url("https://www.youtube.com/youtubei/v1/player")
+                .url("https://www.youtube.com/youtubei/v1/player?prettyPrint=false")
                 .post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
-                .header("User-Agent", "Mozilla/5.0")
+                .header("User-Agent", "com.google.ios.youtube/20.03.02 (iPhone16,2; U; CPU iOS 18_2_1 like Mac OS X;)")
                 .header("Content-Type", "application/json")
+                .header("X-YouTube-Client-Name", "5")
+                .header("X-YouTube-Client-Version", "20.03.02")
                 .build()
 
             httpClient.newCall(req).execute().use { res ->
@@ -280,21 +288,42 @@ object AuraStreamResolver {
 
                 val formats = json.optJSONObject("streamingData")?.optJSONArray("adaptiveFormats")
                 if (formats != null && formats.length() > 0) {
-                    var bestUrl: String? = null
-                    var bestBitrate = 0
+                    data class Candidate(val url: String, val bitrate: Int, val isMp4: Boolean)
+                    val candidates = mutableListOf<Candidate>()
+
                     for (i in 0 until formats.length()) {
                         val fmt = formats.getJSONObject(i)
                         val mime = fmt.optString("mimeType", "")
                         if (mime.startsWith("audio/")) {
                             val url = fmt.optString("url")
                             val bitrate = fmt.optInt("bitrate", 0)
-                            if (url.isNotBlank() && bitrate >= bestBitrate) {
-                                bestBitrate = bitrate
-                                bestUrl = url
+                            if (url.isNotBlank()) {
+                                candidates.add(
+                                    Candidate(
+                                        url = url,
+                                        bitrate = bitrate,
+                                        isMp4 = mime.startsWith("audio/mp4")
+                                    )
+                                )
                             }
                         }
                     }
-                    if (!bestUrl.isNullOrBlank()) return bestUrl
+
+                    if (candidates.isNotEmpty()) {
+                        val chosen = when {
+                            preferredQuality.contains("96") || preferredQuality.contains("Ahorro", ignoreCase = true) -> {
+                                candidates.minByOrNull { it.bitrate.takeIf { b -> b > 0 } ?: Int.MAX_VALUE }
+                            }
+                            preferredQuality.contains("160") || preferredQuality.contains("Estándar", ignoreCase = true) -> {
+                                candidates.minByOrNull { kotlin.math.abs(it.bitrate - 128_000) }
+                            }
+                            else -> {
+                                // Preferir audio/mp4 (AAC ~130kbps) o el mayor bitrate disponible para arranque instantáneo
+                                candidates.maxByOrNull { it.bitrate + (if (it.isMp4) 15_000 else 0) }
+                            }
+                        }
+                        if (chosen != null) return chosen.url
+                    }
                 }
             }
         } catch (e: Exception) {}

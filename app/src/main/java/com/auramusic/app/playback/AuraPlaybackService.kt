@@ -90,10 +90,10 @@ class AuraPlaybackService : MediaSessionService() {
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                5_000,
+                4_000,
                 30_000,
-                250,
-                500
+                150,
+                300
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()

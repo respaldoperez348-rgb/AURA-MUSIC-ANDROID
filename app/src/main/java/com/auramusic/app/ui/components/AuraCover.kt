@@ -2,7 +2,7 @@ package com.auramusic.app.ui.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -11,30 +11,63 @@ import coil.compose.AsyncImage
 import com.auramusic.app.data.model.Song
 
 private val YT_VIDEO_ID = Regex("^[a-zA-Z0-9_-]{11}$")
+private val YT_VI_PATH = Regex("/vi/([a-zA-Z0-9_-]{11})/")
+private val YT_WATCH_PARAM = Regex("[?&]v=([a-zA-Z0-9_-]{11})")
 
-/** Arregla URLs de portada que llegan incompletas o con http:// */
+/** Arregla URLs de portada que llegan incompletas o con parámetros temporales inestables. */
 internal fun normalizeCoverUrl(raw: String): String {
-    val url = raw.trim()
+    var url = raw.trim()
     if (url.isEmpty()) return ""
-    return when {
-        url.startsWith("//") -> "https:$url"
-        url.startsWith("http://") &&
-            (url.contains("ytimg.com") || url.contains("googleusercontent.com") || url.contains("ggpht.com")) ->
-            "https://" + url.removePrefix("http://")
-        else -> url
+    if (url.startsWith("//")) {
+        url = "https:$url"
+    } else if (url.startsWith("http://") &&
+        (url.contains("ytimg.com") || url.contains("googleusercontent.com") || url.contains("ggpht.com"))
+    ) {
+        url = "https://" + url.removePrefix("http://")
     }
+    if (url.contains("i.ytimg.com/vi/") && url.contains("?")) {
+        url = url.substringBefore("?")
+    }
+    return url
 }
 
-/** Miniatura estándar de YouTube, disponible para cualquier video aunque la portada oficial falle. */
-internal fun youtubeThumbFallback(song: Song): String {
-    if (song.isArtist || song.isAlbum) return ""
-    return if (YT_VIDEO_ID.matches(song.id)) "https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" else ""
+internal fun extractYoutubeVideoId(song: Song): String {
+    val cleanId = song.id.removePrefix("local_dl_").trim()
+    if (YT_VIDEO_ID.matches(cleanId)) return cleanId
+    YT_WATCH_PARAM.find(song.mediaUri)?.groupValues?.getOrNull(1)?.let { return it }
+    YT_VI_PATH.find(song.coverUrl)?.groupValues?.getOrNull(1)?.let { return it }
+    return ""
+}
+
+internal fun buildCoverCandidates(song: Song): List<String> {
+    val list = mutableListOf<String>()
+    val primary = normalizeCoverUrl(song.coverUrl)
+    if (primary.isNotBlank()) {
+        list.add(primary)
+        if ((primary.contains("googleusercontent.com") || primary.contains("ggpht.com")) &&
+            primary.contains("=w") && primary.contains("-h")
+        ) {
+            val compact = primary.replace(Regex("=w\\d+-h\\d+.*$"), "=w300-h300")
+            if (compact != primary) list.add(compact)
+        }
+    }
+
+    val ytId = extractYoutubeVideoId(song)
+    if (ytId.isNotBlank() && !song.isArtist) {
+        list.add("https://i.ytimg.com/vi/$ytId/hqdefault.jpg")
+        list.add("https://i.ytimg.com/vi/$ytId/mqdefault.jpg")
+        list.add("https://i.ytimg.com/vi/$ytId/0.jpg")
+    }
+
+    return list.distinct()
 }
 
 /**
- * Portada de una canción con respaldo:
- * 1) usa la portada recibida; 2) si falla al cargar, prueba la miniatura de YouTube;
- * 3) si tampoco hay, muestra [placeholder] (ícono) en lugar de un cuadro vacío.
+ * Portada de canción/álbum/artista con cadena de respaldo automática:
+ * 1) Portada principal normalizada
+ * 2) Variante compacta de Google CDN (si aplica)
+ * 3) Miniaturas oficiales de YouTube (hqdefault -> mqdefault -> 0.jpg)
+ * 4) Placeholder limpio si todas fallan
  */
 @Composable
 fun AuraCover(
@@ -43,24 +76,26 @@ fun AuraCover(
     contentScale: ContentScale = ContentScale.Crop,
     placeholder: @Composable () -> Unit
 ) {
-    val primary = remember(song.coverUrl) { normalizeCoverUrl(song.coverUrl) }
-    val fallback = remember(song.id, song.isArtist, song.isAlbum) { youtubeThumbFallback(song) }
-    var current by remember(primary, fallback) { mutableStateOf(primary.ifBlank { fallback }) }
-    var failed by remember(primary, fallback) { mutableStateOf(false) }
+    val candidates = remember(song.id, song.coverUrl, song.mediaUri, song.isArtist, song.isAlbum) {
+        buildCoverCandidates(song)
+    }
+    var index by remember(candidates) { mutableIntStateOf(0) }
 
-    if (current.isBlank() || failed) {
+    val currentUrl = candidates.getOrNull(index).orEmpty()
+
+    if (currentUrl.isBlank()) {
         placeholder()
     } else {
         AsyncImage(
-            model = current,
-            contentDescription = null,
+            model = currentUrl,
+            contentDescription = song.title,
             modifier = modifier,
             contentScale = contentScale,
             onError = {
-                if (fallback.isNotBlank() && current != fallback) {
-                    current = fallback
+                if (index + 1 < candidates.size) {
+                    index += 1
                 } else {
-                    failed = true
+                    index = candidates.size
                 }
             }
         )

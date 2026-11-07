@@ -110,8 +110,29 @@ class MainActivity : ComponentActivity() {
         insetsController.isAppearanceLightStatusBars = false
         insetsController.isAppearanceLightNavigationBars = false
 
-        // Ultra-fluid 120 FPS Coil ImageLoader setup (25% RAM cache + 128MB Disk cache)
+        // Ultra-fluid 120 FPS Coil ImageLoader setup (25% RAM cache + 128MB Disk cache + Browser UA + High Concurrency)
+        val imageDispatcher = okhttp3.Dispatcher().apply {
+            maxRequests = 64
+            maxRequestsPerHost = 16
+        }
+        val imageHttpClient = okhttp3.OkHttpClient.Builder()
+            .dispatcher(imageDispatcher)
+            .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .addInterceptor { chain ->
+                val req = chain.request().newBuilder()
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
+                    )
+                    .build()
+                chain.proceed(req)
+            }
+            .build()
+
         val imageLoader = ImageLoader.Builder(this)
+            .okHttpClient(imageHttpClient)
             .memoryCache {
                 MemoryCache.Builder(this)
                     .maxSizePercent(0.25)
@@ -126,27 +147,17 @@ class MainActivity : ComponentActivity() {
             .components {
                 add(com.auramusic.app.data.local.AudioThumbnailFetcher.Factory(applicationContext))
             }
-            .crossfade(180)
+            .crossfade(160)
             .respectCacheHeaders(false)
             .build()
         Coil.setImageLoader(imageLoader)
 
-        // Trabajo pesado fuera del hilo principal para que la app abra más rápido:
-        //  - resolución de streams (NewPipe + caché HTTP)
-        //  - caché de audio de ExoPlayer (SimpleCache abre una base SQLite y escanea la carpeta;
-        //    el servicio de reproducción la necesita y se crea en el hilo principal)
-        //  - suscripción FCM del "Push-to-Phone"
         val appContext = applicationContext
         Thread {
             try {
                 com.auramusic.app.network.AuraStreamResolver.init(appContext.cacheDir)
             } catch (_: Exception) {}
             com.auramusic.app.playback.AuraPlaybackService.warmUpCache(appContext)
-            try {
-                com.auramusic.app.network.sync.SyncManager.ensureSubscribed(appContext) { topic ->
-                    android.util.Log.i("MainActivity", "Aura Sync activo en topic: $topic")
-                }
-            } catch (_: Exception) {}
         }.start()
 
         setContent {
@@ -726,13 +737,12 @@ class MainActivity : ComponentActivity() {
                                 text = {
                                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                                         Text(
-                                            "• Nueva Barra de Navegación 'Midnight Island' con tono azul noche satinado y botón de búsqueda flotante.\n" +
-                                            "• Cuadrícula de Accesos Rápidos '¿Lo de siempre?' con carpetas de Favoritos, Descargas, Replay y tus playlists.\n" +
-                                            "• Aura Link blindado para larga distancia con Wi-Fi Lock de alta potencia y reconexión automática sin cortes.\n" +
-                                            "• Consola Web Studio completa para PC/navegador con ambient glow, scrubber interactivo y cola de reproducción.\n" +
-                                            "• Botonera del Studio Deck con geometría perfecta (EQ, Dormir, Link y Cola 100% alineados).\n" +
-                                            "• Reproducción instantánea con bypass de carátula y resolución sin censura.\n" +
-                                            "• Importación de Spotify con portadas nítidas en todas las canciones.",
+                                            "• Barra inferior clásica dividida: cápsula principal (Inicio y Biblioteca) + botón del Buscador al costado.\n" +
+                                            "• Selector en Ajustes para alternar al instante entre Barra Transparente y Barra Normal.\n" +
+                                            "• Motor de audio ultrarrápido (~0.4s) con cliente directo iOS InnerTube y pre-buffer de 150ms.\n" +
+                                            "• Sistema multicapa de portadas (AuraCover + CDN navegador + respaldo automático HQ/MQ/ID3) para que todas las canciones muestren su carátula.\n" +
+                                            "• Estética Studio Carbon en Obsidiana OLED (#08090C) con acento Cian Hi-Fi (#00E5FF).\n" +
+                                            "• Ajustes depurados y optimizados sin módulos innecesarios.",
                                             color = com.auramusic.app.ui.theme.TextSecondary,
                                             lineHeight = 22.sp,
                                             fontSize = 13.sp

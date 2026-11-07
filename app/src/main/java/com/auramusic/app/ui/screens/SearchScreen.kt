@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -442,7 +443,10 @@ fun SearchScreen(
                         )
                     }
 
-                    items(searchResults) { song ->
+                    itemsIndexed(
+                        items = searchResults,
+                        key = { index, song -> "${index}_${song.id}_${song.title}" }
+                    ) { _, song ->
                         val isCurrent = song.id == currentSong.id
                         SearchResultRow(
                             song = song,

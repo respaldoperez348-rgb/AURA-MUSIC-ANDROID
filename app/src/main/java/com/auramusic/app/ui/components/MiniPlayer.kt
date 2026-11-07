@@ -144,14 +144,11 @@ fun MiniPlayer(
                         .background(CyberSurfaceActive),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (song.coverUrl.isNotBlank()) {
-                        AsyncImage(
-                            model = song.coverUrl,
-                            contentDescription = song.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
+                    AuraCover(
+                        song = song,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
                         Icon(
                             imageVector = Icons.Default.MusicNote,
                             contentDescription = null,

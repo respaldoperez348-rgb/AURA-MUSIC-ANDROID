@@ -228,13 +228,48 @@ object YouTubeMusicEngine {
                         titleRuns.getJSONObject(0).optJSONObject("navigationEndpoint")
                     } else null
                     val browseId = navEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId") ?: ""
+                    var cardVideoId = navEndpoint?.optJSONObject("watchEndpoint")?.optString("videoId") ?: ""
+                    if (cardVideoId.isBlank()) {
+                        cardVideoId = cardShelf.optJSONObject("onTap")?.optJSONObject("watchEndpoint")?.optString("videoId") ?: ""
+                    }
+                    if (cardVideoId.isBlank()) {
+                        val buttons = cardShelf.optJSONArray("buttons")
+                        if (buttons != null) {
+                            for (b in 0 until buttons.length()) {
+                                val vid = buttons.optJSONObject(b)?.optJSONObject("buttonRenderer")
+                                    ?.optJSONObject("command")?.optJSONObject("watchEndpoint")?.optString("videoId") ?: ""
+                                if (vid.length == 11) {
+                                    cardVideoId = vid
+                                    break
+                                }
+                            }
+                        }
+                    }
 
                     val cardThumbs = cardShelf.optJSONObject("thumbnail")?.optJSONObject("musicThumbnailRenderer")
                         ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+                        ?: cardShelf.optJSONObject("thumbnail")?.optJSONObject("croppedSquareThumbnailRenderer")
+                            ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
                     var cardCover = if (cardThumbs != null && cardThumbs.length() > 0) {
                         cardThumbs.getJSONObject(cardThumbs.length() - 1).optString("url")
                     } else ""
                     if (cardCover.startsWith("//")) cardCover = "https:$cardCover"
+                    if (cardCover.contains("=w") && cardCover.contains("-h")) {
+                        cardCover = cardCover.replace(Regex("=w\\d+-h\\d+"), "=w360-h360")
+                    } else if (cardCover.contains("i.ytimg.com/vi/") && cardCover.contains("?")) {
+                        cardCover = cardCover.substringBefore("?")
+                    }
+                    if (cardCover.isBlank() && cardVideoId.length == 11) {
+                        cardCover = "https://i.ytimg.com/vi/$cardVideoId/hqdefault.jpg"
+                    }
+
+                    val fullSubText = buildString {
+                        if (subRuns != null) {
+                            for (r in 0 until subRuns.length()) {
+                                append(subRuns.optJSONObject(r)?.optString("text") ?: "")
+                            }
+                        }
+                    }
 
                     val isArtist = browseId.startsWith("UC") || cardSub.contains("artist", ignoreCase = true) || cardSub.contains("artista", ignoreCase = true)
                     val isAlbum = browseId.startsWith("MPREb_") || cardSub.contains("álbum", ignoreCase = true) || cardSub.contains("album", ignoreCase = true)
@@ -265,6 +300,45 @@ object YouTubeMusicEngine {
                                     browseId = browseId
                                 )
                             )
+                        } else if (cardVideoId.length == 11) {
+                            // Top Result is a Song or Music Video
+                            var cardArtist = "Artista"
+                            var cardDurSec: Long? = null
+                            if (subRuns != null) {
+                                for (r in 0 until subRuns.length()) {
+                                    val txt = subRuns.optJSONObject(r)?.optString("text")?.trim() ?: continue
+                                    if (txt.isEmpty() || txt == "•" || txt == "&" || txt == ",") continue
+                                    val dur = parseDurationSeconds(txt)
+                                    if (dur != null) {
+                                        cardDurSec = dur
+                                        continue
+                                    }
+                                    if (cardArtist == "Artista" &&
+                                        !txt.equals("Canción", ignoreCase = true) &&
+                                        !txt.equals("Song", ignoreCase = true) &&
+                                        !txt.equals("Vídeo", ignoreCase = true) &&
+                                        !txt.equals("Video", ignoreCase = true) &&
+                                        !txt.contains("visualizaciones", ignoreCase = true) &&
+                                        !txt.contains("reproducciones", ignoreCase = true) &&
+                                        !txt.contains("views", ignoreCase = true) &&
+                                        !txt.contains("plays", ignoreCase = true)
+                                    ) {
+                                        cardArtist = txt
+                                    }
+                                }
+                            }
+                            if (isValidMusicTrack(cardTitle, cardArtist, fullSubText, cardDurSec)) {
+                                results.add(
+                                    Song(
+                                        id = cardVideoId,
+                                        title = cardTitle,
+                                        artist = cardArtist,
+                                        coverUrl = cardCover.ifBlank { "https://i.ytimg.com/vi/$cardVideoId/hqdefault.jpg" },
+                                        durationMs = (cardDurSec ?: 210L) * 1000L,
+                                        mediaUri = "https://www.youtube.com/watch?v=$cardVideoId"
+                                    )
+                                )
+                            }
                         }
                     }
 
@@ -273,7 +347,7 @@ object YouTubeMusicEngine {
                         for (c in 0 until cardContents.length()) {
                             val cItem = cardContents.optJSONObject(c) ?: continue
                             val cCol = cItem.optJSONObject("musicResponsiveListItemRenderer") ?: continue
-                            val cSong = extractSongFromListItem(cCol)
+                            val cSong = extractSongFromListItem(cCol, cardCover)
                             if (cSong != null) results.add(cSong)
                         }
                     }
@@ -373,7 +447,7 @@ object YouTubeMusicEngine {
         return true
     }
 
-    private fun extractSongFromListItem(col: JSONObject): Song? {
+    private fun extractSongFromListItem(col: JSONObject, fallbackCover: String = ""): Song? {
         try {
             val flexColumns = col.optJSONArray("flexColumns") ?: return null
             if (flexColumns.length() < 2) return null
@@ -502,10 +576,16 @@ object YouTubeMusicEngine {
 
             // 3. Thumbnail
             var thumb = ""
-            val thumbnails = col.optJSONObject("thumbnail")
+            val thumbContainer = col.optJSONObject("thumbnail")
+            val thumbnails = thumbContainer
                 ?.optJSONObject("musicThumbnailRenderer")
                 ?.optJSONObject("thumbnail")
                 ?.optJSONArray("thumbnails")
+                ?: thumbContainer
+                    ?.optJSONObject("croppedSquareThumbnailRenderer")
+                    ?.optJSONObject("thumbnail")
+                    ?.optJSONArray("thumbnails")
+                ?: thumbContainer?.optJSONArray("thumbnails")
 
             if (thumbnails != null && thumbnails.length() > 0) {
                 thumb = thumbnails.getJSONObject(thumbnails.length() - 1).optString("url")
@@ -515,7 +595,18 @@ object YouTubeMusicEngine {
                 thumb = "https:$thumb"
             }
             if (thumb.contains("=w") && thumb.contains("-h")) {
-                thumb = thumb.replace(Regex("=w\\d+-h\\d+"), "=w544-h544")
+                thumb = thumb.replace(Regex("=w\\d+-h\\d+"), "=w360-h360")
+            } else if (thumb.contains("=s1200")) {
+                thumb = thumb.replace("=s1200", "=s360")
+            } else if (thumb.contains("i.ytimg.com/vi/") && videoId.length == 11) {
+                thumb = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+            }
+
+            if (thumb.isBlank() && videoId.length == 11) {
+                thumb = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+            }
+            if (thumb.isBlank() && fallbackCover.isNotBlank()) {
+                thumb = fallbackCover
             }
 
             if (isAlbumItem) {

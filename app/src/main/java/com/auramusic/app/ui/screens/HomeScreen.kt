@@ -56,6 +56,7 @@ import com.auramusic.app.data.model.Song
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.auramusic.app.ui.components.AuraCover
 import com.auramusic.app.ui.components.AuraIcon
 import com.auramusic.app.ui.theme.CyberBackgroundDark
 import com.auramusic.app.ui.theme.CyberCyan
@@ -144,41 +145,20 @@ fun HomeScreen(
                     }
                 }
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(CyberSurfaceCard)
+                        .clickable { onOpenSettings() },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(CyberSurfaceCard)
-                            .clickable { onOpenAuraLink() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Devices,
-                            contentDescription = "Aura Link",
-                            tint = CyberCyan,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(CyberSurfaceCard)
-                            .clickable { onOpenSettings() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Tune,
-                            contentDescription = "Ajustes",
-                            tint = TextPrimary,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Outlined.Tune,
+                        contentDescription = "Ajustes",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(19.dp)
+                    )
                 }
             }
         }
@@ -483,14 +463,11 @@ private fun QuickPickCard(
                 .background(CyberSurfaceCard),
             contentAlignment = Alignment.Center
         ) {
-            if (song.coverUrl.isNotBlank()) {
-                AsyncImage(
-                    model = song.coverUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
+            AuraCover(
+                song = song,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            ) {
                 Icon(
                     imageVector = Icons.Default.MusicNote,
                     contentDescription = null,
@@ -573,14 +550,11 @@ private fun ChartTrackRow(
                 .background(CyberSurfaceCard),
             contentAlignment = Alignment.Center
         ) {
-            if (song.coverUrl.isNotBlank()) {
-                AsyncImage(
-                    model = song.coverUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
+            AuraCover(
+                song = song,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            ) {
                 Icon(
                     imageVector = Icons.Default.MusicNote,
                     contentDescription = null,

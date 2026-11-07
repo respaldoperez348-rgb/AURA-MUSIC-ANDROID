@@ -539,6 +539,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                                 queue = if (it.queue == fallbackTracks) freshTracks else it.queue
                             )
                         }
+                        freshTracks.filter { !it.isArtist && !it.isAlbum }.take(3).forEach { s ->
+                            if (s.id.isNotBlank() && !s.id.startsWith("local_")) {
+                                AuraStreamResolver.prefetchAudioStream(s.id, "${s.title} ${s.artist}")
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     // Offline: Curated offline catalog remains active smoothly
@@ -846,8 +851,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
                 val localMatches = localDeferred.await()
                 val remoteTracks = remoteDeferred.await()
-                val combined: List<Song> = if (localMatches.isNotEmpty()) {
-                    (localMatches + remoteTracks).distinctBy { s: Song -> s.id }
+                val firstRemoteCover = remoteTracks.firstOrNull { !it.isArtist && it.coverUrl.startsWith("http") }?.coverUrl.orEmpty()
+                val enrichedLocals = localMatches.map { localSong ->
+                    if (localSong.coverUrl.isBlank() || localSong.coverUrl.startsWith("content://")) {
+                        val matchedRemote = remoteTracks.firstOrNull {
+                            it.coverUrl.startsWith("http") &&
+                                (it.title.contains(localSong.title, ignoreCase = true) ||
+                                    localSong.title.contains(it.title, ignoreCase = true))
+                        }
+                        val backupCover = matchedRemote?.coverUrl ?: firstRemoteCover
+                        if (backupCover.isNotBlank() && localSong.coverUrl.isBlank()) {
+                            localSong.copy(coverUrl = backupCover)
+                        } else {
+                            localSong
+                        }
+                    } else {
+                        localSong
+                    }
+                }
+                val combined: List<Song> = if (enrichedLocals.isNotEmpty()) {
+                    (enrichedLocals + remoteTracks).distinctBy { s: Song -> s.id }
                 } else {
                     remoteTracks.distinctBy { s: Song -> s.id }
                 }
@@ -858,12 +881,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
 
-                // Precargar las portadas de los primeros resultados para que aparezcan al instante
-                preloadCovers(combined.take(14))
-
-                // Ultra-responsive prefetch: resolve stream for top 2 search results in background
-                combined.take(2).forEach { s ->
-                    if (!s.isArtist && !s.isAlbum && s.id.isNotBlank() && !s.id.startsWith("local_")) {
+                // Ultra-responsive prefetch: resolve stream for top 3 playable search results in background
+                combined.filter { !it.isArtist && !it.isAlbum }.take(3).forEach { s ->
+                    if (s.id.isNotBlank() && !s.id.startsWith("local_")) {
                         AuraStreamResolver.prefetchAudioStream(s.id, "${s.title} ${s.artist}")
                     }
                 }
@@ -1963,20 +1983,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val prefs = getApplication<Application>().getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)
         prefs.edit().putString("dock_style", style).apply()
         _uiState.update { current ->
-            val updatedTheme = if (style.equals("Midnight Island", ignoreCase = true)) {
-                if (current.currentTheme == "Studio Carbon") {
-                    prefs.edit().putString("palette", "Midnight Island").apply()
-                    "Midnight Island"
-                } else current.currentTheme
-            } else {
-                if (current.currentTheme == "Midnight Island") {
-                    prefs.edit().putString("palette", "Studio Carbon").apply()
-                    "Studio Carbon"
-                } else current.currentTheme
-            }
-            current.copy(dockStyle = style, currentTheme = updatedTheme)
+            current.copy(dockStyle = style)
         }
-        showToast("Estilo: $style")
+        val label = if (style.equals("Midnight Island", ignoreCase = true) || style.equals("Transparente", ignoreCase = true)) {
+            "Barra Transparente activada"
+        } else {
+            "Barra Normal activada"
+        }
+        showToast("✓ $label")
     }
 
     fun setAppLanguage(language: String) {
