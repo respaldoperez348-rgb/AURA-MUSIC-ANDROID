@@ -65,6 +65,7 @@ class AuraPlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private var rawPlayer: ExoPlayer? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var serviceConsecutiveErrors = 0
 
     private val noisyReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
@@ -92,8 +93,8 @@ class AuraPlaybackService : MediaSessionService() {
             .setBufferDurationsMs(
                 4_000,
                 30_000,
-                150,
-                300
+                100,
+                200
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
@@ -200,7 +201,9 @@ class AuraPlaybackService : MediaSessionService() {
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED) {
+                if (playbackState == Player.STATE_READY) {
+                    serviceConsecutiveErrors = 0
+                } else if (playbackState == Player.STATE_ENDED) {
                     val wasEndOfTrack = SleepTimerManager.timerState.value.isEndOfTrack
                     SleepTimerManager.notifyTrackEnded()
                     if (wasEndOfTrack) return
@@ -217,7 +220,8 @@ class AuraPlaybackService : MediaSessionService() {
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                if (AuraPlaybackBridge.onNextRequested == null) {
+                if (AuraPlaybackBridge.onNextRequested == null && serviceConsecutiveErrors < 1) {
+                    serviceConsecutiveErrors++
                     playQueueOffset(1)
                 }
             }

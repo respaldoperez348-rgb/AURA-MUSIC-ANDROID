@@ -14,10 +14,13 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
-import org.schabi.newpipe.extractor.stream.StreamInfo
+import org.schabi.newpipe.extractor.localization.Localization
+import org.schabi.newpipe.extractor.services.youtube.YoutubeJavaScriptPlayerManager
+import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -59,8 +62,25 @@ object AuraStreamResolver {
     @Volatile
     var preferredQuality: String = "Hi-Res (320 kbps)"
 
+    @Volatile
+    private var cachedVisitorData: String? = null
+
+    @Volatile
+    private var cachedVisitorTimestampMs: Long = 0L
+
+    private const val VISITOR_TTL_MS = 20 * 60 * 1000L
+
     fun clearCache() {
         streamCache.clear()
+    }
+
+    fun invalidate(videoIdOrUrl: String) {
+        val key = videoIdOrUrl.substringAfter("v=").substringBefore("&").substringAfter("youtu.be/").substringBefore("?").trim()
+        streamCache.remove(videoIdOrUrl)
+        streamCache.remove(key)
+        cachedVisitorData = null
+        cachedVisitorTimestampMs = 0L
+        AuraDownloaderImpl.invalidateVisitorCache()
     }
 
     @Synchronized
@@ -71,6 +91,58 @@ object AuraStreamResolver {
         if (!isInitialized) {
             NewPipe.init(AuraDownloaderImpl.instance)
             isInitialized = true
+            // Precalentar visitorData y conexión HTTP/2 a youtubei.googleapis.com en segundo plano
+            resolverScope.launch {
+                try {
+                    getOrFetchVisitorData()
+                    resolveViaInnertube("4D7u5KF7SP8")
+                } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    private fun getOrFetchVisitorData(): String? {
+        val current = cachedVisitorData
+        if (!current.isNullOrBlank() && (System.currentTimeMillis() - cachedVisitorTimestampMs) < VISITOR_TTL_MS) {
+            return current
+        }
+        return try {
+            val ua = YoutubeParsingHelper.getVisionOsUserAgent(Localization.DEFAULT)
+            val payload = JSONObject().apply {
+                put("context", JSONObject().apply {
+                    put("client", JSONObject().apply {
+                        put("clientName", "VISIONOS")
+                        put("clientVersion", "1.02")
+                        put("clientScreen", "WATCH")
+                        put("platform", "MOBILE")
+                        put("deviceMake", "Apple")
+                        put("deviceModel", "RealityDevice14,1")
+                        put("osName", "visionOS")
+                        put("osVersion", "25.6.0.23O471")
+                        put("hl", "en-GB")
+                        put("gl", "GB")
+                        put("utcOffsetMinutes", 0)
+                    })
+                })
+            }
+            val req = Request.Builder()
+                .url("https://www.youtube.com/youtubei/v1/visitor_id?prettyPrint=false")
+                .post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .header("User-Agent", ua)
+                .header("Content-Type", "application/json")
+                .header("X-Goog-Api-Format-Version", "2")
+                .build()
+            httpClient.newCall(req).execute().use { res ->
+                val body = res.body?.string() ?: return null
+                val vd = JSONObject(body).optJSONObject("responseContext")?.optString("visitorData")
+                if (!vd.isNullOrBlank()) {
+                    cachedVisitorData = vd
+                    cachedVisitorTimestampMs = System.currentTimeMillis()
+                }
+                vd
+            }
+        } catch (_: Throwable) {
+            null
         }
     }
 
@@ -215,9 +287,10 @@ object AuraStreamResolver {
     private fun resolveViaNewPipe(actualId: String): String? {
         try {
             val url = "https://www.youtube.com/watch?v=$actualId"
-            val info = StreamInfo.getInfo(ServiceList.YouTube, url)
+            val extractor = ServiceList.YouTube.getStreamExtractor(url)
+            extractor.fetchPage()
 
-            val audioStreams = info.audioStreams
+            val audioStreams = extractor.audioStreams
             if (!audioStreams.isNullOrEmpty()) {
                 val chosen = when {
                     preferredQuality.contains("96") || preferredQuality.contains("Ahorro", ignoreCase = true) -> {
@@ -239,7 +312,7 @@ object AuraStreamResolver {
                 }
             }
 
-            val videoStreams = info.videoStreams
+            val videoStreams = extractor.videoStreams
             if (!videoStreams.isNullOrEmpty()) {
                 val videoWithAudio = videoStreams.firstOrNull { !it.content.isNullOrBlank() }
                 if (videoWithAudio != null) {
@@ -253,31 +326,49 @@ object AuraStreamResolver {
 
     private fun resolveViaInnertube(videoId: String): String? {
         try {
+            val visitorData = getOrFetchVisitorData()
+            val cpn = YoutubeParsingHelper.generateContentPlaybackNonce()
+            val tParam = YoutubeParsingHelper.generateTParameter()
+            val ua = YoutubeParsingHelper.getVisionOsUserAgent(Localization.DEFAULT)
+
             val payload = JSONObject().apply {
                 put("context", JSONObject().apply {
                     put("client", JSONObject().apply {
-                        put("clientName", "IOS")
-                        put("clientVersion", "20.03.02")
+                        put("clientName", "VISIONOS")
+                        put("clientVersion", "1.02")
+                        put("clientScreen", "WATCH")
+                        put("platform", "MOBILE")
+                        if (!visitorData.isNullOrBlank()) {
+                            put("visitorData", visitorData)
+                        }
                         put("deviceMake", "Apple")
-                        put("deviceModel", "iPhone16,2")
-                        put("osName", "iPhone")
-                        put("osVersion", "18.2.1.22C161")
-                        put("hl", "en")
-                        put("gl", "US")
+                        put("deviceModel", "RealityDevice14,1")
+                        put("osName", "visionOS")
+                        put("osVersion", "25.6.0.23O471")
+                        put("hl", "en-GB")
+                        put("gl", "GB")
+                        put("utcOffsetMinutes", 0)
+                    })
+                    put("request", JSONObject().apply {
+                        put("internalExperimentFlags", JSONArray())
+                        put("useSsl", true)
+                    })
+                    put("user", JSONObject().apply {
+                        put("lockedSafetyMode", false)
                     })
                 })
                 put("videoId", videoId)
+                put("cpn", cpn)
                 put("contentCheckOk", true)
                 put("racyCheckOk", true)
             }
 
             val req = Request.Builder()
-                .url("https://www.youtube.com/youtubei/v1/player?prettyPrint=false")
+                .url("https://youtubei.googleapis.com/youtubei/v1/player?prettyPrint=false&t=$tParam&id=$videoId")
                 .post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
-                .header("User-Agent", "com.google.ios.youtube/20.03.02 (iPhone16,2; U; CPU iOS 18_2_1 like Mac OS X;)")
+                .header("User-Agent", ua)
                 .header("Content-Type", "application/json")
-                .header("X-YouTube-Client-Name", "5")
-                .header("X-YouTube-Client-Version", "20.03.02")
+                .header("X-Goog-Api-Format-Version", "2")
                 .build()
 
             httpClient.newCall(req).execute().use { res ->
@@ -295,12 +386,18 @@ object AuraStreamResolver {
                         val fmt = formats.getJSONObject(i)
                         val mime = fmt.optString("mimeType", "")
                         if (mime.startsWith("audio/")) {
-                            val url = fmt.optString("url")
+                            val rawUrl = fmt.optString("url", "")
                             val bitrate = fmt.optInt("bitrate", 0)
-                            if (url.isNotBlank()) {
+                            if (rawUrl.isNotBlank()) {
+                                val deobfUrl = try {
+                                    YoutubeJavaScriptPlayerManager.getUrlWithThrottlingParameterDeobfuscated(videoId, rawUrl)
+                                } catch (_: Throwable) {
+                                    rawUrl
+                                }
+                                val finalUrl = if (deobfUrl.contains("cpn=")) deobfUrl else "$deobfUrl&cpn=$cpn"
                                 candidates.add(
                                     Candidate(
-                                        url = url,
+                                        url = finalUrl,
                                         bitrate = bitrate,
                                         isMp4 = mime.startsWith("audio/mp4")
                                     )
@@ -318,15 +415,15 @@ object AuraStreamResolver {
                                 candidates.minByOrNull { kotlin.math.abs(it.bitrate - 128_000) }
                             }
                             else -> {
-                                // Preferir audio/mp4 (AAC ~130kbps) o el mayor bitrate disponible para arranque instantáneo
-                                candidates.maxByOrNull { it.bitrate + (if (it.isMp4) 15_000 else 0) }
+                                // Preferir audio/mp4 (AAC M4A) para que ExoPlayer decodifique el primer frame en milisegundos
+                                candidates.maxByOrNull { it.bitrate + (if (it.isMp4) 50_000 else 0) }
                             }
                         }
                         if (chosen != null) return chosen.url
                     }
                 }
             }
-        } catch (e: Exception) {}
+        } catch (_: Throwable) {}
         return null
     }
 

@@ -22,6 +22,19 @@ class AuraDownloaderImpl private constructor(private val client: OkHttpClient) :
         @Volatile
         private var currentInstance: AuraDownloaderImpl? = null
 
+        @Volatile
+        private var cachedVisitorResponse: Response? = null
+
+        @Volatile
+        private var cachedVisitorTimestampMs: Long = 0L
+
+        private const val VISITOR_CACHE_TTL_MS = 20 * 60 * 1000L
+
+        fun invalidateVisitorCache() {
+            cachedVisitorResponse = null
+            cachedVisitorTimestampMs = 0L
+        }
+
         fun initCache(cacheDir: java.io.File) {
             synchronized(this) {
                 if (sharedClient?.cache == null) {
@@ -61,6 +74,12 @@ class AuraDownloaderImpl private constructor(private val client: OkHttpClient) :
     override fun execute(request: Request): Response {
         val httpMethod = request.httpMethod()
         val url = request.url()
+        if (url.contains("/visitor_id")) {
+            val cached = cachedVisitorResponse
+            if (cached != null && (System.currentTimeMillis() - cachedVisitorTimestampMs) < VISITOR_CACHE_TTL_MS) {
+                return cached
+            }
+        }
         val headers = request.headers()
         val dataToSend = request.dataToSend()
 
@@ -102,12 +121,17 @@ class AuraDownloaderImpl private constructor(private val client: OkHttpClient) :
             responseHeaders[name] = response.headers.values(name)
         }
 
-        return Response(
+        val resultResponse = Response(
             response.code,
             response.message,
             responseHeaders,
             responseBody,
             response.request.url.toString()
         )
+        if (url.contains("/visitor_id") && response.code == 200 && responseBody.isNotBlank()) {
+            cachedVisitorResponse = resultResponse
+            cachedVisitorTimestampMs = System.currentTimeMillis()
+        }
+        return resultResponse
     }
 }

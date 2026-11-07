@@ -169,6 +169,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var radioQueueJob: Job? = null
     private var unshuffledQueue: List<Song> = emptyList()
     private var isTransitioning = false
+    private var retriedSongId: String? = null
+    private var consecutivePlaybackErrors = 0
 
     init {
         // NewPipe + caché HTTP en un hilo de fondo: antes bloqueaba el hilo principal al abrir la app
@@ -643,7 +645,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                isTransitioning = false
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && _uiState.value.sleepTimer.isEndOfTrack) {
                     SleepTimerManager.notifyTrackEnded()
                 }
@@ -652,13 +653,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         controller.removeMediaItems(0, controller.currentMediaItemIndex)
                     }
                 }
-                syncStateFromController()
-                prefetchNextTrackIntoPlayer()
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
+                    isTransitioning = false
+                    syncStateFromController()
+                    prefetchNextTrackIntoPlayer()
+                }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
                     isTransitioning = false
+                    consecutivePlaybackErrors = 0
+                    retriedSongId = null
                     val duration = mediaController?.duration?.takeIf { it > 0 } ?: _uiState.value.durationMs
                     _uiState.update { it.copy(durationMs = duration, isBuffering = false) }
                 } else if (playbackState == Player.STATE_BUFFERING) {
@@ -680,9 +686,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             override fun onPlayerError(error: PlaybackException) {
                 android.util.Log.e("PlayerViewModel", "Playback error: ${error.message}", error)
-                if (!isTransitioning && _uiState.value.queue.size > 1) {
+                val current = _uiState.value.currentSong
+                if (current.id.isNotBlank() && retriedSongId != current.id) {
+                    retriedSongId = current.id
+                    AuraStreamResolver.invalidate(current.id)
+                    playSong(current, _uiState.value.queue, buildSmartRadio = false)
+                } else if (!isTransitioning && consecutivePlaybackErrors < 1 && _uiState.value.queue.size > 1) {
+                    consecutivePlaybackErrors++
                     isTransitioning = true
                     next()
+                } else {
+                    isTransitioning = false
+                    _uiState.update { it.copy(isPlaying = false, isBuffering = false, toastMessage = "Error al reproducir esta canción") }
                 }
             }
         })
@@ -1133,10 +1148,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             if (playableUri.isNullOrBlank() || playableUri.startsWith("https://www.youtube.com")) {
                 android.util.Log.e("PlayerViewModel", "Playable audio stream could not be resolved for: ${song.title} (${song.id})")
                 val q = _uiState.value.queue.filter { !it.isArtist && !it.isAlbum }
-                if (q.size > 1) {
+                if (consecutivePlaybackErrors < 1 && q.size > 1) {
+                    consecutivePlaybackErrors++
                     next()
                 } else {
-                    _uiState.update { it.copy(isPlaying = false, toastMessage = "No se pudo reproducir este audio") }
+                    consecutivePlaybackErrors = 0
+                    isTransitioning = false
+                    _uiState.update { it.copy(isPlaying = false, isBuffering = false, toastMessage = "No se pudo reproducir este audio") }
                 }
                 return@launch
             }
@@ -1174,27 +1192,35 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 play()
             }
 
-            // Ya suena: ahora sí se pueden lanzar letras y radio sin quitarle red a la canción actual
-            startSecondaryWork()
+            // Dejar los primeros 500ms de red exclusivos para el buffer inicial de ExoPlayer
+            viewModelScope.launch {
+                delay(500L)
+                if (_uiState.value.currentSong.id != song.id) return@launch
+                startSecondaryWork()
 
-            // Async artwork byte load for system lockscreen without delaying audio
-            viewModelScope.launch(Dispatchers.IO) {
-                try {
-                    val bytes = fetchCoverBytes(song.coverUrl)
-                    if (bytes != null && _uiState.value.currentSong.id == song.id) {
-                        val enrichedMeta = metaBuilder.setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()
-                        val updatedItem = MediaItem.Builder()
-                            .setUri(mediaUri)
-                            .setMediaId(song.id)
-                            .setMediaMetadata(enrichedMeta)
-                            .build()
-                        withContext(Dispatchers.Main) {
-                            if (mediaController?.currentMediaItem?.mediaId == song.id) {
-                                mediaController?.replaceMediaItem(mediaController?.currentMediaItemIndex ?: 0, updatedItem)
+                if (_uiState.value.gaplessEnabled) {
+                    prefetchNextTrackIntoPlayer()
+                }
+
+                // Async artwork byte load for system lockscreen without delaying audio
+                launch(Dispatchers.IO) {
+                    try {
+                        val bytes = fetchCoverBytes(song.coverUrl)
+                        if (bytes != null && _uiState.value.currentSong.id == song.id) {
+                            val enrichedMeta = metaBuilder.setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()
+                            val updatedItem = MediaItem.Builder()
+                                .setUri(mediaUri)
+                                .setMediaId(song.id)
+                                .setMediaMetadata(enrichedMeta)
+                                .build()
+                            withContext(Dispatchers.Main) {
+                                if (mediaController?.currentMediaItem?.mediaId == song.id) {
+                                    mediaController?.replaceMediaItem(mediaController?.currentMediaItemIndex ?: 0, updatedItem)
+                                }
                             }
                         }
-                    }
-                } catch (e: Exception) {}
+                    } catch (_: Exception) {}
+                }
             }
 
             if (!_uiState.value.pauseHistory) {
@@ -1215,11 +1241,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 .putString("last_song_media_uri", song.mediaUri)
                 .putLong("last_position_ms", 0L)
                 .apply()
-
-            // 5. Seamlessly prefetch & enqueue NEXT song into ExoPlayer queue for gapless auto-advance
-            if (_uiState.value.gaplessEnabled) {
-                prefetchNextTrackIntoPlayer()
-            }
         }
     }
 
