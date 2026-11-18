@@ -1,0 +1,38 @@
+<resources>
+    <!-- Brand AURA primary (Violet) -->
+    <color name="aura_primary">#7C3AED</color>
+    <color name="ic_launcher_background">#7C3AED</color>
+    <color name="ic_launcher_bg_violet">#7C3AED</color>
+    <color name="ic_launcher_bg_black">#0F1117</color>
+    <color name="ic_launcher_bg_white">#F8FAFC</color>
+    <color name="ic_launcher_bg_cyan">#0D9488</color>
+    <color name="ic_launcher_bg_orange">#F97316</color>
+    <color name="ic_launcher_bg_gold">#D4AF37</color>
+
+    <color name="aura_primary_variant">#6D28D9</color>
+    <color name="aura_on_primary">#FFFFFF</color>
+
+    <!-- Accent palette -->
+    <color name="accent_violet">#7C3AED</color>
+    <color name="accent_blue">#2563EB</color>
+    <color name="accent_teal">#0D9488</color>
+    <color name="accent_orange">#F97316</color>
+    <color name="accent_crimson">#E11D48</color>
+    <color name="accent_graphite">#1F2937</color>
+
+    <!-- Light Theme -->
+    <color name="light_background">#F5F5F7</color>
+    <color name="light_surface">#FFFFFF</color>
+    <color name="light_surface_subtle">#F1F1F5</color>
+    <color name="light_on_background">#1A1A1E</color>
+    <color name="light_on_surface">#1A1A1E</color>
+    <color name="light_text_secondary">#737380</color>
+
+    <!-- Dark Theme -->
+    <color name="dark_background">#080B11</color>
+    <color name="dark_surface">#0E141E</color>
+    <color name="dark_surface_subtle">#182232</color>
+    <color name="dark_on_background">#F8FAFC</color>
+    <color name="dark_on_surface">#F8FAFC</color>
+    <color name="dark_text_secondary">#94A3B8</color>
+</resources>

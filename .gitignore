@@ -1,0 +1,30 @@
+# Gradle & Android Studio
+.gradle/
+.kotlin/
+.idea/
+.vscode/
+*.iml
+build/
+app/build/
+innertube/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local configuration & secrets
+local.properties
+*.keystore
+*.jks
+*firebase-adminsdk*.json
+firebase-service-account.json
+google-services.json
+app/google-services.json
+
+# OS & Temp files
+.DS_Store
+Thumbs.db
+*.hprof
+*.log
+*.apk
+*.aab
+releases/
