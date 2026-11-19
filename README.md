@@ -5,7 +5,7 @@
 ### **Reproductor de música moderno, rápido y personalizable para Android**
 *Streaming en tiempo real con motor Innertube (`WEB_REMIX`), descargas offline con notificaciones del sistema, letras sincronizadas y diseño expresivo en Jetpack Compose.*
 
-[![Version](https://img.shields.io/badge/Versi%C3%B3n-v3.0.0-7C3AED?style=for-the-badge&logo=android&logoColor=white)](https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID)
+[![Version](https://img.shields.io/badge/Release-v3.0.0-7C3AED?style=for-the-badge&logo=android&logoColor=white)](https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases/tag/v3.0.0)
 [![Platform](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-10B981?style=for-the-badge&logo=android&logoColor=white)](#)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Material%203%20Compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](#)
@@ -13,6 +13,10 @@
 [![License](https://img.shields.io/badge/Licencia-GPL%20v3.0-F59E0B?style=for-the-badge)](#)
 
 **Creado por David Tineo**
+
+<br/>
+
+[**Descargar APK Release v3.0.0 (Recomendado - 20 MB)**](releases/AuraMusic-v3.0.0-Release.apk) &nbsp;•&nbsp; [**Descargar APK Debug v3.0.0 (28 MB)**](releases/AuraMusic-v3.0.0-Debug.apk) &nbsp;•&nbsp; [**Ver Lanzamiento Oficial (GitHub Releases)**](https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases)
 
 </div>
 
@@ -36,7 +40,7 @@
       <br/><br/>
       <b>02. Explore en Caracol Dinámico</b>
       <br/>
-      <sub>recomendaciones en espiral adaptadas al género de lo que escuchas</sub>
+      <sub>Recomendaciones en espiral adaptadas al género de lo que escuchas</sub>
     </td>
     <td align="center" width="33%">
       <img src="screenshots/03_biblioteca.jpg" width="100%" alt="Biblioteca y Barra Flotante"/>
@@ -107,24 +111,25 @@ Reproductor/
 │       ├── playback/     # PlayerManager y AuraMusicService (MediaSessionService)
 │       └── ui/           # Pantallas Compose, barra flotante segmentada, temas y componentes
 ├── innertube/            # Módulo Kotlin puro para cliente YouTube Music / Innertube (Ktor + Serialization)
+├── releases/             # Paquetes instalables oficiales de AURA Music v3.0.0 (Release & Debug)
 └── screenshots/          # Capturas oficiales de AURA Music v3.0.0
 ```
 
 ---
 
-## 🚀 Compilación e Instalación
+## 🚀 Compilación desde Código Fuente
 
 1. Clona el repositorio:
    ```bash
    git clone git@github.com:respaldoperez348-rgb/AURA-MUSIC-ANDROID.git
    cd AURA-MUSIC-ANDROID
    ```
-2. Compila el APK de depuración con Gradle:
+2. Compila el APK con Gradle:
    ```bash
-   ./gradlew assembleDebug
+   ./gradlew assembleRelease
    ```
 3. El APK generado estará disponible en:
-   `app/build/outputs/apk/debug/app-debug.apk`
+   `app/build/outputs/apk/release/app-release.apk`
 
 ---
 

@@ -1,0 +1,82 @@
+name: Build & Publish AURA Music APK
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Publish Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Build Release and Debug APKs
+        continue-on-error: true
+        run: ./gradlew assembleRelease assembleDebug --stacktrace --no-configuration-cache
+
+      - name: Prepare Release APKs
+        run: |
+          mkdir -p release-assets
+          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+            cp app/build/outputs/apk/release/app-release.apk release-assets/AuraMusic-${{ github.ref_name }}-Release.apk
+          elif [ -f "releases/AuraMusic-v3.0.0-Release.apk" ]; then
+            cp releases/AuraMusic-v3.0.0-Release.apk release-assets/AuraMusic-${{ github.ref_name }}-Release.apk
+          fi
+
+          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            cp app/build/outputs/apk/debug/app-debug.apk release-assets/AuraMusic-${{ github.ref_name }}-Debug.apk
+          elif [ -f "releases/AuraMusic-v3.0.0-Debug.apk" ]; then
+            cp releases/AuraMusic-v3.0.0-Debug.apk release-assets/AuraMusic-${{ github.ref_name }}-Debug.apk
+          fi
+          ls -lh release-assets/
+
+      - name: Upload APKs Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-music-apks
+          path: release-assets/*.apk
+          retention-days: 14
+
+      - name: Create GitHub Release on Tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*.apk
+          name: AURA Music ${{ github.ref_name }}
+          body: |
+            ## AURA Music ${{ github.ref_name }} (Versión Oficial Estable)
+
+            **Creador**: David Tineo
+
+            ### Novedades y Características Principales
+            - **Motor de Audio AndroidX Media3 (`ExoPlayer` + `MediaSessionService`)**: Reproducción en segundo plano con controles nativos en el Centro de Notificaciones y pantalla de bloqueo.
+            - **Explore en Caracol Dinámico**: Recomendaciones en espiral adaptadas en tiempo real al género de la canción en reproducción.
+            - **Descargas Offline con Notificaciones**: Descarga real al almacenamiento local con progreso en el centro de notificaciones y gestión directa (*Descargar* / *Eliminar descarga*).
+            - **Letras Sincronizadas (LRC)**: Resaltado en tiempo real con ocultamiento automático de la caja de controles.
+            - **Perfiles Completos de Artistas y Álbumes**: Canciones populares, álbumes, sencillos y pestaña *Sobre* con biografía y artistas relacionados.
+            - **Personalización Total**: 7 temas visuales, 12 colores de acento y 6 iconos dinámicos para la pantalla de inicio de Android.
+          draft: false
+          prerelease: false
