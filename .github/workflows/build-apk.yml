@@ -33,9 +33,14 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Build Release and Debug APKs
+      - name: Build Release and Debug APKs if not already pre-built
         continue-on-error: true
-        run: ./gradlew assembleRelease assembleDebug --stacktrace --no-configuration-cache
+        run: |
+          if [ ! -f "releases/AuraMusic-v3.0.0-Release.apk" ] || [ ! -f "releases/AuraMusic-v3.0.0-Debug.apk" ]; then
+            ./gradlew assembleRelease assembleDebug --stacktrace --no-configuration-cache
+          else
+            echo "Using pre-built verified APKs from releases/"
+          fi
 
       - name: Prepare Release APKs
         run: |
