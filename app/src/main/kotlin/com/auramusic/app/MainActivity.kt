@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.auramusic.app.data.models.Album
 import com.auramusic.app.data.models.Artist
+import com.auramusic.app.data.models.NavBarStyle
 import com.auramusic.app.data.models.PlayerStyleMode
 import com.auramusic.app.data.models.Song
 import com.auramusic.app.data.repository.MusicRepository
@@ -241,7 +242,7 @@ fun AuraMusicApp() {
         }
     }
 
-    // Cargar feed en vivo al iniciar y pre-resolver las primeras canciones para Play instantáneo
+    // Cargar feed en vivo escalonado para no saturar red/portadas en el primer fotograma
     LaunchedEffect(currentUser) {
         launch {
             val liveHome = repository.fetchHomeFeed()
@@ -254,6 +255,7 @@ fun AuraMusicApp() {
                     searchResults = liveHome
                 }
                 if (userSettings.fastPlaybackStart) {
+                    delay(1200L)
                     liveHome.take(2).forEach { song ->
                         launch { repository.prefetchStreamUrl(song.id) }
                     }
@@ -261,12 +263,14 @@ fun AuraMusicApp() {
             }
         }
         launch {
+            delay(450L)
             val liveTrending = repository.searchSongs("Top Hits Globales 2025")
             if (liveTrending.isNotEmpty()) {
                 trendingSongs = liveTrending
             }
         }
         launch {
+            delay(750L)
             val liveAlbums = repository.fetchLiveFeaturedAlbums()
             if (liveAlbums.isNotEmpty()) {
                 featuredAlbums = liveAlbums
@@ -369,7 +373,7 @@ fun AuraMusicApp() {
                     Box(modifier = Modifier.fillMaxSize()) {
                         HorizontalPager(
                             state = pagerState,
-                            beyondViewportPageCount = 1,
+                            beyondViewportPageCount = 0,
                             key = { AuraTab.entries[it].name },
                             modifier = Modifier.fillMaxSize()
                         ) { page ->
@@ -529,11 +533,12 @@ fun AuraMusicApp() {
                             }
                         }
 
-                        // Capa flotante inferior: MiniPlayer deslizable + Barra segmentada sincronizada
+                        // Capa inferior: MiniPlayer deslizable + Barra (Flotante o Normal según Ajustes)
+                        val isFloatingNav = userSettings.navBarStyle == NavBarStyle.FLOATING
                         Column(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
-                                .navigationBarsPadding(),
+                                .then(if (isFloatingNav) Modifier.navigationBarsPadding() else Modifier),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             ActiveMiniPlayerSlot(
@@ -545,6 +550,7 @@ fun AuraMusicApp() {
 
                             AuraBottomNavigation(
                                 selectedTab = currentTab,
+                                style = userSettings.navBarStyle,
                                 onTabSelected = { target ->
                                     currentTab = target
                                     coroutineScope.launch {

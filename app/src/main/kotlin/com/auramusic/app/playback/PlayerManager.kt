@@ -120,8 +120,15 @@ class PlayerManager(
         get() = deckPlayers[activeDeckIdx]
     private val forwardingListeners = CopyOnWriteArraySet<Player.Listener>()
 
-    lateinit var forwardingPlayer: Player
-        private set
+    private lateinit var _forwardingPlayer: Player
+    val forwardingPlayer: Player
+        get() {
+            ensurePlayersInitialized()
+            return _forwardingPlayer
+        }
+
+    @Volatile
+    private var playersInitialized: Boolean = false
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
@@ -173,8 +180,13 @@ class PlayerManager(
     }
 
     init {
-        initPlayers()
-        restorePersistedQueueState()
+        ioScope.launch {
+            restorePersistedQueueState()
+        }
+        scope.launch {
+            delay(350L)
+            ensurePlayersInitialized()
+        }
     }
 
     private fun updatePlaybackAndUiState(transform: (PlaybackState) -> PlaybackState) {
@@ -395,6 +407,15 @@ class PlayerManager(
         return player
     }
 
+    private fun ensurePlayersInitialized() {
+        if (playersInitialized) return
+        synchronized(this) {
+            if (playersInitialized) return
+            initPlayers()
+            playersInitialized = true
+        }
+    }
+
     private fun initPlayers() {
         val primary = buildDeckExoPlayer(0)
         val secondary = buildDeckExoPlayer(1)
@@ -403,9 +424,11 @@ class PlayerManager(
         activeDeckIdx = 0
 
         val initialShuffle = runCatching { AuraApplication.userManager.userSettings.value.defaultShuffle }.getOrDefault(false)
-        updatePlaybackAndUiState { it.copy(isShuffleEnabled = initialShuffle) }
+        updatePlaybackAndUiState { state ->
+            if (state.currentSong == null) state.copy(isShuffleEnabled = initialShuffle) else state
+        }
 
-        forwardingPlayer = object : ForwardingPlayer(primary) {
+        _forwardingPlayer = object : ForwardingPlayer(primary) {
             override fun addListener(listener: Player.Listener) {
                 forwardingListeners.add(listener)
             }
@@ -513,6 +536,7 @@ class PlayerManager(
     }
 
     private fun ensureServiceStarted() {
+        ensurePlayersInitialized()
         try {
             val serviceIntent = Intent(context, AuraMusicService::class.java)
             context.startService(serviceIntent)
@@ -734,6 +758,7 @@ class PlayerManager(
         shuffleOrder: Boolean? = false,
         isUserCollection: Boolean = false,
     ) {
+        ensurePlayersInitialized()
         playJob?.cancel()
         crossfadeJob?.cancel()
         isCrossfading = false
@@ -1008,6 +1033,7 @@ class PlayerManager(
     }
 
     private fun resumeOrRestartPlayback() {
+        ensurePlayersInitialized()
         val player = activePlayer ?: return
         val curSong = _playbackState.value.currentSong
         requestAppAudioFocus()
@@ -1303,18 +1329,23 @@ class PlayerManager(
                 }
             }
             val current = restoredQueue.find { it.id == savedId } ?: restoredQueue.firstOrNull() ?: return
+            if (_playbackState.value.currentSong != null) return
             unshuffledQueue = restoredQueue
             isUserCollectionQueue = savedIsCollection
-            updatePlaybackAndUiState {
-                it.copy(
-                    currentSong = current,
-                    queue = restoredQueue,
-                    currentPositionMs = savedPos,
-                    durationMs = current.durationSeconds.coerceAtLeast(180L) * 1000L,
-                    isShuffleEnabled = savedShuffle,
-                    isPlaying = false,
-                    isLoading = false
-                )
+            updatePlaybackAndUiState { state ->
+                if (state.currentSong != null) {
+                    state
+                } else {
+                    state.copy(
+                        currentSong = current,
+                        queue = restoredQueue,
+                        currentPositionMs = savedPos,
+                        durationMs = current.durationSeconds.coerceAtLeast(180L) * 1000L,
+                        isShuffleEnabled = savedShuffle,
+                        isPlaying = false,
+                        isLoading = false
+                    )
+                }
             }
         }
     }

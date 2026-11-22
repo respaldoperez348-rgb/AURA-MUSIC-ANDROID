@@ -27,6 +27,7 @@ import com.auramusic.app.data.models.Artist
 import com.auramusic.app.data.models.ArtistFeedMode
 import com.auramusic.app.data.models.AudioQualityOption
 import com.auramusic.app.data.models.ListeningStats
+import com.auramusic.app.data.models.NavBarStyle
 import com.auramusic.app.data.models.PlayerBackdropMode
 import com.auramusic.app.data.models.PlayerStyleMode
 import com.auramusic.app.data.models.Song
@@ -182,6 +183,7 @@ class UserManager(private val context: Context) {
     private val KEY_OFFLINE_MODE = stringPreferencesKey("offline_mode")
     private val KEY_CROSSFADE = stringPreferencesKey("crossfade_seconds")
     private val KEY_ARTIST_FEED_MODE = stringPreferencesKey("artist_feed_mode")
+    private val KEY_NAV_BAR_STYLE = stringPreferencesKey("nav_bar_style")
     private val KEY_FAST_PLAYBACK_START = stringPreferencesKey("fast_playback_start")
     private val KEY_HAS_ENTERED_APP = stringPreferencesKey("has_entered_app")
     private val KEY_UI_V32_MIGRATED = stringPreferencesKey("ui_v32_obsidian_amber_migrated")
@@ -230,8 +232,54 @@ class UserManager(private val context: Context) {
     private val _currentAppIcon = MutableStateFlow("GOLD")
     val currentAppIcon: StateFlow<String> = _currentAppIcon.asStateFlow()
 
-    private val _userSettings = MutableStateFlow(UserSettings())
+    private val _userSettings = MutableStateFlow(loadFastBootSettings())
     val userSettings: StateFlow<UserSettings> = _userSettings.asStateFlow()
+
+    private fun loadFastBootSettings(): UserSettings {
+        val themeStr = syncPrefs.getString("app_theme", AppTheme.DARK.name) ?: AppTheme.DARK.name
+        val accentStr = syncPrefs.getString("accent_color", AccentColor.GOLD.name) ?: AccentColor.GOLD.name
+        val qualityStr = syncPrefs.getString("audio_quality", AudioQualityOption.HIGH.name) ?: AudioQualityOption.HIGH.name
+        val backdropStr = syncPrefs.getString("player_backdrop_mode", PlayerBackdropMode.SOFT_BLUR.name) ?: PlayerBackdropMode.SOFT_BLUR.name
+        val styleStr = syncPrefs.getString("player_style_mode", PlayerStyleMode.STUDIO_HALO.name) ?: PlayerStyleMode.STUDIO_HALO.name
+        val artistFeedStr = syncPrefs.getString("artist_feed_mode", ArtistFeedMode.MORE_ARTISTS.name) ?: ArtistFeedMode.MORE_ARTISTS.name
+        val navBarStr = syncPrefs.getString("nav_bar_style", NavBarStyle.FLOATING.name) ?: NavBarStyle.FLOATING.name
+        val langStr = syncPrefs.getString("app_language", AppLanguageOption.SYSTEM.name) ?: AppLanguageOption.SYSTEM.name
+        return UserSettings(
+            theme = runCatching { AppTheme.valueOf(themeStr) }.getOrDefault(AppTheme.DARK),
+            accentColor = runCatching { AccentColor.valueOf(accentStr) }.getOrDefault(AccentColor.GOLD),
+            audioQuality = runCatching { AudioQualityOption.valueOf(qualityStr) }.getOrDefault(AudioQualityOption.HIGH),
+            defaultShuffle = syncPrefs.getBoolean("default_shuffle", false),
+            continuousPlayback = syncPrefs.getBoolean("continuous_playback", true),
+            playerBackdropMode = runCatching { PlayerBackdropMode.valueOf(backdropStr) }.getOrDefault(PlayerBackdropMode.SOFT_BLUR),
+            playerStyleMode = runCatching { PlayerStyleMode.valueOf(styleStr) }.getOrDefault(PlayerStyleMode.STUDIO_HALO),
+            dynamicSystemBackdrop = syncPrefs.getBoolean("dynamic_system_bg", true),
+            language = runCatching { AppLanguageOption.valueOf(langStr) }.getOrDefault(AppLanguageOption.SYSTEM),
+            offlineMode = syncPrefs.getBoolean("offline_mode", false),
+            crossfadeSeconds = syncPrefs.getInt("crossfade_seconds", 0),
+            artistFeedMode = runCatching { ArtistFeedMode.valueOf(artistFeedStr) }.getOrDefault(ArtistFeedMode.MORE_ARTISTS),
+            navBarStyle = runCatching { NavBarStyle.valueOf(navBarStr) }.getOrDefault(NavBarStyle.FLOATING),
+            fastPlaybackStart = syncPrefs.getBoolean("fast_playback_start", true)
+        )
+    }
+
+    private fun persistFastBootSettings(settings: UserSettings) {
+        syncPrefs.edit()
+            .putString("app_theme", settings.theme.name)
+            .putString("accent_color", settings.accentColor.name)
+            .putString("audio_quality", settings.audioQuality.name)
+            .putString("player_backdrop_mode", settings.playerBackdropMode.name)
+            .putString("player_style_mode", settings.playerStyleMode.name)
+            .putBoolean("dynamic_system_bg", settings.dynamicSystemBackdrop)
+            .putString("app_language", settings.language.name)
+            .putBoolean("default_shuffle", settings.defaultShuffle)
+            .putBoolean("continuous_playback", settings.continuousPlayback)
+            .putBoolean("offline_mode", settings.offlineMode)
+            .putInt("crossfade_seconds", settings.crossfadeSeconds)
+            .putString("artist_feed_mode", settings.artistFeedMode.name)
+            .putString("nav_bar_style", settings.navBarStyle.name)
+            .putBoolean("fast_playback_start", settings.fastPlaybackStart)
+            .apply()
+    }
 
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
@@ -265,6 +313,7 @@ class UserManager(private val context: Context) {
             val offline = prefs[KEY_OFFLINE_MODE]?.toBooleanStrictOrNull() ?: false
             val crossfade = prefs[KEY_CROSSFADE]?.toIntOrNull() ?: 0
             val artistFeedStr = prefs[KEY_ARTIST_FEED_MODE] ?: ArtistFeedMode.MORE_ARTISTS.name
+            val navBarStr = prefs[KEY_NAV_BAR_STYLE] ?: NavBarStyle.FLOATING.name
             val fastStart = prefs[KEY_FAST_PLAYBACK_START]?.toBooleanStrictOrNull() ?: true
             val entered = prefs[KEY_HAS_ENTERED_APP] == "true"
 
@@ -281,7 +330,7 @@ class UserManager(private val context: Context) {
             val loadedLanguage = runCatching { AppLanguageOption.valueOf(langStr) }.getOrDefault(AppLanguageOption.SYSTEM)
             AppLanguage.applyLanguage(context, loadedLanguage)
 
-            _userSettings.value = UserSettings(
+            val loadedSettings = UserSettings(
                 theme = runCatching { AppTheme.valueOf(themeStr) }.getOrDefault(AppTheme.DARK),
                 accentColor = runCatching { AccentColor.valueOf(accentStr) }.getOrDefault(AccentColor.GOLD),
                 audioQuality = runCatching { AudioQualityOption.valueOf(qualityStr) }.getOrDefault(AudioQualityOption.HIGH),
@@ -294,8 +343,11 @@ class UserManager(private val context: Context) {
                 offlineMode = offline,
                 crossfadeSeconds = crossfade,
                 artistFeedMode = runCatching { ArtistFeedMode.valueOf(artistFeedStr) }.getOrDefault(ArtistFeedMode.MORE_ARTISTS),
+                navBarStyle = runCatching { NavBarStyle.valueOf(navBarStr) }.getOrDefault(NavBarStyle.FLOATING),
                 fastPlaybackStart = fastStart
             )
+            _userSettings.value = loadedSettings
+            persistFastBootSettings(loadedSettings)
 
             if (cookie.isNotBlank()) {
                 YouTubeAuthManager.setCookie(cookie)
@@ -334,6 +386,7 @@ class UserManager(private val context: Context) {
     fun updateSettings(newSettings: UserSettings) {
         val prevLang = _userSettings.value.language
         _userSettings.value = newSettings
+        persistFastBootSettings(newSettings)
         if (prevLang != newSettings.language) {
             AppLanguage.applyLanguage(context, newSettings.language)
         }
@@ -351,6 +404,7 @@ class UserManager(private val context: Context) {
                 prefs[KEY_OFFLINE_MODE] = newSettings.offlineMode.toString()
                 prefs[KEY_CROSSFADE] = newSettings.crossfadeSeconds.toString()
                 prefs[KEY_ARTIST_FEED_MODE] = newSettings.artistFeedMode.name
+                prefs[KEY_NAV_BAR_STYLE] = newSettings.navBarStyle.name
                 prefs[KEY_FAST_PLAYBACK_START] = newSettings.fastPlaybackStart.toString()
             }
         }

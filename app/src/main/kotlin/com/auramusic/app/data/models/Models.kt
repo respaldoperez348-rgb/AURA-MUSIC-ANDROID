@@ -44,20 +44,20 @@ data class LyricLine(
 
 enum class AppTheme(val title: String, val subtitle: String) {
     LIGHT("Claro", "Fondo luminoso, limpio y elegante"),
-    DARK("Obsidiana Estudio", "Negro obsidiana (#090B0F) con cristal esmerilado"),
+    DARK("Carbón Estudio", "Negro carbón (#121212) con tarjetas en gris profundo (#181818)"),
     AMOLED("Negro Puro AMOLED", "Negro absoluto (#000000) de alto contraste"),
-    MIDNIGHT_VIOLET("Noche Violeta", "Atmósfera nocturna con matices púrpura"),
-    CYBER_CARBON("Carbono Marino", "Acabado técnico en pizarra y cian oscuro"),
+    MIDNIGHT_VIOLET("Pizarra Nocturna", "Carbón neutro (#121214) con capas grises (#1C1C21)"),
+    CYBER_CARBON("Hi-Fi Pizarra", "Azul pizarra técnico (#0F172A) ideal para estudio y ecualizador"),
     WARM_ESPRESSO("Café Nocturno", "Tonos cálidos oscuros para sesiones largas"),
     AUTO("Automático", "Sigue la configuración del sistema")
 }
 
 enum class AccentColor(val hex: Long, val displayName: String) {
-    VIOLET(0xFF7C3AED, "AURA Violeta"),
+    VIOLET(0xFF8B5CF6, "Violeta Eléctrico"),
     GOLD(0xFFF5A623, "Ámbar AURA"),
-    CYAN(0xFF06B6D4, "Cian Estudio"),
+    CYAN(0xFF38BDF8, "Cian Hi-Fi"),
     BLUE(0xFF3B82F6, "Azul Eléctrico"),
-    TEAL(0xFF10B981, "Verde Esmeralda"),
+    TEAL(0xFF1DB954, "Verde Esmeralda"),
     ORANGE(0xFFF97316, "Naranja Solar"),
     CRIMSON(0xFFE11D48, "Rojo Carmesí"),
     SAKURA(0xFFEC4899, "Rosa Sakura"),
@@ -98,6 +98,11 @@ enum class ArtistFeedMode(val title: String, val subtitle: String) {
     FULL_ARTIST("Toda la música por artista", "Muestra el catálogo amplio de cada artista sin limitar repeticiones")
 }
 
+enum class NavBarStyle(val title: String, val subtitle: String) {
+    FLOATING("Flotante", "Cápsula flotante en cristal esmerilado con botón de búsqueda separado"),
+    NORMAL("Normal", "Barra clásica de ancho completo anclada abajo con íconos y etiquetas")
+}
+
 enum class AppLanguageOption(val tag: String, val displayName: String, val nativeName: String) {
     SYSTEM("system", "Automático", "Sistema"),
     ES("es", "Español", "Español"),
@@ -127,6 +132,7 @@ data class UserSettings(
     val offlineMode: Boolean = false,
     val crossfadeSeconds: Int = 0,
     val artistFeedMode: ArtistFeedMode = ArtistFeedMode.MORE_ARTISTS,
+    val navBarStyle: NavBarStyle = NavBarStyle.FLOATING,
     val fastPlaybackStart: Boolean = true,
     val playbackNotifications: Boolean = true,
     val newMusicNotifications: Boolean = false,

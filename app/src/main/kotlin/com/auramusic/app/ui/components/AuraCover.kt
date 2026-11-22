@@ -92,13 +92,13 @@ internal fun buildCoverCandidates(thumbnailUrl: String, id: String, isArtist: Bo
     val list = mutableListOf<String>()
     val primary = normalizeCoverUrl(thumbnailUrl)
     if (primary.isNotBlank()) {
-        list.add(primary)
         if ((primary.contains("googleusercontent.com") || primary.contains("ggpht.com")) &&
             primary.contains("=w") && primary.contains("-h")
         ) {
             val compact = primary.replace(Regex("=w\\d+-h\\d+.*$"), "=w360-h360")
-            if (compact != primary) list.add(compact)
+            list.add(compact)
         }
+        list.add(primary)
     }
 
     val ytId = when {

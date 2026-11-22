@@ -66,17 +66,29 @@ fun AuraMusicTheme(
         }
     }
 
+    val (textPrimary, textSecondary) = when (appTheme) {
+        AppTheme.LIGHT -> LightTextPrimary to LightTextSecondary
+        AppTheme.CYBER_CARBON -> CyberTextPrimary to CyberTextSecondary
+        AppTheme.MIDNIGHT_VIOLET -> MidnightTextPrimary to MidnightTextSecondary
+        AppTheme.AUTO -> if (systemDark) DarkTextPrimary to DarkTextSecondary else LightTextPrimary to LightTextSecondary
+        else -> DarkTextPrimary to DarkTextSecondary
+    }
+
     val colorScheme = if (isDark) {
         darkColorScheme(
             primary = primaryColor,
             onPrimary = onPrimaryColor,
             secondary = primaryColor,
             background = bg,
-            onBackground = DarkTextPrimary,
+            onBackground = textPrimary,
             surface = surf,
-            onSurface = DarkTextPrimary,
+            onSurface = textPrimary,
+            surfaceContainerLow = bg,
+            surfaceContainer = surf,
+            surfaceContainerHigh = surfSubtle,
+            surfaceContainerHighest = surfSubtle,
             surfaceVariant = surfSubtle,
-            onSurfaceVariant = DarkTextSecondary,
+            onSurfaceVariant = textSecondary,
             outline = DarkBorder
         )
     } else {
@@ -85,11 +97,15 @@ fun AuraMusicTheme(
             onPrimary = onPrimaryColor,
             secondary = primaryColor,
             background = bg,
-            onBackground = LightTextPrimary,
+            onBackground = textPrimary,
             surface = surf,
-            onSurface = LightTextPrimary,
+            onSurface = textPrimary,
+            surfaceContainerLow = bg,
+            surfaceContainer = surf,
+            surfaceContainerHigh = surfSubtle,
+            surfaceContainerHighest = surfSubtle,
             surfaceVariant = surfSubtle,
-            onSurfaceVariant = LightTextSecondary,
+            onSurfaceVariant = textSecondary,
             outline = LightBorder
         )
     }

@@ -54,17 +54,15 @@ class AuraApplication : Application(), SingletonImageLoader.Factory {
 
         InnerTubeXPlayer.initialize(this)
 
-        // Pre-cargar preferencias y base de datos en hilo IO sin bloquear el arranque visual de MainActivity
+        // Diferir el pre-calentamiento de red para no competir con el primer fotograma ni con las portadas de Inicio
         appScope.launch {
-            runCatching { userManager }
+            delay(1500L)
             runCatching {
                 if (YouTube.visitorData.isNullOrBlank()) {
                     YouTube.visitorData().getOrNull()?.let { YouTube.visitorData = it }
                 }
             }
-            // Igual que Mochy-Music (LaunchGate.awaitIntro + 2500ms): diferir el pre-calentamiento
-            // para no competir con los primeros fotogramas ni con la apertura de la pantalla de inicio.
-            delay(2500L)
+            delay(2000L)
             runCatching { InnerTubeXPlayer.prewarm() }
         }
     }

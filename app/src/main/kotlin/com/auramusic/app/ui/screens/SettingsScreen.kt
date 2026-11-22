@@ -61,6 +61,7 @@ import com.auramusic.app.data.models.AppLanguageOption
 import com.auramusic.app.data.models.AppTheme
 import com.auramusic.app.data.models.ArtistFeedMode
 import com.auramusic.app.data.models.AudioQualityOption
+import com.auramusic.app.data.models.NavBarStyle
 import com.auramusic.app.data.models.PlayerBackdropMode
 import com.auramusic.app.data.models.PlayerStyleMode
 import com.auramusic.app.data.models.UserSettings
@@ -76,6 +77,7 @@ enum class SettingsSubscreen {
     ACCENT_COLOR,
     PLAYER_BACKDROP,
     PLAYER_STYLE,
+    NAV_BAR_STYLE,
     LANGUAGE,
     AUDIO_QUALITY,
     CROSSFADE,
@@ -175,6 +177,16 @@ fun SettingsScreen(
                 currentStyle = currentSettings.playerStyleMode,
                 onStyleSelected = {
                     onSettingsChanged(currentSettings.copy(playerStyleMode = it))
+                },
+                onBack = { currentSubscreen = SettingsSubscreen.MAIN },
+                modifier = modifier
+            )
+        }
+        SettingsSubscreen.NAV_BAR_STYLE -> {
+            NavBarStyleSelectorView(
+                currentStyle = currentSettings.navBarStyle,
+                onStyleSelected = {
+                    onSettingsChanged(currentSettings.copy(navBarStyle = it))
                 },
                 onBack = { currentSubscreen = SettingsSubscreen.MAIN },
                 modifier = modifier
@@ -399,6 +411,12 @@ private fun SettingsMainView(
                 title = "Estilo del reproductor",
                 subtitle = settings.playerStyleMode.title,
                 onClick = { onNavigate(SettingsSubscreen.PLAYER_STYLE) }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsCard(
+                title = "Barra de navegación",
+                subtitle = settings.navBarStyle.title,
+                onClick = { onNavigate(SettingsSubscreen.NAV_BAR_STYLE) }
             )
             Spacer(modifier = Modifier.height(8.dp))
             SettingsToggleCard(
@@ -937,11 +955,11 @@ private fun ThemeSelectorView(
         items(themes) { themeItem ->
             val previewBg = when (themeItem) {
                 AppTheme.LIGHT -> Color(0xFFF5F5F7)
-                AppTheme.DARK -> Color(0xFF090B0F)
+                AppTheme.DARK -> Color(0xFF121212)
                 AppTheme.AMOLED -> Color(0xFF000000)
-                AppTheme.MIDNIGHT_VIOLET -> Color(0xFF17112A)
-                AppTheme.CYBER_CARBON -> Color(0xFF0E1D26)
-                AppTheme.WARM_ESPRESSO -> Color(0xFF1C1613)
+                AppTheme.MIDNIGHT_VIOLET -> Color(0xFF121214)
+                AppTheme.CYBER_CARBON -> Color(0xFF0F172A)
+                AppTheme.WARM_ESPRESSO -> Color(0xFF141110)
                 AppTheme.AUTO -> Color(0xFF334155)
             }
 
@@ -1218,6 +1236,39 @@ private fun PlayerStyleSelectorView(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun NavBarStyleSelectorView(
+    currentStyle: NavBarStyle,
+    onStyleSelected: (NavBarStyle) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .padding(20.dp)
+    ) {
+        SubscreenHeader(title = "Barra de navegación", onBack = onBack)
+        Text(
+            text = "Elige entre la barra flotante segmentada o la barra clásica anclada en la parte inferior.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 20.dp)
+        )
+        NavBarStyle.entries.forEach { style ->
+            OptionSelectCard(
+                title = style.title,
+                subtitle = style.subtitle,
+                isSelected = currentStyle == style,
+                onClick = { onStyleSelected(style) }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 }
