@@ -5,6 +5,7 @@ data class CachedStreamUrl(
     val requestHeaders: Map<String, String> = emptyMap(),
     val clientName: String = "ANDROID",
     val expiresInSeconds: Int = 3600 * 5,
+    val qualityLabel: String = "AUDIO • HQ",
 )
 
 /**
@@ -41,6 +42,7 @@ class StreamUrlCache(
         requestHeaders: Map<String, String> = emptyMap(),
         clientName: String = "ANDROID",
         expiresInSeconds: Int = 3600 * 5,
+        qualityLabel: String = "AUDIO • HQ",
     ) {
         val now = currentTimeMillis()
         val ttlMillis = expiresInSeconds.coerceAtLeast(60).toLong() * 1000L
@@ -48,7 +50,7 @@ class StreamUrlCache(
 
         synchronized(entries) {
             entries[mediaId] = Entry(
-                stream = CachedStreamUrl(url, requestHeaders, clientName, expiresInSeconds),
+                stream = CachedStreamUrl(url, requestHeaders, clientName, expiresInSeconds, qualityLabel),
                 expiresAtMillis = expiresAtMillis
             )
         }

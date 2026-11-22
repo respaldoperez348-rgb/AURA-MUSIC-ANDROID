@@ -1,9 +1,13 @@
 package com.auramusic.app.data.repository
 
+import android.content.ContentUris
 import android.content.Context
 import android.net.ConnectivityManager
+import android.os.Build
+import android.provider.MediaStore
 import com.auramusic.app.data.models.Album
 import com.auramusic.app.data.models.Artist
+import com.auramusic.app.data.models.ArtistFeedMode
 import com.auramusic.app.data.models.LyricLine
 import com.auramusic.app.data.models.Song
 import com.auramusic.app.playback.StreamUrlCache
@@ -241,8 +245,107 @@ class MusicRepository(
                 name = "Trueno",
                 thumbnailUrl = "https://yt3.googleusercontent.com/HupoNCBrq4WWflprOMqHDPxE9VSf8cGeSNmS8DZPlJQxGtj1Jju8rZf_HGPLk2d2_w1SZK-JwmTwew=w544-h544-p-l90-rj",
                 monthlyListeners = "24,2 M"
+            ),
+            Artist(
+                id = "UCz1GPotHecuLngiLuY739QQ",
+                name = "Karol G",
+                thumbnailUrl = "https://i.ytimg.com/vi/5g2hT4GmAGU/hqdefault.jpg",
+                monthlyListeners = "65,4 M"
+            ),
+            Artist(
+                id = "UCoMlNw7o21I7LqL4OsjSYAg",
+                name = "Feid",
+                thumbnailUrl = "https://i.ytimg.com/vi/saGYMhApaH8/hqdefault.jpg",
+                monthlyListeners = "58,1 M"
+            ),
+            Artist(
+                id = "UCv5OAW45h67CJEY6kJ2f7zw",
+                name = "Quevedo",
+                thumbnailUrl = "https://i.ytimg.com/vi/A_g3lMcWVy0/hqdefault.jpg",
+                monthlyListeners = "42,8 M"
+            ),
+            Artist(
+                id = "UCi2G6c1a2Qv8U1X-8tH4gRg",
+                name = "Billie Eilish",
+                thumbnailUrl = "https://i.ytimg.com/vi/V9PVRfjEBTI/hqdefault.jpg",
+                monthlyListeners = "96,3 M"
+            ),
+            Artist(
+                id = "UCoUM-UJ7rirJYP8CQ0EIaHA",
+                name = "Bruno Mars",
+                thumbnailUrl = "https://i.ytimg.com/vi/kPa7bsKwL-c/hqdefault.jpg",
+                monthlyListeners = "108,7 M"
+            ),
+            Artist(
+                id = "UC_Av98lDjf5KvFib5elhpYg",
+                name = "Rauw Alejandro",
+                thumbnailUrl = "https://i.ytimg.com/vi/lZiaYpD9ZrI/hqdefault.jpg",
+                monthlyListeners = "54,6 M"
+            ),
+            Artist(
+                id = "UCYLNGLIzMhRTi6ZOLjAPSmw",
+                name = "Shakira",
+                thumbnailUrl = "https://i.ytimg.com/vi/CocEMWdc7Ck/hqdefault.jpg",
+                monthlyListeners = "69,2 M"
+            ),
+            Artist(
+                id = "UCzrM_0p8v23K25xb7K02zCQ",
+                name = "Peso Pluma",
+                thumbnailUrl = "https://i.ytimg.com/vi/lZiaYpD9ZrI/hqdefault.jpg",
+                monthlyListeners = "51,9 M"
             )
         )
+
+        /**
+         * Organiza una lista de canciones según el modo elegido por el usuario:
+         * - MORE_ARTISTS: intercala artistas distintos primero para que no aparezcan bloques seguidos del mismo artista.
+         * - FULL_ARTIST: mantiene todas las canciones de cada artista sin intercalar ni limitar repeticiones.
+         */
+        fun applyArtistFeedMode(songs: List<Song>, mode: ArtistFeedMode): List<Song> {
+            if (songs.size <= 2 || mode == ArtistFeedMode.FULL_ARTIST) return songs
+            val grouped = LinkedHashMap<String, ArrayDeque<Song>>()
+            songs.forEach { song ->
+                val primaryArtist = song.artist.split(",", "&", "feat.", "ft.").firstOrNull()?.trim()?.lowercase().orEmpty()
+                val key = primaryArtist.ifBlank { song.id }
+                grouped.getOrPut(key) { ArrayDeque() }.add(song)
+            }
+            val interleaved = mutableListOf<Song>()
+            var addedInPass = true
+            while (addedInPass) {
+                addedInPass = false
+                for (queue in grouped.values) {
+                    if (queue.isNotEmpty()) {
+                        interleaved.add(queue.removeFirst())
+                        addedInPass = true
+                    }
+                }
+            }
+            return interleaved
+        }
+
+        /**
+         * Extrae artistas dinámicamente a partir de las canciones descubiertas y los combina con los artistas populares.
+         */
+        fun buildExpandedArtistCatalog(baseArtists: List<Artist>, discoveredSongs: List<Song>): List<Artist> {
+            val map = LinkedHashMap<String, Artist>()
+            baseArtists.forEach { map[it.name.trim().lowercase()] = it }
+            discoveredSongs.forEach { song ->
+                val primaryName = song.artist.split(",", "&", "feat.", "ft.", "con").firstOrNull()?.trim().orEmpty()
+                val key = primaryName.lowercase()
+                if (primaryName.length >= 2 &&
+                    !primaryName.equals("Artista", ignoreCase = true) &&
+                    !map.containsKey(key)
+                ) {
+                    map[key] = Artist(
+                        id = song.artistId ?: "artist_${primaryName.replace(" ", "_")}",
+                        name = primaryName,
+                        thumbnailUrl = song.thumbnailUrl,
+                        monthlyListeners = "${(18..75).random()},${(1..9).random()} M"
+                    )
+                }
+            }
+            return map.values.toList()
+        }
 
         fun getCuratedFeaturedAlbums(): List<Album> = listOf(
             Album(
@@ -310,6 +413,27 @@ class MusicRepository(
                 songCount = 13
             )
         )
+    }
+
+    suspend fun fetchLiveFeaturedAlbums(): List<Album> = withContext(Dispatchers.IO) {
+        try {
+            val releases = YouTube.newReleaseAlbums().getOrNull().orEmpty()
+            val mapped = releases.map { item ->
+                Album(
+                    id = item.browseId,
+                    title = item.title,
+                    artist = item.artists?.joinToString(", ") { it.name }.orEmpty().ifBlank { "Lanzamiento Destacado" },
+                    year = item.year?.toString() ?: "2025",
+                    thumbnailUrl = normalizeCover(item.thumbnail.resize(544, 544), "")
+                )
+            }
+            if (mapped.size >= 4) {
+                return@withContext (mapped + getCuratedFeaturedAlbums()).distinctBy { it.id }
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "No se pudieron cargar newReleaseAlbums en vivo")
+        }
+        getCuratedFeaturedAlbums()
     }
 
     suspend fun fetchHomeFeed(): List<Song> = withContext(Dispatchers.IO) {
@@ -668,7 +792,10 @@ class MusicRepository(
                             }
                         }
 
-                        val finalTracks = topTracks.ifEmpty { searchSongs("$resolvedName Top Hits") }
+                        val extraTracks = if (topTracks.size < 18) {
+                            searchSongs("$resolvedName Top Hits")
+                        } else emptyList()
+                        val finalTracks = (topTracks + extraTracks).distinctBy { it.id }
                         val finalAlbums = albums.ifEmpty { searchAlbums(resolvedName) }
 
                         return@withContext Artist(
@@ -914,53 +1041,109 @@ class MusicRepository(
     }
 
     /**
-     * Letras sincronizadas desde LRCLIB (como en LyricsEngine.kt de AURA-MUSIC-ANDROID).
+     * Letras sincronizadas con triple respaldo y caché persistente en SQLite:
+     * 1. Caché en RAM y SQLite (`cached_lyrics`) para disponibilidad inmediata y modo Offline.
+     * 2. LRCLIB (letras sincronizadas LRC y letras planas).
+     * 3. YouTube AutoCaptions / Transcript y YouTube Music Lyrics (`YouTube.next` -> `YouTube.lyrics`).
      */
     suspend fun fetchSyncedLyrics(song: Song): List<LyricLine> = withContext(Dispatchers.IO) {
         lyricsCache[song.id]?.let { return@withContext it }
+        com.auramusic.app.AuraApplication.userManager.getCachedLyrics(song.id)?.let { dbCached ->
+            lyricsCache[song.id] = dbCached
+            return@withContext dbCached
+        }
 
+        // 1. LRCLIB
         try {
             val cleanTitle = song.title.replace(Regex("(?i)\\(.*?video.*?\\)|\\[.*?\\]|\\(official.*?\\)"), "").trim()
             val cleanArtist = song.artist.split(",", "&", "feat.", "ft.").firstOrNull()?.trim().orEmpty()
             val url = "https://lrclib.net/api/search".toHttpUrlOrNull()?.newBuilder()
                 ?.addQueryParameter("track_name", cleanTitle)
                 ?.addQueryParameter("artist_name", cleanArtist)
-                ?.build() ?: return@withContext emptyList()
+                ?.build()
 
-            val req = Request.Builder()
-                .url(url)
-                .header("User-Agent", "AuraMusic/3.0 (https://github.com/auramusic/app)")
-                .get()
-                .build()
+            if (url != null) {
+                val req = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "AuraMusic/3.1 (https://github.com/auramusic/app)")
+                    .get()
+                    .build()
 
-            httpClient.newCall(req).execute().use { resp ->
-                val body = resp.body?.string() ?: return@withContext emptyList()
-                val arr = JSONArray(body)
-                if (arr.length() > 0) {
-                    for (i in 0 until arr.length()) {
-                        val item = arr.getJSONObject(i)
-                        val synced = item.optString("syncedLyrics")
-                        if (synced.isNotBlank() && synced != "null") {
-                            val parsed = parseLrcLyrics(synced)
-                            if (parsed.isNotEmpty()) {
-                                lyricsCache[song.id] = parsed
-                                return@withContext parsed
+                httpClient.newCall(req).execute().use { resp ->
+                    val body = resp.body?.string()
+                    if (!body.isNullOrBlank()) {
+                        val arr = JSONArray(body)
+                        if (arr.length() > 0) {
+                            for (i in 0 until arr.length()) {
+                                val item = arr.getJSONObject(i)
+                                val synced = item.optString("syncedLyrics")
+                                if (synced.isNotBlank() && synced != "null") {
+                                    val parsed = parseLrcLyrics(synced)
+                                    if (parsed.isNotEmpty()) {
+                                        lyricsCache[song.id] = parsed
+                                        com.auramusic.app.AuraApplication.userManager.saveCachedLyrics(song.id, parsed)
+                                        return@withContext parsed
+                                    }
+                                }
+                            }
+                            val plain = arr.getJSONObject(0).optString("plainLyrics")
+                            if (plain.isNotBlank() && plain != "null") {
+                                val lines = plain.lines().map { it.trim() }.filter { it.isNotBlank() }
+                                val stepMs = ((song.durationSeconds.coerceAtLeast(120L) * 1000L) / lines.size.coerceAtLeast(1))
+                                val parsed = lines.mapIndexed { idx, txt -> LyricLine(idx * stepMs, txt) }
+                                if (parsed.isNotEmpty()) {
+                                    lyricsCache[song.id] = parsed
+                                    com.auramusic.app.AuraApplication.userManager.saveCachedLyrics(song.id, parsed)
+                                    return@withContext parsed
+                                }
                             }
                         }
-                    }
-                    val plain = arr.getJSONObject(0).optString("plainLyrics")
-                    if (plain.isNotBlank() && plain != "null") {
-                        val lines = plain.lines().map { it.trim() }.filter { it.isNotBlank() }
-                        val stepMs = ((song.durationSeconds.coerceAtLeast(120L) * 1000L) / lines.size.coerceAtLeast(1))
-                        val parsed = lines.mapIndexed { idx, txt -> LyricLine(idx * stepMs, txt) }
-                        lyricsCache[song.id] = parsed
-                        return@withContext parsed
                     }
                 }
             }
         } catch (e: Exception) {
-            Timber.w(e, "Error obteniendo letras para ${song.title}")
+            Timber.w(e, "LRCLIB miss para ${song.title}, intentando respaldos de YouTube")
         }
+
+        // 2. Respaldo con YouTube Transcript / AutoCaptions (cronometrado línea a línea)
+        if (!song.id.startsWith("local_")) {
+            try {
+                val lrcText = YouTube.transcript(song.id).getOrNull()
+                    ?: YouTube.autoCaptions(song.id).getOrNull()
+                if (!lrcText.isNullOrBlank()) {
+                    val parsed = parseLrcLyrics(lrcText)
+                    if (parsed.isNotEmpty()) {
+                        lyricsCache[song.id] = parsed
+                        com.auramusic.app.AuraApplication.userManager.saveCachedLyrics(song.id, parsed)
+                        return@withContext parsed
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "YouTube transcript/captions miss para ${song.id}")
+            }
+
+            // 3. Respaldo con YouTube Music Official Lyrics Endpoint
+            try {
+                val nextResult = YouTube.next(com.metrolist.innertube.models.WatchEndpoint(videoId = song.id)).getOrNull()
+                val lyricsEndpoint = nextResult?.lyricsEndpoint
+                if (lyricsEndpoint != null) {
+                    val plainText = YouTube.lyrics(lyricsEndpoint).getOrNull()
+                    if (!plainText.isNullOrBlank()) {
+                        val lines = plainText.lines().map { it.trim() }.filter { it.isNotBlank() }
+                        val stepMs = ((song.durationSeconds.coerceAtLeast(120L) * 1000L) / lines.size.coerceAtLeast(1))
+                        val parsed = lines.mapIndexed { idx, txt -> LyricLine(idx * stepMs, txt) }
+                        if (parsed.isNotEmpty()) {
+                            lyricsCache[song.id] = parsed
+                            com.auramusic.app.AuraApplication.userManager.saveCachedLyrics(song.id, parsed)
+                            return@withContext parsed
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "YouTube lyrics endpoint miss para ${song.id}")
+            }
+        }
+
         emptyList()
     }
 
@@ -981,54 +1164,199 @@ class MusicRepository(
         return result.sortedBy { it.timeMs }
     }
 
-    suspend fun resolveStreamUrl(songId: String): Pair<String, Map<String, String>>? = withContext(Dispatchers.IO) {
+    data class ResolvedStreamInfo(
+        val url: String,
+        val headers: Map<String, String>,
+        val qualityLabel: String,
+    )
+
+    private fun buildQualityLabel(mimeType: String?, bitrate: Int?): String {
+        val codec = when {
+            mimeType?.contains("opus", ignoreCase = true) == true -> "OPUS"
+            mimeType?.contains("mp4a", ignoreCase = true) == true -> "AAC"
+            mimeType?.contains("flac", ignoreCase = true) == true -> "FLAC"
+            else -> "AUDIO"
+        }
+        val kbps = ((bitrate ?: 0) / 1000).coerceAtLeast(0)
+        return if (kbps > 0) "$codec • $kbps kbps" else codec
+    }
+
+    suspend fun resolveStreamUrl(songId: String): Pair<String, Map<String, String>>? {
+        val info = resolveStreamWithInfo(songId) ?: return null
+        return Pair(info.url, info.headers)
+    }
+
+    fun invalidateStreamCache(songId: String) {
+        streamUrlCache.invalidate(songId)
+    }
+
+    suspend fun prefetchStreamUrl(songId: String) {
+        if (songId.startsWith("local_") || streamUrlCache[songId] != null) return
+        val localFile = File(File(context.filesDir, "downloads"), "$songId.m4a")
+        if (localFile.exists() && localFile.length() > 10_240L) return
+        runCatching { resolveStreamWithInfo(songId) }
+    }
+
+    suspend fun resolveStreamWithInfo(
+        songId: String,
+        localFilePath: String? = null,
+        offlineOnly: Boolean = false,
+    ): ResolvedStreamInfo? = withContext(Dispatchers.IO) {
+        // 0. Archivo local escaneado (content:// o ruta directa, o reconstruido desde id local_<MediaStoreId>)
+        val resolvedLocalPath = localFilePath?.takeIf { it.isNotBlank() } ?: run {
+            if (songId.startsWith("local_")) {
+                val mediaId = songId.removePrefix("local_").toLongOrNull()
+                if (mediaId != null) {
+                    val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+                    } else {
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                    }
+                    ContentUris.withAppendedId(collection, mediaId).toString()
+                } else null
+            } else null
+        }
+
+        if (!resolvedLocalPath.isNullOrBlank()) {
+            if (resolvedLocalPath.startsWith("content://") || resolvedLocalPath.startsWith("file:")) {
+                return@withContext ResolvedStreamInfo(resolvedLocalPath, emptyMap(), "LOCAL")
+            }
+            val directFile = File(resolvedLocalPath)
+            if (directFile.exists() && directFile.length() > 1024L) {
+                return@withContext ResolvedStreamInfo(directFile.toURI().toString(), emptyMap(), "LOCAL")
+            }
+        }
+        if (songId.startsWith("local_")) return@withContext null
+
         // 1. Verificar si está descargada localmente en el dispositivo
         val localFile = File(File(context.filesDir, "downloads"), "$songId.m4a")
         if (localFile.exists() && localFile.length() > 10_240L) {
-            return@withContext Pair(localFile.toURI().toString(), emptyMap())
+            return@withContext ResolvedStreamInfo(localFile.toURI().toString(), emptyMap(), "OFFLINE")
         }
 
-        streamUrlCache[songId]?.let { return@withContext Pair(it.url, it.requestHeaders) }
+        if (offlineOnly) return@withContext null
 
+        streamUrlCache[songId]?.let {
+            return@withContext ResolvedStreamInfo(it.url, it.requestHeaders, it.qualityLabel)
+        }
+
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val qualityPref = runCatching {
+            com.auramusic.app.AuraApplication.userManager.userSettings.value.audioQuality
+        }.getOrDefault(com.auramusic.app.data.models.AudioQualityOption.HIGH)
+        val isMetered = connectivityManager.isActiveNetworkMetered
+
+        fun selectFormatByQuality(
+            formats: List<com.metrolist.innertube.models.response.PlayerResponse.StreamingData.Format>
+        ): com.metrolist.innertube.models.response.PlayerResponse.StreamingData.Format? {
+            val audioFormats = formats.filter { it.isAudio && !it.url.isNullOrBlank() }
+            if (audioFormats.isEmpty()) return null
+            return when (qualityPref) {
+                com.auramusic.app.data.models.AudioQualityOption.HIGH ->
+                    audioFormats.maxByOrNull { it.bitrate }
+                com.auramusic.app.data.models.AudioQualityOption.STANDARD ->
+                    audioFormats.filter { it.bitrate in 64_000..145_000 }.maxByOrNull { it.bitrate }
+                        ?: audioFormats.minByOrNull { kotlin.math.abs(it.bitrate - 128_000) }
+                com.auramusic.app.data.models.AudioQualityOption.AUTO ->
+                    if (isMetered) {
+                        audioFormats.filter { it.bitrate <= 135_000 }.maxByOrNull { it.bitrate }
+                            ?: audioFormats.minByOrNull { it.bitrate }
+                    } else {
+                        audioFormats.maxByOrNull { it.bitrate }
+                    }
+            }
+        }
+
+        // 1. Intento directo ultrarrápido con VISIONOS / ANDROID_VR (como MAIN_CLIENT en Mochy-Music):
+        // VISIONOS entrega URLs directas sin cipher ni PoToken en ~250ms y sirve la pista completa sin límite de 786 KB.
         try {
-            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val playbackResult = InnerTubeXPlayer.playerResponseForPlayback(
-                videoId = songId,
-                connectivityManager = connectivityManager
+            if (YouTube.visitorData.isNullOrBlank()) {
+                runCatching { YouTube.visitorData().getOrNull()?.let { YouTube.visitorData = it } }
+            }
+            val fastClients = listOf(
+                YouTubeClient.VISIONOS,
+                YouTubeClient.ANDROID_VR_NO_AUTH,
+                YouTubeClient.IOS
             )
-            val playbackData = playbackResult.getOrNull()
+            for (fastClient in fastClients) {
+                val resp = YouTube.player(videoId = songId, client = fastClient).getOrNull() ?: continue
+                if (resp.playabilityStatus.status != "OK") continue
+                val bestAudio = selectFormatByQuality(resp.streamingData?.adaptiveFormats.orEmpty())
+                val directUrl = bestAudio?.url
+                if (bestAudio != null && !directUrl.isNullOrBlank()) {
+                    val headers = mapOf(
+                        "User-Agent" to fastClient.userAgent,
+                        "Accept" to "*/*",
+                        "Origin" to "https://www.youtube.com",
+                        "Referer" to "https://www.youtube.com/"
+                    )
+                    val label = buildQualityLabel(bestAudio.mimeType, bestAudio.bitrate)
+                    streamUrlCache.put(
+                        mediaId = songId,
+                        url = directUrl,
+                        requestHeaders = headers,
+                        clientName = fastClient.clientName,
+                        expiresInSeconds = resp.streamingData?.expiresInSeconds ?: (3600 * 5),
+                        qualityLabel = label
+                    )
+                    return@withContext ResolvedStreamInfo(directUrl, headers, label)
+                }
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "Fast VISIONOS/VR resolve miss para $songId, pasando a InnerTubeXPlayer")
+        }
+
+        // 2. Fallback completo a InnerTubeXPlayer (descifrado JS + PoToken para pistas restringidas)
+        try {
+            val playbackResult = kotlinx.coroutines.withTimeoutOrNull(12_000L) {
+                InnerTubeXPlayer.playerResponseForPlayback(
+                    videoId = songId,
+                    audioQuality = qualityPref,
+                    connectivityManager = connectivityManager,
+                    allowBoundedRange = false
+                )
+            }
+            val playbackData = playbackResult?.getOrNull()
             val streamUrl = playbackData?.streamUrl
 
             if (streamUrl != null) {
+                val label = buildQualityLabel(playbackData.format.mimeType, playbackData.format.bitrate)
                 streamUrlCache.put(
                     mediaId = songId,
                     url = streamUrl,
                     requestHeaders = playbackData.streamHeaders,
                     clientName = playbackData.streamClient,
-                    expiresInSeconds = playbackData.streamExpiresInSeconds
+                    expiresInSeconds = playbackData.streamExpiresInSeconds,
+                    qualityLabel = label
                 )
-                return@withContext Pair(streamUrl, playbackData.streamHeaders)
+                return@withContext ResolvedStreamInfo(streamUrl, playbackData.streamHeaders, label)
             }
         } catch (e: Exception) {
             Timber.e(e, "Error al resolver stream con InnerTubeXPlayer para $songId")
         }
 
+        // 3. Último fallback a WEB_REMIX con cabeceras de origen music.youtube.com
         try {
             val playerResponse = YouTube.player(videoId = songId, client = YouTubeClient.WEB_REMIX).getOrNull()
-            val streamUrl = playerResponse?.streamingData?.adaptiveFormats
-                ?.filter { it.isAudio }
-                ?.maxByOrNull { it.bitrate }
-                ?.url
+            val bestFormat = selectFormatByQuality(playerResponse?.streamingData?.adaptiveFormats.orEmpty())
+            val streamUrl = bestFormat?.url
 
-            if (streamUrl != null) {
-                val headers = mapOf("User-Agent" to USER_AGENT)
+            if (bestFormat != null && streamUrl != null) {
+                val headers = mapOf(
+                    "User-Agent" to YouTubeClient.WEB_REMIX.userAgent,
+                    "Accept" to "*/*",
+                    "Origin" to "https://music.youtube.com",
+                    "Referer" to "https://music.youtube.com/"
+                )
+                val label = buildQualityLabel(bestFormat.mimeType, bestFormat.bitrate)
                 streamUrlCache.put(
                     mediaId = songId,
                     url = streamUrl,
                     requestHeaders = headers,
-                    expiresInSeconds = playerResponse.streamingData?.expiresInSeconds ?: (3600 * 5)
+                    expiresInSeconds = playerResponse?.streamingData?.expiresInSeconds ?: (3600 * 5),
+                    qualityLabel = label
                 )
-                return@withContext Pair(streamUrl, headers)
+                return@withContext ResolvedStreamInfo(streamUrl, headers, label)
             }
         } catch (e: Exception) {
             Timber.e(e, "Error en fallback player para $songId")

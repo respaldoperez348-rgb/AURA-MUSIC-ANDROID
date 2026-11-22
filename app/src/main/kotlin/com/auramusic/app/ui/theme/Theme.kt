@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.auramusic.app.data.models.AccentColor
@@ -34,8 +34,8 @@ fun AccentColor.toColor(isDark: Boolean = false): Color = when (this) {
 
 @Composable
 fun AuraMusicTheme(
-    appTheme: AppTheme = AppTheme.LIGHT,
-    accentColor: AccentColor = AccentColor.VIOLET,
+    appTheme: AppTheme = AppTheme.DARK,
+    accentColor: AccentColor = AccentColor.GOLD,
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -46,10 +46,10 @@ fun AuraMusicTheme(
     }
 
     val primaryColor = accentColor.toColor(isDark = isDark)
-    val onPrimaryColor = when (accentColor) {
-        AccentColor.GOLD, AccentColor.LIME -> Color(0xFF0A0D12)
-        AccentColor.GRAPHITE -> if (isDark) Color(0xFF0A0D12) else Color.White
-        else -> Color.White
+    val onPrimaryColor = if (primaryColor.luminance() > 0.36f) {
+        Color(0xFF090B0F)
+    } else {
+        Color.White
     }
 
     val (bg, surf, surfSubtle) = when (appTheme) {
@@ -99,9 +99,9 @@ fun AuraMusicTheme(
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
             @Suppress("DEPRECATION")
-            window.statusBarColor = bg.toArgb()
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
             @Suppress("DEPRECATION")
-            window.navigationBarColor = bg.toArgb()
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 window.isNavigationBarContrastEnforced = false
                 window.isStatusBarContrastEnforced = false

@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -57,6 +59,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,18 +71,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.auramusic.app.data.models.Album
 import com.auramusic.app.data.models.Artist
+import com.auramusic.app.data.models.PlayerBackdropMode
 import com.auramusic.app.data.models.Song
 import com.auramusic.app.ui.components.AuraAppLogoBadge
 import com.auramusic.app.ui.components.AuraCover
+import com.auramusic.app.ui.components.AuraPlayerBackdrop
+import com.auramusic.app.ui.components.rememberCoverVisualData
 import com.auramusic.app.utils.formatDuration
+import kotlin.math.abs
 
 private val FavoriteRed = Color(0xFFFF3B30)
 
@@ -93,6 +102,7 @@ fun ArtistScreen(
     onBackClick: () -> Unit,
     onFollowToggle: () -> Unit,
     onPlayAllClick: () -> Unit,
+    onShufflePlayClick: () -> Unit = onPlayAllClick,
     onAlbumClick: (Album) -> Unit,
     onPlayAlbumClick: (Album) -> Unit = { onAlbumClick(it) },
     onSongClick: (Song) -> Unit,
@@ -104,16 +114,23 @@ fun ArtistScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     var showArtistMenu by remember { mutableStateOf(false) }
     var showAllRelated by remember { mutableStateOf(false) }
+    var showAllSongs by remember(artist.id) { mutableStateOf(false) }
     val tabs = listOf("Inicio", "Álbumes", "Sencillos", "Sobre")
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
     val bgColor = MaterialTheme.colorScheme.background
-    val cardBg = MaterialTheme.colorScheme.surface
-    val cardBorder = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
-    val textPrimary = MaterialTheme.colorScheme.onBackground
-    val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
-    val isDark = bgColor.luminance() < 0.5f
+    val cardBg = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)
+    val cardBorder = Color.White.copy(alpha = 0.12f)
+    val textPrimary = Color.White
+    val textSecondary = Color.White.copy(alpha = 0.74f)
+    val visualData = rememberCoverVisualData(
+        songId = "artist_${artist.id}",
+        thumbnailUrl = artist.thumbnailUrl,
+        fallbackColor = primaryColor,
+        computeBlurBitmap = true
+    )
+    var tabSwipeDx by remember { mutableFloatStateOf(0f) }
 
     val artistMeta = remember(artist.name, artist.bio) {
         getRichArtistMetadata(artist.name, artist.bio)
@@ -179,245 +196,297 @@ fun ArtistScreen(
         context.startActivity(Intent.createChooser(shareIntent, null))
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(bgColor),
-        contentPadding = PaddingValues(bottom = 165.dp)
-    ) {
-        // ========================================================
-        // HERO BANNER DINÁMICO (340.dp)
-        // ========================================================
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(340.dp)
-            ) {
-                AuraCover(
-                    thumbnailUrl = artist.thumbnailUrl,
-                    id = artist.id,
-                    title = artist.name,
-                    isArtist = true,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+    Box(modifier = modifier.fillMaxSize()) {
+        // Fondo SoftBlur inmersivo completo bañado con los colores reales del artista
+        AuraPlayerBackdrop(
+            mode = PlayerBackdropMode.SOFT_BLUR,
+            visualData = visualData,
+            isPlaying = false,
+            haloCenterYFraction = 0.28f
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.32f to visualData.secondaryColor.copy(alpha = 0.24f),
+                        1f to Color(0xCC090B0F)
+                    )
                 )
+        )
 
-                // Viñeta vertical hacia el color de fondo del tema actual
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(selectedTab) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { tabSwipeDx = 0f },
+                        onHorizontalDrag = { _, dragAmount -> tabSwipeDx += dragAmount },
+                        onDragEnd = {
+                            if (abs(tabSwipeDx) > 110f) {
+                                if (tabSwipeDx < 0 && selectedTab < tabs.lastIndex) selectedTab++
+                                else if (tabSwipeDx > 0 && selectedTab > 0) selectedTab--
+                            }
+                            tabSwipeDx = 0f
+                        },
+                        onDragCancel = { tabSwipeDx = 0f }
+                    )
+                },
+            contentPadding = PaddingValues(bottom = 165.dp)
+        ) {
+            // ========================================================
+            // HERO BANNER DINÁMICO (355.dp Edge-to-Edge)
+            // ========================================================
+            item {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.35f),
-                                    Color.Transparent,
-                                    bgColor.copy(alpha = 0.85f),
-                                    bgColor
+                        .fillMaxWidth()
+                        .height(355.dp)
+                ) {
+                    AuraCover(
+                        thumbnailUrl = artist.thumbnailUrl,
+                        id = artist.id,
+                        title = artist.name,
+                        isArtist = true,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    // Viñeta vertical suave que funde la foto con el SoftBlur inferior (sin corte negro brusco)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Black.copy(alpha = 0.36f),
+                                        Color.Transparent,
+                                        visualData.secondaryColor.copy(alpha = 0.38f),
+                                        Color(0xD0090B0F).copy(alpha = 0.72f)
+                                    )
                                 )
                             )
-                        )
-                )
+                    )
 
-                // Barra superior: Atrás, Logo (A) AURA Music y Menú de 3 puntos
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onBackClick,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.45f))
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Atrás",
-                            tint = Color.White
-                        )
-                    }
-
+                    // Barra superior con statusBarsPadding para botones flotantes
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
                         modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color.Black.copy(alpha = 0.35f))
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        AuraAppLogoBadge(iconStyle = currentAppIcon, size = 22.dp)
-                        Text(
-                            text = "AURA Music",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Box {
                         IconButton(
-                            onClick = { showArtistMenu = true },
+                            onClick = onBackClick,
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.45f))
+                                .background(Color.Black.copy(alpha = 0.40f))
                         ) {
                             Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Opciones",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Atrás",
                                 tint = Color.White
                             )
                         }
 
-                        DropdownMenu(
-                            expanded = showArtistMenu,
-                            onDismissRequest = { showArtistMenu = false }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.Black.copy(alpha = 0.32f))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
-                            DropdownMenuItem(
-                                text = { Text(if (isFollowing) "Dejar de seguir" else "Seguir artista") },
-                                onClick = {
-                                    showArtistMenu = false
-                                    onFollowToggle()
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        if (isFollowing) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                        contentDescription = null
-                                    )
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Compartir artista") },
-                                onClick = {
-                                    showArtistMenu = false
-                                    shareArtistLink()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Share, contentDescription = null)
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Reproducir populares") },
-                                onClick = {
-                                    showArtistMenu = false
-                                    onPlayAllClick()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null)
-                                }
+                            AuraAppLogoBadge(iconStyle = currentAppIcon, size = 22.dp)
+                            Text(
+                                text = "AURA Music",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
-                    }
-                }
 
-                // Nombre del artista + Insignia de verificado + Oyentes mensuales
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Box {
+                            IconButton(
+                                onClick = { showArtistMenu = true },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.40f))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Opciones",
+                                    tint = Color.White
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showArtistMenu,
+                                onDismissRequest = { showArtistMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isFollowing) "Dejar de seguir" else "Seguir artista") },
+                                    onClick = {
+                                        showArtistMenu = false
+                                        onFollowToggle()
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            if (isFollowing) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                            contentDescription = null
+                                        )
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Compartir artista") },
+                                    onClick = {
+                                        showArtistMenu = false
+                                        shareArtistLink()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Share, contentDescription = null)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Reproducir populares") },
+                                    onClick = {
+                                        showArtistMenu = false
+                                        onPlayAllClick()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // Nombre del artista + Insignia de verificado + Oyentes mensuales
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(horizontal = 20.dp, vertical = 10.dp)
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = artist.name,
+                                color = textPrimary,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Verificado",
+                                tint = primaryColor,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
                         Text(
-                            text = artist.name,
-                            color = textPrimary,
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Verificado",
-                            tint = primaryColor,
-                            modifier = Modifier.size(22.dp)
+                            text = listenersLabel,
+                            color = textSecondary,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Text(
-                        text = listenersLabel,
-                        color = textSecondary,
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Medium
-                    )
                 }
             }
-        }
 
-        // ========================================================
-        // FILA DE ACCIONES: [▶ Reproducir]  [Siguiendo ✓]  [🔗]
-        // ========================================================
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = onPlayAllClick,
+            // ========================================================
+            // FILA DE ACCIONES FLOTANTES: [▶ Reproducir] [Aleatorio] [Siguiendo ✓] [🔗]
+            // ========================================================
+            item {
+                Row(
                     modifier = Modifier
-                        .height(44.dp)
-                        .weight(1.3f),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = primaryColor,
-                        contentColor = onPrimaryColor
-                    ),
-                    contentPadding = PaddingValues(horizontal = 16.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Reproducir",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                    Button(
+                        onClick = onPlayAllClick,
+                        modifier = Modifier
+                            .height(44.dp)
+                            .weight(1.25f),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = primaryColor,
+                            contentColor = onPrimaryColor
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Reproducir",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
 
-                OutlinedButton(
-                    onClick = onFollowToggle,
-                    modifier = Modifier
-                        .height(44.dp)
-                        .weight(1.1f),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (isFollowing) primaryColor else textPrimary
-                    ),
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (isFollowing) primaryColor.copy(alpha = 0.65f) else cardBorder
-                    ),
-                    contentPadding = PaddingValues(horizontal = 12.dp)
-                ) {
-                    Text(
-                        text = if (isFollowing) "Siguiendo ✓" else "+ Seguir",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                    IconButton(
+                        onClick = onShufflePlayClick,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.14f))
+                            .border(0.85.dp, Color.White.copy(alpha = 0.18f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Shuffle,
+                            contentDescription = "Aleatorio",
+                            tint = Color.White,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
 
-                IconButton(
-                    onClick = shareArtistLink,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(cardBg)
-                        .border(1.dp, cardBorder, CircleShape)
-                ) {
+                    OutlinedButton(
+                        onClick = onFollowToggle,
+                        modifier = Modifier
+                            .height(44.dp)
+                            .weight(1f),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White.copy(alpha = 0.10f),
+                            contentColor = if (isFollowing) primaryColor else textPrimary
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (isFollowing) primaryColor.copy(alpha = 0.70f) else cardBorder
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp)
+                    ) {
+                        Text(
+                            text = if (isFollowing) "Siguiendo ✓" else "+ Seguir",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                    }
+
+                    IconButton(
+                        onClick = shareArtistLink,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.14f))
+                            .border(0.85.dp, Color.White.copy(alpha = 0.18f), CircleShape)
+                    ) {
                     Icon(
                         imageVector = Icons.Default.Share,
                         contentDescription = "Compartir",
@@ -483,17 +552,38 @@ fun ArtistScreen(
                 // ========================================================
                 0 -> {
                     item {
-                        Text(
-                            text = "Populares",
-                            color = textPrimary,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Populares (${artist.topSongs.size})",
+                                color = textPrimary,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (artist.topSongs.size > 6) {
+                                Text(
+                                    text = if (showAllSongs) "Mostrar menos" else "Ver toda la música",
+                                    color = primaryColor,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { showAllSongs = !showAllSongs }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
                     }
 
+                    val displayedSongs = if (showAllSongs) artist.topSongs else artist.topSongs.take(6)
+
                     itemsIndexed(
-                        items = artist.topSongs.take(10),
+                        items = displayedSongs,
                         key = { idx, s -> "art_pop_${idx}_${s.id}" }
                     ) { index, song ->
                         val isCurrent = song.id == currentPlayingSongId
@@ -783,7 +873,7 @@ fun ArtistScreen(
                                 Text("Biografía", color = textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                 Text(
                                     text = artistMeta.bio,
-                                    color = if (isDark) Color(0xFFCBD5E1) else Color(0xFF334155),
+                                    color = Color(0xFFCBD5E1),
                                     fontSize = 14.sp,
                                     lineHeight = 22.sp
                                 )
@@ -963,6 +1053,7 @@ fun ArtistScreen(
             }
         }
     }
+    }
 }
 
 @Composable
@@ -1121,6 +1212,9 @@ private fun ArtistMetricCard(
     }
 }
 
+// ========================================================
+// PANTALLA DE ÁLBUM O PLAYLIST (INMERSIVA FULL-BLEED + SOFTBLUR)
+// ========================================================
 @Composable
 fun AlbumScreen(
     album: Album,
@@ -1130,42 +1224,47 @@ fun AlbumScreen(
     onSaveToggle: () -> Unit = {},
     onDownloadAlbum: (List<Song>) -> Unit = {},
     onPlaySong: (Song, List<Song>) -> Unit,
+    onShuffleAlbum: (List<Song>) -> Unit = { list -> list.firstOrNull()?.let { onPlaySong(it, list) } },
     onSongOptionsClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(bottom = 160.dp)
-    ) {
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Atrás",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-            }
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+    val visualData = rememberCoverVisualData(
+        songId = "album_${album.id}",
+        thumbnailUrl = album.thumbnailUrl,
+        fallbackColor = primaryColor,
+        computeBlurBitmap = true
+    )
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Surface(
-                    modifier = Modifier.size(200.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    shadowElevation = 12.dp,
-                    color = MaterialTheme.colorScheme.surfaceVariant
+    Box(modifier = modifier.fillMaxSize()) {
+        AuraPlayerBackdrop(
+            mode = PlayerBackdropMode.SOFT_BLUR,
+            visualData = visualData,
+            isPlaying = false,
+            haloCenterYFraction = 0.25f
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.38f to visualData.secondaryColor.copy(alpha = 0.28f),
+                        1f to Color(0xD8090B0F)
+                    )
+                )
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 165.dp)
+        ) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(355.dp)
                 ) {
                     AuraCover(
                         thumbnailUrl = album.thumbnailUrl,
@@ -1175,158 +1274,224 @@ fun AlbumScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    0f to Color.Black.copy(alpha = 0.34f),
+                                    0.45f to Color.Transparent,
+                                    0.85f to visualData.secondaryColor.copy(alpha = 0.65f),
+                                    1f to visualData.secondaryColor.copy(alpha = 0.85f)
+                                )
+                            )
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onBackClick,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.38f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Atrás",
+                                tint = Color.White
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { album.songs.firstOrNull()?.let { onSongOptionsClick(it) } },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.38f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Opciones",
+                                tint = Color.White
+                            )
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = album.title,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 26.sp,
+                                lineHeight = 30.sp
+                            ),
+                            color = Color.White,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = "${album.artist} • ${album.year ?: "2025"} • ${album.songs.size.coerceAtLeast(album.songCount)} canciones",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                            color = Color.White.copy(alpha = 0.82f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Text(
-                    text = album.title,
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 23.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 2
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "${album.artist} • ${album.year ?: "2024"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
+                // Fila de botones translúcidos sobre el fondo difuminado
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onSaveToggle) {
-                        Icon(
-                            imageVector = if (isSaved) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Guardar álbum",
-                            tint = if (isSaved) FavoriteRed else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    IconButton(onClick = { onDownloadAlbum(album.songs) }) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = "Descargar álbum",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    IconButton(
-                        onClick = {
-                            album.songs.firstOrNull()?.let { onPlaySong(it, album.songs) }
-                        },
+                    Button(
+                        onClick = { album.songs.firstOrNull()?.let { onPlaySong(it, album.songs) } },
+                        shape = RoundedCornerShape(22.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = primaryColor,
+                            contentColor = onPrimaryColor
+                        ),
                         modifier = Modifier
-                            .size(56.dp)
-                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                            .height(44.dp)
+                            .weight(1.3f)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Reproducir álbum",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(30.dp)
-                        )
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Reproducir", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
-
                     IconButton(
-                        onClick = {
-                            val shuffled = album.songs.shuffled()
-                            shuffled.firstOrNull()?.let { onPlaySong(it, shuffled) }
-                        }
+                        onClick = { onShuffleAlbum(album.songs) },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.16f))
                     ) {
                         Icon(
                             imageVector = Icons.Default.Shuffle,
                             contentDescription = "Aleatorio",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = Color.White,
+                            modifier = Modifier.size(19.dp)
                         )
                     }
-
-                    Spacer(modifier = Modifier.width(8.dp))
 
                     IconButton(
-                        onClick = {
-                            album.songs.firstOrNull()?.let { onSongOptionsClick(it) }
-                        }
+                        onClick = onSaveToggle,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.16f))
                     ) {
                         Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Opciones",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-            }
-        }
-
-        if (isLoading && album.songs.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        } else {
-            itemsIndexed(album.songs, key = { idx, s -> "alb_song_${idx}_${s.id}" }) { index, song ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onPlaySong(song, album.songs) }
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${index + 1}",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(28.dp)
-                    )
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = song.title,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp
-                            ),
-                            color = MaterialTheme.colorScheme.onBackground,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "${song.artist} • ${formatDuration(song.durationSeconds)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            imageVector = if (isSaved) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = "Guardar álbum",
+                            tint = if (isSaved) FavoriteRed else Color.White,
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
-                    IconButton(onClick = { onSongOptionsClick(song) }) {
+                    IconButton(
+                        onClick = { onDownloadAlbum(album.songs) },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.16f))
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Opciones",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Descargar álbum",
+                            tint = Color.White,
+                            modifier = Modifier.size(19.dp)
                         )
+                    }
+                }
+            }
+
+            if (isLoading && album.songs.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = primaryColor)
+                    }
+                }
+            } else {
+                itemsIndexed(album.songs, key = { idx, s -> "alb_song_${idx}_${s.id}" }) { index, song ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPlaySong(song, album.songs) }
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${index + 1}",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White.copy(alpha = 0.65f),
+                            modifier = Modifier.width(28.dp)
+                        )
+
+                        AuraCover(
+                            thumbnailUrl = song.thumbnailUrl,
+                            id = song.id,
+                            title = song.title,
+                            artist = song.artist,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(10.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = song.title,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp
+                                ),
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "${song.artist} • ${formatDuration(song.durationSeconds)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.70f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        IconButton(onClick = { onSongOptionsClick(song) }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Opciones",
+                                tint = Color.White.copy(alpha = 0.72f)
+                            )
+                        }
                     }
                 }
             }

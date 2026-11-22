@@ -29,11 +29,11 @@ fun AuraAppLogoBadge(
     modifier: Modifier = Modifier,
 ) {
     val (bgColor, strokeColor, ringColor) = when (iconStyle.uppercase()) {
-        "BLACK" -> Triple(Color(0xFF0F1117), Color(0xFFFFFFFF), Color(0xFFC4B5FD))
-        "WHITE" -> Triple(Color(0xFFF8FAFC), Color(0xFF6D28D9), Color(0xFF7C3AED))
+        "BLACK" -> Triple(Color(0xFF090B0F), Color(0xFFFFFFFF), Color(0xFFF5A623))
+        "WHITE" -> Triple(Color(0xFFF8FAFC), Color(0xFF090B0F), Color(0xFFF5A623))
         "CYAN" -> Triple(Color(0xFF0D9488), Color(0xFFFFFFFF), Color(0xFF99F6E4))
         "ORANGE" -> Triple(Color(0xFFF97316), Color(0xFFFFFFFF), Color(0xFFFED7AA))
-        "GOLD" -> Triple(Color(0xFFD4AF37), Color(0xFF0F1117), Color(0xFF1E1B4B))
+        "GOLD" -> Triple(Color(0xFF13161D), Color(0xFFF5A623), Color(0xFFF5A623))
         else -> Triple(Color(0xFF7C3AED), Color(0xFFFFFFFF), Color(0xFFDDD6FE))
     }
 
@@ -88,5 +88,63 @@ fun AuraAppLogoBadge(
                 cap = StrokeCap.Round
             )
         }
+    }
+}
+
+/**
+ * Monograma minimalista en trazo doble de AURA con ondas acústicas opcionales
+ * para las cabeceras y la pantalla de Bienvenida.
+ */
+@Composable
+fun AuraMonogramGlyph(
+    color: Color,
+    size: Dp = 28.dp,
+    withRings: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val cx = w * 0.5f
+        val cy = h * 0.5f
+
+        if (withRings) {
+            listOf(0.98f to 0.14f, 0.80f to 0.24f, 0.62f to 0.42f).forEach { (factor, alpha) ->
+                drawCircle(
+                    color = color.copy(alpha = alpha),
+                    radius = (w * 0.5f) * factor,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = 1.2.dp.toPx())
+                )
+            }
+        }
+
+        val scale = if (withRings) 0.48f else 0.90f
+        val ox = cx - (w * scale) / 2f
+        val oy = cy - (h * scale) / 2f
+        val sw = w * scale
+        val sh = h * scale
+        val strokeW = (sw * 0.085f).coerceAtLeast(1.8.dp.toPx())
+
+        val outerA = Path().apply {
+            moveTo(ox + sw * 0.20f, oy + sh * 0.86f)
+            lineTo(ox + sw * 0.50f, oy + sh * 0.14f)
+            lineTo(ox + sw * 0.80f, oy + sh * 0.86f)
+        }
+        drawPath(
+            path = outerA,
+            color = color,
+            style = Stroke(width = strokeW, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        drawArc(
+            color = color.copy(alpha = 0.78f),
+            startAngle = 195f,
+            sweepAngle = 150f,
+            useCenter = false,
+            topLeft = Offset(ox + sw * 0.31f, oy + sh * 0.50f),
+            size = Size(sw * 0.38f, sh * 0.24f),
+            style = Stroke(width = strokeW * 0.85f, cap = StrokeCap.Round)
+        )
     }
 }

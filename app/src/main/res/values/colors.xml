@@ -28,10 +28,10 @@
     <color name="light_on_surface">#1A1A1E</color>
     <color name="light_text_secondary">#737380</color>
 
-    <!-- Dark Theme -->
-    <color name="dark_background">#080B11</color>
-    <color name="dark_surface">#0E141E</color>
-    <color name="dark_surface_subtle">#182232</color>
+    <!-- Dark Theme (Obsidian Acoustic Noir) -->
+    <color name="dark_background">#090B0F</color>
+    <color name="dark_surface">#13161D</color>
+    <color name="dark_surface_subtle">#1A1E28</color>
     <color name="dark_on_background">#F8FAFC</color>
     <color name="dark_on_surface">#F8FAFC</color>
     <color name="dark_text_secondary">#94A3B8</color>

@@ -1,5 +1,7 @@
 package com.auramusic.app.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,9 +32,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.auramusic.app.i18n.LocalAuraStrings
 
 enum class AuraTab {
     HOME,
@@ -42,9 +53,9 @@ enum class AuraTab {
 }
 
 /**
- * Barra flotante segmentada fiel al diseño del usuario:
- * - Una caja a la izquierda que agrupa [Home], [Explore] y [Corazón] (con indicador ovalado en el activo).
- * - El buscador [Lupa] solo e independiente a la derecha.
+ * Barra flotante segmentada en cristal esmerilado:
+ * - Cápsula izquierda flotante con [Inicio | Explore | Biblioteca].
+ * - Botón circular independiente [Buscar] flotando a la derecha.
  */
 @Composable
 fun AuraBottomNavigation(
@@ -52,6 +63,13 @@ fun AuraBottomNavigation(
     onTabSelected: (AuraTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val strings = LocalAuraStrings.current
+    val glassBg = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f)
+    val glassBorder = BorderStroke(
+        width = 0.85.dp,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.11f)
+    )
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -59,17 +77,18 @@ fun AuraBottomNavigation(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Caja contenedora de los primeros 3 items (Home, Explore, Library)
         Surface(
             modifier = Modifier
                 .shadow(
-                    elevation = 14.dp,
-                    shape = RoundedCornerShape(26.dp),
-                    spotColor = Color(0x20000000)
+                    elevation = 16.dp,
+                    shape = RoundedCornerShape(28.dp),
+                    spotColor = Color(0x45000000)
                 )
-                .clip(RoundedCornerShape(26.dp)),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-            tonalElevation = 4.dp
+                .clip(RoundedCornerShape(28.dp)),
+            shape = RoundedCornerShape(28.dp),
+            color = glassBg,
+            border = glassBorder,
+            tonalElevation = 0.dp
         ) {
             Row(
                 modifier = Modifier
@@ -80,52 +99,57 @@ fun AuraBottomNavigation(
             ) {
                 SegmentedNavItem(
                     icon = if (selectedTab == AuraTab.HOME) Icons.Filled.Home else Icons.Outlined.Home,
-                    contentDescription = "Inicio",
+                    contentDescription = strings.homeGreeting,
                     isSelected = selectedTab == AuraTab.HOME,
                     onClick = { onTabSelected(AuraTab.HOME) }
                 )
 
                 SegmentedNavItem(
-                    icon = Icons.Outlined.Home, // Rombo / Explore se dibuja con el vector personalizado abajo
+                    icon = Icons.Outlined.Home,
                     customIcon = { tint ->
                         ExploreDiamondIcon(tint = tint)
                     },
-                    contentDescription = "Explore",
+                    contentDescription = strings.explore,
                     isSelected = selectedTab == AuraTab.EXPLORE,
                     onClick = { onTabSelected(AuraTab.EXPLORE) }
                 )
 
                 SegmentedNavItem(
                     icon = if (selectedTab == AuraTab.LIBRARY) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Biblioteca",
+                    contentDescription = strings.library,
                     isSelected = selectedTab == AuraTab.LIBRARY,
                     onClick = { onTabSelected(AuraTab.LIBRARY) }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(14.dp))
 
-        // Botón circular independiente del buscador (Search) a la derecha
         Surface(
             modifier = Modifier
                 .size(54.dp)
                 .shadow(
-                    elevation = 14.dp,
+                    elevation = 16.dp,
                     shape = CircleShape,
-                    spotColor = Color(0x20000000)
+                    spotColor = Color(0x45000000)
                 )
                 .clip(CircleShape)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = ripple(bounded = true)
                 ) { onTabSelected(AuraTab.SEARCH) },
+            shape = CircleShape,
             color = if (selectedTab == AuraTab.SEARCH) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
             } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
+                glassBg
             },
-            tonalElevation = 4.dp
+            border = if (selectedTab == AuraTab.SEARCH) {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.65f))
+            } else {
+                glassBorder
+            },
+            tonalElevation = 0.dp
         ) {
             Box(
                 modifier = Modifier.size(54.dp),
@@ -133,13 +157,13 @@ fun AuraBottomNavigation(
             ) {
                 Icon(
                     imageVector = Icons.Default.Search,
-                    contentDescription = "Buscar",
+                    contentDescription = strings.search,
                     tint = if (selectedTab == AuraTab.SEARCH) {
                         MaterialTheme.colorScheme.primary
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(23.dp)
                 )
             }
         }
@@ -159,25 +183,29 @@ private fun SegmentedNavItem(
     Box(
         modifier = Modifier
             .height(42.dp)
-            .width(52.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .width(54.dp)
+            .semantics {
+                this.contentDescription = contentDescription
+                this.role = Role.Tab
+            }
+            .clip(RoundedCornerShape(21.dp))
             .background(
                 if (isSelected) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
                 } else {
                     Color.Transparent
                 }
             )
             .clickable(
                 interactionSource = interactionSource,
-                indication = ripple(bounded = true, radius = 22.dp)
+                indication = ripple(bounded = true, radius = 24.dp)
             ) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         val tint = if (isSelected) {
             MaterialTheme.colorScheme.primary
         } else {
-            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
         }
 
         if (customIcon != null) {
@@ -193,16 +221,13 @@ private fun SegmentedNavItem(
     }
 }
 
-/**
- * Icono de rombo geométrico fiel al icono de Explore de la barra
- */
 @Composable
 private fun ExploreDiamondIcon(tint: Color) {
-    androidx.compose.foundation.Canvas(modifier = Modifier.size(20.dp)) {
+    Canvas(modifier = Modifier.size(20.dp)) {
         val w = size.width
         val h = size.height
 
-        val path = androidx.compose.ui.graphics.Path().apply {
+        val path = Path().apply {
             moveTo(w / 2f, 1f)
             lineTo(w - 1f, h / 2f)
             lineTo(w / 2f, h - 1f)
@@ -213,15 +238,14 @@ private fun ExploreDiamondIcon(tint: Color) {
         drawPath(
             path = path,
             color = tint,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.2f.dp.toPx())
+            style = Stroke(width = 2.1f.dp.toPx())
         )
 
-        // Cuadrado pequeño interior en el centro
-        val innerSize = 4.5f.dp.toPx()
+        val innerSize = 4.4f.dp.toPx()
         drawRect(
             color = tint,
-            topLeft = androidx.compose.ui.geometry.Offset((w - innerSize) / 2f, (h - innerSize) / 2f),
-            size = androidx.compose.ui.geometry.Size(innerSize, innerSize)
+            topLeft = Offset((w - innerSize) / 2f, (h - innerSize) / 2f),
+            size = Size(innerSize, innerSize)
         )
     }
 }

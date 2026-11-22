@@ -2,6 +2,7 @@ package com.auramusic.app.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -55,10 +57,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.auramusic.app.data.models.AccentColor
+import com.auramusic.app.data.models.AppLanguageOption
 import com.auramusic.app.data.models.AppTheme
+import com.auramusic.app.data.models.ArtistFeedMode
 import com.auramusic.app.data.models.AudioQualityOption
+import com.auramusic.app.data.models.PlayerBackdropMode
+import com.auramusic.app.data.models.PlayerStyleMode
 import com.auramusic.app.data.models.UserSettings
 import com.auramusic.app.data.repository.UserProfile
+import com.auramusic.app.i18n.LocalAuraStrings
 import com.auramusic.app.ui.components.AuraAppLogoBadge
 import com.auramusic.app.ui.components.AuraCover
 import com.auramusic.app.ui.theme.toColor
@@ -67,7 +74,12 @@ enum class SettingsSubscreen {
     MAIN,
     THEME,
     ACCENT_COLOR,
+    PLAYER_BACKDROP,
+    PLAYER_STYLE,
+    LANGUAGE,
     AUDIO_QUALITY,
+    CROSSFADE,
+    ARTIST_FEED_MODE,
     NOTIFICATIONS,
     ABOUT,
     ABOUT_US,
@@ -89,9 +101,15 @@ fun SettingsScreen(
     onSettingsChanged: (UserSettings) -> Unit,
     onBackClick: () -> Unit,
     onAccountClick: () -> Unit,
+    onOpenAudioLab: () -> Unit = {},
+    onOpenImportMusic: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var currentSubscreen by remember { mutableStateOf(SettingsSubscreen.MAIN) }
+
+    BackHandler(enabled = currentSubscreen != SettingsSubscreen.MAIN) {
+        currentSubscreen = SettingsSubscreen.MAIN
+    }
 
     when (currentSubscreen) {
         SettingsSubscreen.MAIN -> {
@@ -102,8 +120,22 @@ fun SettingsScreen(
                 onBackClick = onBackClick,
                 onAccountClick = onAccountClick,
                 onNavigate = { currentSubscreen = it },
+                onOpenAudioLab = onOpenAudioLab,
+                onOpenImportMusic = onOpenImportMusic,
+                onToggleDefaultShuffle = {
+                    onSettingsChanged(currentSettings.copy(defaultShuffle = it))
+                },
                 onToggleContinuous = {
                     onSettingsChanged(currentSettings.copy(continuousPlayback = it))
+                },
+                onToggleOffline = {
+                    onSettingsChanged(currentSettings.copy(offlineMode = it))
+                },
+                onToggleDynamicSystemBg = {
+                    onSettingsChanged(currentSettings.copy(dynamicSystemBackdrop = it))
+                },
+                onToggleFastStart = {
+                    onSettingsChanged(currentSettings.copy(fastPlaybackStart = it))
                 },
                 modifier = modifier
             )
@@ -128,11 +160,61 @@ fun SettingsScreen(
                 modifier = modifier
             )
         }
+        SettingsSubscreen.PLAYER_BACKDROP -> {
+            PlayerBackdropSelectorView(
+                currentMode = currentSettings.playerBackdropMode,
+                onModeSelected = {
+                    onSettingsChanged(currentSettings.copy(playerBackdropMode = it))
+                },
+                onBack = { currentSubscreen = SettingsSubscreen.MAIN },
+                modifier = modifier
+            )
+        }
+        SettingsSubscreen.PLAYER_STYLE -> {
+            PlayerStyleSelectorView(
+                currentStyle = currentSettings.playerStyleMode,
+                onStyleSelected = {
+                    onSettingsChanged(currentSettings.copy(playerStyleMode = it))
+                },
+                onBack = { currentSubscreen = SettingsSubscreen.MAIN },
+                modifier = modifier
+            )
+        }
+        SettingsSubscreen.LANGUAGE -> {
+            LanguageSelectorView(
+                currentLanguage = currentSettings.language,
+                onLanguageSelected = {
+                    onSettingsChanged(currentSettings.copy(language = it))
+                },
+                onBack = { currentSubscreen = SettingsSubscreen.MAIN },
+                modifier = modifier
+            )
+        }
         SettingsSubscreen.AUDIO_QUALITY -> {
             AudioQualitySelectorView(
                 currentQuality = currentSettings.audioQuality,
                 onQualitySelected = {
                     onSettingsChanged(currentSettings.copy(audioQuality = it))
+                },
+                onBack = { currentSubscreen = SettingsSubscreen.MAIN },
+                modifier = modifier
+            )
+        }
+        SettingsSubscreen.CROSSFADE -> {
+            CrossfadeSelectorView(
+                currentSeconds = currentSettings.crossfadeSeconds,
+                onSelected = {
+                    onSettingsChanged(currentSettings.copy(crossfadeSeconds = it))
+                },
+                onBack = { currentSubscreen = SettingsSubscreen.MAIN },
+                modifier = modifier
+            )
+        }
+        SettingsSubscreen.ARTIST_FEED_MODE -> {
+            ArtistFeedModeSelectorView(
+                currentMode = currentSettings.artistFeedMode,
+                onSelected = {
+                    onSettingsChanged(currentSettings.copy(artistFeedMode = it))
                 },
                 onBack = { currentSubscreen = SettingsSubscreen.MAIN },
                 modifier = modifier
@@ -179,13 +261,21 @@ private fun SettingsMainView(
     onBackClick: () -> Unit,
     onAccountClick: () -> Unit,
     onNavigate: (SettingsSubscreen) -> Unit,
+    onOpenAudioLab: () -> Unit,
+    onOpenImportMusic: () -> Unit,
+    onToggleDefaultShuffle: (Boolean) -> Unit,
     onToggleContinuous: (Boolean) -> Unit,
+    onToggleOffline: (Boolean) -> Unit,
+    onToggleDynamicSystemBg: (Boolean) -> Unit,
+    onToggleFastStart: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val strings = LocalAuraStrings.current
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(bottom = 60.dp)
     ) {
@@ -204,10 +294,74 @@ private fun SettingsMainView(
                     )
                 }
                 Text(
-                    text = "Configuración",
+                    text = strings.settings,
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onBackground
                 )
+            }
+
+            // Panel de acceso rápido (Bento Resumen de Estilo, Artistas y Crossfade)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable { onNavigate(SettingsSubscreen.PLAYER_STYLE) },
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "ESTILO PLAYER",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = settings.playerStyleMode.title,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable { onNavigate(SettingsSubscreen.ARTIST_FEED_MODE) },
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "MODO ARTISTAS",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (settings.artistFeedMode == ArtistFeedMode.MORE_ARTISTS) "Más variedad" else "Todo el artista",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
 
             // Sección CUENTA
@@ -223,20 +377,44 @@ private fun SettingsMainView(
             // Sección APARIENCIA
             SettingsSectionHeader("APARIENCIA")
             SettingsCard(
-                title = "Tema de la aplicación",
+                title = strings.theme,
                 subtitle = settings.theme.title,
                 onClick = { onNavigate(SettingsSubscreen.THEME) }
             )
             Spacer(modifier = Modifier.height(8.dp))
             SettingsCard(
-                title = "Color de acento",
+                title = strings.accentColor,
                 subtitle = settings.accentColor.displayName,
                 trailingCircleColor = MaterialTheme.colorScheme.primary,
                 onClick = { onNavigate(SettingsSubscreen.ACCENT_COLOR) }
             )
             Spacer(modifier = Modifier.height(8.dp))
             SettingsCard(
-                title = "Icono de la app",
+                title = strings.playerBackdrop,
+                subtitle = settings.playerBackdropMode.title,
+                onClick = { onNavigate(SettingsSubscreen.PLAYER_BACKDROP) }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsCard(
+                title = "Estilo del reproductor",
+                subtitle = settings.playerStyleMode.title,
+                onClick = { onNavigate(SettingsSubscreen.PLAYER_STYLE) }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsToggleCard(
+                title = "Fondo dinámico según la canción",
+                checked = settings.dynamicSystemBackdrop,
+                onCheckedChange = onToggleDynamicSystemBg
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsCard(
+                title = strings.language,
+                subtitle = settings.language.nativeName,
+                onClick = { onNavigate(SettingsSubscreen.LANGUAGE) }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsCard(
+                title = strings.appIcon,
                 subtitle = "Estilo actual: $selectedAppIcon",
                 onClick = { onNavigate(SettingsSubscreen.APP_ICON) }
             )
@@ -246,7 +424,13 @@ private fun SettingsMainView(
             // Sección REPRODUCCIÓN
             SettingsSectionHeader("REPRODUCCIÓN")
             SettingsCard(
-                title = "Calidad de audio",
+                title = strings.audioLab,
+                subtitle = "Ecualizador, BassBoost, Reverb, Velocidad y Sleep Timer",
+                onClick = onOpenAudioLab
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsCard(
+                title = strings.audioQuality,
                 subtitle = when (settings.audioQuality) {
                     AudioQualityOption.AUTO -> "Automática"
                     AudioQualityOption.STANDARD -> "Estándar"
@@ -255,10 +439,50 @@ private fun SettingsMainView(
                 onClick = { onNavigate(SettingsSubscreen.AUDIO_QUALITY) }
             )
             Spacer(modifier = Modifier.height(8.dp))
+            SettingsCard(
+                title = strings.crossfade,
+                subtitle = if (settings.crossfadeSeconds == 0) {
+                    "Desactivado"
+                } else {
+                    "Activo • Mezcla suave de ${settings.crossfadeSeconds} seg"
+                },
+                highlightActive = settings.crossfadeSeconds > 0,
+                badgeText = if (settings.crossfadeSeconds > 0) "${settings.crossfadeSeconds}s" else null,
+                onClick = { onNavigate(SettingsSubscreen.CROSSFADE) }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsCard(
+                title = "Modo de artistas y mezcla",
+                subtitle = settings.artistFeedMode.title,
+                highlightActive = true,
+                badgeText = if (settings.artistFeedMode == ArtistFeedMode.MORE_ARTISTS) "Variedad" else "Completo",
+                onClick = { onNavigate(SettingsSubscreen.ARTIST_FEED_MODE) }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             SettingsToggleCard(
-                title = "Reproducción continua (Auto-Radio)",
+                title = "Inicio rápido de reproducción",
+                subtitle = "Pre-carga inteligente y buffer de baja latencia",
+                checked = settings.fastPlaybackStart,
+                onCheckedChange = onToggleFastStart
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsToggleCard(
+                title = strings.defaultShuffleTitle,
+                subtitle = strings.defaultShuffleSubtitle,
+                checked = settings.defaultShuffle,
+                onCheckedChange = onToggleDefaultShuffle
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsToggleCard(
+                title = strings.continuousPlayback,
                 checked = settings.continuousPlayback,
                 onCheckedChange = onToggleContinuous
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsToggleCard(
+                title = strings.offlineMode,
+                checked = settings.offlineMode,
+                onCheckedChange = onToggleOffline
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -266,20 +490,26 @@ private fun SettingsMainView(
             // Sección OTROS
             SettingsSectionHeader("OTROS")
             SettingsCard(
-                title = "Notificaciones",
+                title = strings.importMusic,
+                subtitle = "Spotify, Apple Music, Deezer, Música Local y CSV",
+                onClick = onOpenImportMusic
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsCard(
+                title = strings.notifications,
                 subtitle = if (settings.playbackNotifications) "Activadas" else "Desactivadas",
                 onClick = { onNavigate(SettingsSubscreen.NOTIFICATIONS) }
             )
             Spacer(modifier = Modifier.height(8.dp))
             SettingsCard(
-                title = "Sobre nosotros",
-                subtitle = "Nuestra misión y tecnología",
+                title = strings.aboutUs,
+                subtitle = "Nuestra misión y créditos open-source",
                 onClick = { onNavigate(SettingsSubscreen.ABOUT_US) }
             )
             Spacer(modifier = Modifier.height(8.dp))
             SettingsCard(
-                title = "Acerca de AURA Music",
-                subtitle = "Versión v3.0.0",
+                title = strings.aboutAura,
+                subtitle = "Versión v3.1.0",
                 onClick = { onNavigate(SettingsSubscreen.ABOUT) }
             )
         }
@@ -306,6 +536,7 @@ private fun AboutUsScreenView(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 60.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -352,7 +583,7 @@ private fun AboutUsScreenView(
                                 color = MaterialTheme.colorScheme.surfaceVariant
                             ) {
                                 Text(
-                                    text = "3.0.0",
+                                    text = "3.1.0",
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -536,7 +767,7 @@ private fun AboutUsScreenView(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "AURA Music está construido con AndroidX Media3 & Innertube bajo licencia GPL-3.0",
+                                    text = "AURA Music está construido con AndroidX Media3, Innertube y técnicas open-source inspiradas en Metrolist y Mochy Music (github.com/realidkroo/mochy-music) bajo licencia GPL-3.0.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -706,7 +937,7 @@ private fun ThemeSelectorView(
         items(themes) { themeItem ->
             val previewBg = when (themeItem) {
                 AppTheme.LIGHT -> Color(0xFFF5F5F7)
-                AppTheme.DARK -> Color(0xFF080B11)
+                AppTheme.DARK -> Color(0xFF090B0F)
                 AppTheme.AMOLED -> Color(0xFF000000)
                 AppTheme.MIDNIGHT_VIOLET -> Color(0xFF17112A)
                 AppTheme.CYBER_CARBON -> Color(0xFF0E1D26)
@@ -887,6 +1118,7 @@ private fun AudioQualitySelectorView(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .padding(20.dp)
     ) {
         SubscreenHeader(title = "Calidad de audio", onBack = onBack)
@@ -926,6 +1158,168 @@ private fun AudioQualitySelectorView(
 }
 
 @Composable
+private fun PlayerBackdropSelectorView(
+    currentMode: PlayerBackdropMode,
+    onModeSelected: (PlayerBackdropMode) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val strings = LocalAuraStrings.current
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .padding(20.dp)
+    ) {
+        SubscreenHeader(title = strings.playerBackdrop, onBack = onBack)
+        Spacer(modifier = Modifier.height(10.dp))
+        PlayerBackdropMode.entries.forEach { mode ->
+            OptionSelectCard(
+                title = mode.title,
+                subtitle = mode.subtitle,
+                isSelected = currentMode == mode,
+                onClick = { onModeSelected(mode) }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+    }
+}
+
+@Composable
+private fun PlayerStyleSelectorView(
+    currentStyle: PlayerStyleMode,
+    onStyleSelected: (PlayerStyleMode) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .padding(20.dp),
+        contentPadding = PaddingValues(bottom = 40.dp)
+    ) {
+        item {
+            SubscreenHeader(title = "Estilo del reproductor (5 diseños)", onBack = onBack)
+            Text(
+                text = "Elige el diseño visual de la pantalla de reproducción o cámbialo al instante con el botón ✨ arriba a la derecha.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            PlayerStyleMode.entries.forEach { style ->
+                OptionSelectCard(
+                    title = style.title,
+                    subtitle = style.subtitle,
+                    isSelected = currentStyle == style,
+                    onClick = { onStyleSelected(style) }
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtistFeedModeSelectorView(
+    currentMode: ArtistFeedMode,
+    onSelected: (ArtistFeedMode) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .padding(20.dp)
+    ) {
+        SubscreenHeader(title = "Modo de artistas y mezcla", onBack = onBack)
+        Text(
+            text = "Elige si prefieres descubrir más artistas distintos en Inicio y Explorar, o ver todas las canciones seguidas de cada artista.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 20.dp)
+        )
+        ArtistFeedMode.entries.forEach { mode ->
+            OptionSelectCard(
+                title = mode.title,
+                subtitle = mode.subtitle,
+                isSelected = currentMode == mode,
+                onClick = { onSelected(mode) }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+    }
+}
+
+@Composable
+private fun LanguageSelectorView(
+    currentLanguage: AppLanguageOption,
+    onLanguageSelected: (AppLanguageOption) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val strings = LocalAuraStrings.current
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .padding(20.dp)
+    ) {
+        SubscreenHeader(title = strings.language, onBack = onBack)
+        Spacer(modifier = Modifier.height(10.dp))
+        AppLanguageOption.entries.forEach { option ->
+            OptionSelectCard(
+                title = option.nativeName,
+                subtitle = option.displayName,
+                isSelected = currentLanguage == option,
+                onClick = { onLanguageSelected(option) }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+    }
+}
+
+@Composable
+private fun CrossfadeSelectorView(
+    currentSeconds: Int,
+    onSelected: (Int) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val strings = LocalAuraStrings.current
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .padding(20.dp)
+    ) {
+        SubscreenHeader(title = strings.crossfade, onBack = onBack)
+        Spacer(modifier = Modifier.height(10.dp))
+        listOf(
+            0 to "Desactivado" to "Cambio directo entre canciones",
+            3 to "3 segundos" to "Transición corta y suave",
+            5 to "5 segundos" to "Mezcla equilibrada de estudio",
+            8 to "8 segundos" to "Transición larga continua"
+        ).forEach { (pair, sub) ->
+            val (sec, title) = pair
+            OptionSelectCard(
+                title = title,
+                subtitle = sub,
+                isSelected = currentSeconds == sec,
+                onClick = { onSelected(sec) }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+    }
+}
+
+@Composable
 private fun NotificationsSettingsView(
     settings: UserSettings,
     onSettingsChanged: (UserSettings) -> Unit,
@@ -936,6 +1330,7 @@ private fun NotificationsSettingsView(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .padding(20.dp)
     ) {
         SubscreenHeader(title = "Notificaciones", onBack = onBack)
@@ -1020,7 +1415,7 @@ private fun AboutScreenView(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text("Versión", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("v3.0.0 (UNIVERSAL)", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface)
+                Text("v3.1.0 (UNIVERSAL)", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface)
 
                 Spacer(modifier = Modifier.height(14.dp))
 
@@ -1074,6 +1469,8 @@ private fun SettingsCard(
     title: String,
     subtitle: String,
     trailingCircleColor: Color? = null,
+    highlightActive: Boolean = false,
+    badgeText: String? = null,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -1081,8 +1478,17 @@ private fun SettingsCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp
+        border = androidx.compose.foundation.BorderStroke(
+            width = if (highlightActive) 1.dp else 0.85.dp,
+            color = if (highlightActive) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+            }
+        ),
+        tonalElevation = 0.dp
     ) {
         Row(
             modifier = Modifier
@@ -1093,7 +1499,11 @@ private fun SettingsCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface)
-                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (highlightActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             if (trailingCircleColor != null) {
@@ -1103,6 +1513,24 @@ private fun SettingsCard(
                         .clip(CircleShape)
                         .background(trailingCircleColor)
                 )
+            } else if (badgeText != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    ) {
+                        Text(
+                            text = badgeText,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                    Text("›", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             } else {
                 Text("›", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -1113,6 +1541,7 @@ private fun SettingsCard(
 @Composable
 private fun SettingsToggleCard(
     title: String,
+    subtitle: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
@@ -1120,21 +1549,35 @@ private fun SettingsToggleCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp
+        border = androidx.compose.foundation.BorderStroke(
+            width = 0.85.dp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+        ),
+        tonalElevation = 0.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             Switch(
                 checked = checked,
                 onCheckedChange = onCheckedChange,

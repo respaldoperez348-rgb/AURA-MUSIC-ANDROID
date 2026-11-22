@@ -73,7 +73,22 @@ class AuraMusicService : MediaSessionService() {
         return mediaSession
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // Cuando el usuario cierra la app deslizándola desde Recientes, detener reproducción y cerrar el servicio
+        runCatching {
+            AuraApplication.playerManager.stopPlaybackForTaskRemoval()
+            mediaSession?.player?.pause()
+            mediaSession?.player?.stop()
+        }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
+        runCatching {
+            AuraApplication.playerManager.stopPlaybackForTaskRemoval()
+        }
         mediaSession?.release()
         mediaSession = null
         super.onDestroy()

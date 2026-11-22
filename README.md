@@ -1,11 +1,11 @@
-# AURA Music (Android) — v3.0.0
+# AURA Music (Android) — v3.1.0
 
 <div align="center">
 
 ### **Reproductor de música moderno, rápido y personalizable para Android**
-*Streaming en tiempo real con motor Innertube (`WEB_REMIX`), descargas offline con notificaciones del sistema, letras sincronizadas y diseño expresivo en Jetpack Compose.*
+*Streaming instantáneo con motor híbrido (`VISIONOS` + `InnerTubeX` + `Media3 SimpleCache`), 5 estilos de reproductor, Crossfade Dual-Deck, descargas offline con alerta sonora, letras sincronizadas con triple respaldo y diseño expresivo en Jetpack Compose.*
 
-[![Version](https://img.shields.io/badge/Release-v3.0.0-7C3AED?style=for-the-badge&logo=android&logoColor=white)](https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases/tag/v3.0.0)
+[![Version](https://img.shields.io/badge/Release-v3.1.0-F5A623?style=for-the-badge&logo=android&logoColor=black)](https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases/tag/v3.1.0)
 [![Platform](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-10B981?style=for-the-badge&logo=android&logoColor=white)](#)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Material%203%20Compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](#)
@@ -16,61 +16,61 @@
 
 <br/>
 
-[**Descargar APK Release v3.0.0 (Recomendado - 20 MB)**](releases/AuraMusic-v3.0.0-Release.apk) &nbsp;•&nbsp; [**Descargar APK Debug v3.0.0 (28 MB)**](releases/AuraMusic-v3.0.0-Debug.apk) &nbsp;•&nbsp; [**Ver Lanzamiento Oficial (GitHub Releases)**](https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases)
+[**Descargar APK Release v3.1.0 (Recomendado - 20 MB)**](releases/AuraMusic-v3.1.0-Release.apk) &nbsp;•&nbsp; [**Descargar APK Debug v3.1.0 (29 MB)**](releases/AuraMusic-v3.1.0-Debug.apk) &nbsp;•&nbsp; [**Ver Lanzamiento Oficial (GitHub Releases)**](https://github.com/respaldoperez348-rgb/AURA-MUSIC-ANDROID/releases)
 
 </div>
 
 ---
 
-## 📸 Capturas de Pantalla
+## 📸 Capturas de Pantalla (v3.1.0)
 
 <div align="center">
 
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="screenshots/01_tendencias.jpg" width="100%" alt="Lista de canciones y tendencias"/>
+      <img src="screenshots/01_home_dashboard.png" width="100%" alt="Inicio Bento y Onda Acústica"/>
       <br/><br/>
-      <b>01. Catálogo y Tendencias</b>
+      <b>01. Inicio Bento & Onda Acústica</b>
       <br/>
-      <sub>Carátulas verificadas de alta resolución y acceso rápido a opciones</sub>
+      <sub>Hero card con onda en vivo, mosaico Bento, historial reciente y más escuchados</sub>
     </td>
     <td align="center" width="33%">
-      <img src="screenshots/02_explore_caracol.jpg" width="100%" alt="Explore en Espiral / Caracol"/>
+      <img src="screenshots/02_explore_caracol.png" width="100%" alt="Explore en Espiral / Caracol"/>
       <br/><br/>
       <b>02. Explore en Caracol Dinámico</b>
       <br/>
-      <sub>Recomendaciones en espiral adaptadas al género de lo que escuchas</sub>
+      <sub>Recomendaciones en espiral adaptadas al género de lo que escuchas a 120 Hz</sub>
     </td>
     <td align="center" width="33%">
-      <img src="screenshots/03_biblioteca.jpg" width="100%" alt="Biblioteca y Barra Flotante"/>
+      <img src="screenshots/04_buscador_bento.png" width="100%" alt="Buscador Bento y Artistas"/>
       <br/><br/>
-      <b>03. Biblioteca & Barra Flotante</b>
+      <b>03. Buscador & Explorador Bento</b>
       <br/>
-      <sub>Favoritos, Seguidos, Álbumes, Descargados y Playlists con persistencia SQLite</sub>
+      <sub>Tarjetas de géneros con carátulas inclinadas, tendencias y artistas destacados</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <img src="screenshots/04_colores_acento.jpg" width="100%" alt="12 Colores de Acento"/>
+      <img src="screenshots/05_player_studio_halo.png" width="100%" alt="Reproductor Studio Halo"/>
       <br/><br/>
-      <b>04. 12 Colores de Acento</b>
+      <b>04. Estilo Studio Halo + Live-Lyrics</b>
       <br/>
-      <sub>Personalización en vivo de botones, ondas e indicadores con vista previa</sub>
+      <sub>Onda acústica interactiva, insignia OPUS kbps y letras sincronizadas en vivo</sub>
     </td>
     <td align="center" width="33%">
-      <img src="screenshots/05_iconos_app.jpg" width="100%" alt="Selector de Icono de la App"/>
+      <img src="screenshots/08_player_vinilo.png" width="100%" alt="Estilo Tocadiscos Vinilo"/>
       <br/><br/>
-      <b>05. Icono Dinámico del Launcher</b>
+      <b>05. Estilo Tocadiscos Vinilo</b>
       <br/>
-      <sub>6 estilos de icono que se actualizan en el cajón de aplicaciones de Android</sub>
+      <sub>Vinilo giratorio con brazo de aguja, controles laterales y vista previa de siguiente canción</sub>
     </td>
     <td align="center" width="33%">
-      <img src="screenshots/06_configuracion.jpg" width="100%" alt="Configuración y Cuenta"/>
+      <img src="screenshots/10_player_reloj_gigante.png" width="100%" alt="Estilo Letras y Reloj Gigante"/>
       <br/><br/>
-      <b>06. Configuración y Cuenta</b>
+      <b>06. Estilo Letras & Reloj Ambiente</b>
       <br/>
-      <sub>Sincronización con cuenta de Google/YouTube Music, temas, calidad de audio y Auto-Radio</sub>
+      <sub>Panel dual deslizable entre letras sincronizadas en vivo y reloj digital gigante</sub>
     </td>
   </tr>
 </table>

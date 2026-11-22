@@ -13,13 +13,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -60,9 +63,13 @@ fun SongOptionsBottomSheet(
     isFavorite: Boolean = false,
     isDownloaded: Boolean = false,
     playlists: List<UserPlaylist> = emptyList(),
+    currentPlaylistId: String? = null,
     onDismiss: () -> Unit,
+    onPlayNext: (Song) -> Unit = {},
+    onAddToQueue: (Song) -> Unit = {},
     onAddToFavorites: (Song) -> Unit,
     onAddToPlaylist: (String, Song) -> Unit,
+    onRemoveFromCurrentPlaylist: ((String, Song) -> Unit)? = null,
     onDownload: (Song) -> Unit,
     onRemoveDownload: (Song) -> Unit = {},
     onShare: (Song) -> Unit,
@@ -136,6 +143,25 @@ fun SongOptionsBottomSheet(
 
             if (!showPlaylistSelector) {
                 OptionRow(
+                    icon = Icons.Default.SkipNext,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    label = "Reproducir a continuación",
+                    onClick = {
+                        onPlayNext(song)
+                        onDismiss()
+                    }
+                )
+
+                OptionRow(
+                    icon = Icons.AutoMirrored.Filled.QueueMusic,
+                    label = "Añadir a la cola",
+                    onClick = {
+                        onAddToQueue(song)
+                        onDismiss()
+                    }
+                )
+
+                OptionRow(
                     icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     iconTint = if (isFavorite) FavoriteRed else MaterialTheme.colorScheme.onSurface,
                     label = if (isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
@@ -150,6 +176,19 @@ fun SongOptionsBottomSheet(
                     label = "Añadir a playlist",
                     onClick = { showPlaylistSelector = true }
                 )
+
+                if (currentPlaylistId != null && onRemoveFromCurrentPlaylist != null) {
+                    OptionRow(
+                        icon = Icons.Default.RemoveCircleOutline,
+                        iconTint = DangerRed,
+                        labelColor = DangerRed,
+                        label = "Quitar de esta playlist",
+                        onClick = {
+                            onRemoveFromCurrentPlaylist(currentPlaylistId, song)
+                            onDismiss()
+                        }
+                    )
+                }
 
                 if (isDownloaded) {
                     OptionRow(

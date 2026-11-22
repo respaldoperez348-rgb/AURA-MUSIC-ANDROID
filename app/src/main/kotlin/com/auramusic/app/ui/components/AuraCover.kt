@@ -33,6 +33,8 @@ private val YT_VI_PATH = Regex("/vi/([a-zA-Z0-9_-]{11})/")
 
 object DynamicCoverResolver {
     private val memoryCache = ConcurrentHashMap<String, String>()
+    private val failedCache = ConcurrentHashMap.newKeySet<String>()
+    private val networkSemaphore = kotlinx.coroutines.sync.Semaphore(2)
 
     suspend fun resolve(title: String, artist: String, isArtist: Boolean = false): String? = withContext(Dispatchers.IO) {
         val cleanTitle = title.trim()
@@ -40,8 +42,11 @@ object DynamicCoverResolver {
         if (cleanTitle.isBlank()) return@withContext null
         val cacheKey = "${isArtist}_${cleanTitle.lowercase()}_${cleanArtist.lowercase()}"
         memoryCache[cacheKey]?.let { return@withContext it }
+        if (failedCache.contains(cacheKey)) return@withContext null
 
+        networkSemaphore.acquire()
         try {
+            memoryCache[cacheKey]?.let { return@withContext it }
             if (isArtist) {
                 val artists = AuraApplication.repository.searchArtists(cleanTitle)
                 val match = artists.firstOrNull { it.thumbnailUrl.isNotBlank() }
@@ -59,7 +64,12 @@ object DynamicCoverResolver {
                 memoryCache[cacheKey] = url
                 return@withContext url
             }
-        } catch (_: Exception) {}
+            failedCache.add(cacheKey)
+        } catch (_: Exception) {
+            failedCache.add(cacheKey)
+        } finally {
+            networkSemaphore.release()
+        }
         null
     }
 }
